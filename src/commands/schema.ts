@@ -42,7 +42,7 @@ import type { Manifest } from "../deploy-static/manifest.js";
 import { write } from "../terminal.js";
 
 /** Public repository the released schema is served from. */
-const SCHEMA_REPO = "TGod-Ajayi/nc-cli";
+const SCHEMA_REPO = "naijacloud/nc-cli";
 
 /** Builds the JSON Schema document for the manifest. */
 export function manifestJsonSchema(): Record<string, unknown> {

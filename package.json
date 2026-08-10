@@ -1,16 +1,16 @@
 {
-  "name": "naijacloud-cli",
-  "version": "0.4.0",
+  "name": "@naijacloud/cli",
+  "version": "1.0.0",
   "description": "Command-line interface for NaijaCloud hosting: authenticate, and manage projects, services, deployments, domains and environment variables. Also serves those operations to AI agents over MCP via `naijacloud mcp`.",
   "type": "module",
   "license": "MIT",
   "author": "Fawaz Adebayo <fawaz.adebayo.ajibola@gmail.com> (https://github.com/Pherwerz)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TGod-Ajayi/nc-cli.git"
+    "url": "git+https://github.com/naijacloud/nc-cli.git"
   },
-  "bugs": "https://github.com/TGod-Ajayi/nc-cli/issues",
-  "homepage": "https://github.com/TGod-Ajayi/nc-cli#readme",
+  "bugs": "https://github.com/naijacloud/nc-cli/issues",
+  "homepage": "https://github.com/naijacloud/nc-cli#readme",
   "//bin": "`njc` is a short alias for the same entrypoint. Not `nc`, which is netcat on virtually every Unix machine.",
   "bin": {
     "naijacloud": "build/cli.js",

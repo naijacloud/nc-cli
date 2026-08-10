@@ -158,7 +158,7 @@ as a floor, not a fixed schema.
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/v0.2.0/schema/naijacloud.schema.json",
+  "$schema": "https://raw.githubusercontent.com/naijacloud/nc-cli/v0.2.0/schema/naijacloud.schema.json",
   "version": 1,
   "name": "acme-marketing",
   "serviceId": "svc_01HX…",
@@ -187,7 +187,7 @@ as a floor, not a fixed schema.
 #### The schema is pinned to your CLI version
 
 A hosted schema URL, but **pinned to a release tag** rather than to a branch:
-`https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/v<version>/schema/naijacloud.schema.json`.
+`https://raw.githubusercontent.com/naijacloud/nc-cli/v<version>/schema/naijacloud.schema.json`.
 The pin is what makes it safe. An unpinned `…/main/…` reference would complete
 keys from unreleased code against a CLI that rejects them; a pinned one matches
 the binary that actually parses the file, and going stale only means *fewer*

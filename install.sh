@@ -2,7 +2,7 @@
 #
 # NaijaCloud CLI + MCP server installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/naijacloud/nc-cli/main/install.sh | sh
 #
 # Read this script before piping it to a shell. It:
 #   1. works out your platform and the release to install
@@ -19,7 +19,7 @@
 #   brew install naijacloud            # macOS / Linux
 #   scoop install naijacloud           # Windows
 #   winget install NaijaCloud.CLI      # Windows
-#   npm install -g naijacloud-cli      # any platform with Node >= 20
+#   npm install -g @naijacloud/cli      # any platform with Node >= 20
 #
 # Overridable with environment variables:
 #   NAIJACLOUD_VERSION    release to install, e.g. 0.2.0  (default: latest)
@@ -30,7 +30,7 @@
 
 set -eu
 
-REPO_SLUG="${NAIJACLOUD_REPO_SLUG:-TGod-Ajayi/nc-cli}"
+REPO_SLUG="${NAIJACLOUD_REPO_SLUG:-naijacloud/nc-cli}"
 VERSION="${NAIJACLOUD_VERSION:-latest}"
 INSTALL_DIR="${NAIJACLOUD_HOME:-$HOME/.local/share/naijacloud}"
 BIN_DIR="${NAIJACLOUD_BIN_DIR:-$HOME/.local/bin}"
@@ -72,7 +72,7 @@ case "$OS" in
   *)
     die "No prebuilt binary for '$OS'.
   On Windows use: winget install NaijaCloud.CLI  (or scoop install naijacloud)
-  Anywhere with Node >= 20: npm install -g naijacloud-cli"
+  Anywhere with Node >= 20: npm install -g @naijacloud/cli"
     ;;
 esac
 
@@ -81,7 +81,7 @@ case "$ARCH" in
   arm64|aarch64) ARCH_NAME="arm64" ;;
   *)
     die "No prebuilt binary for '$ARCH'.
-  Install with npm instead: npm install -g naijacloud-cli"
+  Install with npm instead: npm install -g @naijacloud/cli"
     ;;
 esac
 

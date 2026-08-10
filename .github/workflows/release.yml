@@ -239,26 +239,34 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/Pherwerz/homebrew-tap.git" tap
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/naijacloud/homebrew-tap.git" tap
           mkdir -p tap/Formula
           cp dist-packaging/homebrew/naijacloud.rb tap/Formula/naijacloud.rb
           cd tap
           git config user.name "naijacloud-bot"
           git config user.email "bot@naijacloud.com"
-          git commit -am "naijacloud ${VERSION}" && git push
+          # `git add`, not `commit -a`: on the first release into a fresh tap the
+          # formula is a new file, and `-a` stages only what git already tracks.
+          git add Formula/naijacloud.rb
+          # Re-running the same version is a no-op, not a failure.
+          git diff --cached --quiet || git commit -m "naijacloud ${VERSION}"
+          git push
 
       - name: Update the Scoop bucket
         if: ${{ env.TAP_TOKEN != '' }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/Pherwerz/scoop-bucket.git" bucket
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/naijacloud/scoop-bucket.git" bucket
           mkdir -p bucket/bucket
           cp dist-packaging/scoop/naijacloud.json bucket/bucket/naijacloud.json
           cd bucket
           git config user.name "naijacloud-bot"
           git config user.email "bot@naijacloud.com"
-          git commit -am "naijacloud ${VERSION}" && git push
+          # See the tap step above: a new manifest is untracked on a fresh bucket.
+          git add bucket/naijacloud.json
+          git diff --cached --quiet || git commit -m "naijacloud ${VERSION}"
+          git push
 
   # WinGet is disabled for now. It is a pull request into microsoft/winget-pkgs,
   # so it needs a fork of that repository and a classic PAT (`public_repo`) in

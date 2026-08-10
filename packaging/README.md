@@ -22,8 +22,8 @@ release proceeds.
 
 | Channel    | Command                         | Artifact                                | Needs                     |
 | ---------- | ------------------------------- | --------------------------------------- | ------------------------- |
-| npm        | `npm install -g naijacloud-cli` | `build/` (JS)                           | `NPM_TOKEN`               |
-| npx        | `npx naijacloud-cli login`      | same                                    | —                         |
+| npm        | `npm install -g @naijacloud/cli` | `build/` (JS)                           | `NPM_TOKEN`               |
+| npx        | `npx @naijacloud/cli login`      | same                                    | —                         |
 | Homebrew   | `brew install naijacloud`       | `*_darwin_*.tar.gz`, `*_linux_*.tar.gz` | a tap repo                |
 | apt        | `apt install naijacloud`        | `.deb`                                  | an apt repo + signing key |
 | yum/dnf    | `yum install naijacloud`        | `.rpm`                                  | a yum repo + signing key  |
@@ -80,12 +80,17 @@ Nothing below is created by the release workflow; each has to exist first.
 
 ### Homebrew
 
-**[`Pherwerz/homebrew-tap`](https://github.com/Pherwerz/homebrew-tap)** exists,
-with a `Formula/` directory. The workflow commits
-[the rendered formula](templates/homebrew/naijacloud.rb) into it on every
-release, so `brew install Pherwerz/tap/naijacloud` works, and
+**[`naijacloud/homebrew-tap`](https://github.com/naijacloud/homebrew-tap)** — the
+repository name must begin with `homebrew-`, because that prefix is how
+`brew tap naijacloud/tap` resolves to it. It needs an initial commit (clone
+refuses to give a branch otherwise) and a `Formula/` directory. The workflow
+commits [the rendered formula](templates/homebrew/naijacloud.rb) into it on
+every release, so `brew install naijacloud/tap/naijacloud` works, and
 `brew install naijacloud` once the tap is tapped. It still needs a `TAP_TOKEN`
 secret with write access to that repository, or the step skips.
+
+The formula was previously published to a personal tap, `Pherwerz/homebrew-tap`.
+Anyone who tapped that still points at it: `brew untap Pherwerz/tap` and re-tap.
 
 Homebrew core (plain `brew install naijacloud`, no tap) has its own bar —
 notability, a stable release history, no `HEAD`-only versions — and is worth
@@ -109,8 +114,10 @@ binary carries its own runtime.
 
 ### Scoop
 
-**[`Pherwerz/scoop-bucket`](https://github.com/Pherwerz/scoop-bucket)** exists,
-with a `bucket/` directory. The rendered
+**[`naijacloud/scoop-bucket`](https://github.com/naijacloud/scoop-bucket)** — any
+repository name works here (Scoop takes the URL directly), but `scoop-bucket` is
+the convention. Same requirements as the tap: an initial commit, and a `bucket/`
+directory. The rendered
 [manifest](templates/scoop/naijacloud.json) carries `checkver` and `autoupdate`,
 so Scoop's own bots can pick up later releases even if a workflow run is missed.
 It shares the `TAP_TOKEN` secret with the Homebrew step.
@@ -179,7 +186,7 @@ a smooth install.
 ## Cutting a release
 
 1. Bump `version` in `package.json`, commit.
-2. Tag and push: `git tag v0.2.0 && git push --tags`.
+2. Tag and push: `git tag v1.0.0 && git push --tags`.
 3. The [release workflow](../.github/workflows/release.yml) does the rest:
    cross-compiles five binaries on one runner, runs each on its native platform
    to confirm it starts and reports the expected version, generates checksums,
@@ -217,12 +224,13 @@ checksum is missing.
   not requiring Node on the target machine. `--minify` saves about 1 MB and
   costs readable stack traces, so it is off. A Go or Rust rewrite is the only
   way substantially below this.
-- **`TAP_TOKEN` is not set,** so the Homebrew and Scoop steps both skip even
-  though `Pherwerz/homebrew-tap` and `Pherwerz/scoop-bucket` now exist. It needs
-  one PAT with write access to both. Their URLs are literals in the workflow.
+- **`TAP_TOKEN` is not set,** so the Homebrew and Scoop steps both skip. It needs
+  one PAT with write access to `naijacloud/homebrew-tap` and
+  `naijacloud/scoop-bucket`. Their URLs are literals in the workflow, and both
+  repositories must exist before a tag is pushed — the steps clone them.
 - **The install script has no host.** The README documents
   `curl -fsSL https://your-domain.example/install.sh | sh`, which is still a
-  placeholder. `https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/main/install.sh`
+  placeholder. `https://raw.githubusercontent.com/naijacloud/nc-cli/main/install.sh`
   works today; a real domain is nicer to type and survives a repository rename.
 - **No release has been cut yet.** Every URL in the rendered manifests points at
   `releases/download/v<version>`, so the manifests are only valid once a tag has

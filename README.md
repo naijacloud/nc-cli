@@ -29,7 +29,7 @@ njc --help          # help is written in whichever name you used
 If you have Node.js >= 20 installed, you can install via `npm`:
 
 ```bash
-npm install -g naijacloud-cli
+npm install -g @naijacloud/cli
 ```
 
 That puts both `naijacloud` and `njc` on your PATH.
@@ -37,39 +37,43 @@ That puts both `naijacloud` and `njc` on your PATH.
 You can also execute commands directly via `npx`, although this won't add `naijacloud` or `njc` to your `PATH`:
 
 ```bash
-npx naijacloud-cli login
+npx @naijacloud/cli login
 ```
+
+> The package used to be published unscoped as `naijacloud-cli`. That name is
+> deprecated and frozen at 0.4.0 — `@naijacloud/cli` is where releases go now.
+> Nothing about usage changes; the commands are still `naijacloud` and `njc`.
 
 ### macOS
 
 **Homebrew:**
 
 ```bash
-brew install Pherwerz/tap/naijacloud
+brew install naijacloud/tap/naijacloud
 ```
 
-The formula lives in [`Pherwerz/homebrew-tap`](https://github.com/Pherwerz/homebrew-tap),
-not homebrew-core, so it needs the tap prefix. `brew tap Pherwerz/tap` once, and
+The formula lives in [`naijacloud/homebrew-tap`](https://github.com/naijacloud/homebrew-tap),
+not homebrew-core, so it needs the tap prefix. `brew tap naijacloud/tap` once, and
 plain `brew install naijacloud` works after that.
 
 ### Linux
 
 The `.deb` and `.rpm` are published as assets on each
-[GitHub release](https://github.com/TGod-Ajayi/nc-cli/releases). There is no apt
+[GitHub release](https://github.com/naijacloud/nc-cli/releases). There is no apt
 or yum repository to add — install the package directly.
 
 **Debian, Ubuntu:**
 
 ```bash
-curl -fLO https://github.com/TGod-Ajayi/nc-cli/releases/download/v0.4.0/naijacloud_0.4.0_amd64.deb
-sudo dpkg -i naijacloud_0.4.0_amd64.deb        # or _arm64.deb
+curl -fLO https://github.com/naijacloud/nc-cli/releases/download/v1.0.0/naijacloud_1.0.0_amd64.deb
+sudo dpkg -i naijacloud_1.0.0_amd64.deb        # or _arm64.deb
 ```
 
 **RedHat, Fedora, CentOS:**
 
 ```bash
-curl -fLO https://github.com/TGod-Ajayi/nc-cli/releases/download/v0.4.0/naijacloud-0.4.0-1.x86_64.rpm
-sudo rpm -i naijacloud-0.4.0-1.x86_64.rpm      # or .aarch64.rpm
+curl -fLO https://github.com/naijacloud/nc-cli/releases/download/v1.0.0/naijacloud-1.0.0-1.x86_64.rpm
+sudo rpm -i naijacloud-1.0.0-1.x86_64.rpm      # or .aarch64.rpm
 ```
 
 Both declare **no dependency on nodejs** — the binary embeds its own runtime, so
@@ -112,7 +116,7 @@ sudo yum install naijacloud
 **Scoop:**
 
 ```powershell
-scoop bucket add pherwerz https://github.com/Pherwerz/scoop-bucket
+scoop bucket add naijacloud https://github.com/naijacloud/scoop-bucket
 scoop install naijacloud
 ```
 
@@ -127,19 +131,19 @@ winget install NaijaCloud.CLI
 ```
 -->
 
-Or use the [install script](#install-script-macos-linux) under WSL, or `npm install -g naijacloud-cli` with Node >= 20.
+Or use the [install script](#install-script-macos-linux) under WSL, or `npm install -g @naijacloud/cli` with Node >= 20.
 
 ### Install script (macOS, Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/naijacloud/nc-cli/main/install.sh | sh
 ```
 
 > **Read the script before you pipe it to a shell.** Piping a URL straight into `sh` executes whatever that server returns, and a compromised or swapped host owns your account the moment you run it — this is a real supply-chain attack path, not a formality. Read it first:
 >
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/main/install.sh | less   # inspect
-> curl -fsSL https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/main/install.sh -o install.sh
+> curl -fsSL https://raw.githubusercontent.com/naijacloud/nc-cli/main/install.sh | less   # inspect
+> curl -fsSL https://raw.githubusercontent.com/naijacloud/nc-cli/main/install.sh -o install.sh
 > sh install.sh                                              # then run
 > ```
 >
@@ -151,8 +155,8 @@ Override any of it with environment variables:
 
 | Variable               | Default                     | Purpose                             |
 | ---------------------- | --------------------------- | ----------------------------------- |
-| `NAIJACLOUD_VERSION`   | `latest`                    | Release to install, e.g. `0.4.0`    |
-| `NAIJACLOUD_REPO_SLUG` | `TGod-Ajayi/nc-cli`         | GitHub `owner/repo` to install from |
+| `NAIJACLOUD_VERSION`   | `latest`                    | Release to install, e.g. `1.0.0`    |
+| `NAIJACLOUD_REPO_SLUG` | `naijacloud/nc-cli`         | GitHub `owner/repo` to install from |
 | `NAIJACLOUD_BASE_URL`  | the GitHub release          | Mirror or internal artifact host    |
 | `NAIJACLOUD_HOME`      | `~/.local/share/naijacloud` | Where the binary lives              |
 | `NAIJACLOUD_BIN_DIR`   | `~/.local/bin`              | Where the symlink goes              |
@@ -309,7 +313,7 @@ The pipeline is: run the build, archive the output, request a presigned upload s
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/v0.4.0/schema/naijacloud.schema.json",
+  "$schema": "https://raw.githubusercontent.com/naijacloud/nc-cli/v1.0.0/schema/naijacloud.schema.json",
   "version": 1,
   "name": "acme-marketing",
   "serviceId": "svc_01HX…",
@@ -406,7 +410,7 @@ naijacloud schema             # print the JSON Schema
 naijacloud schema --write     # write a local copy and point $schema at it
 ```
 
-`init` and the first deploy set `$schema` to the hosted copy for the version that wrote the file — `.../nc-cli/v0.4.0/schema/naijacloud.schema.json`, not `main`. That pin is the point: an unpinned URL would complete keys from unreleased code against a CLI that rejects them, while an older pin simply offers fewer completions, never false errors, because the format is additive-only. CI fails the build if the committed schema and the generator drift apart, so the file at a tag is exactly what that binary parses. The CLI itself never fetches it — validation is local and offline, always.
+`init` and the first deploy set `$schema` to the hosted copy for the version that wrote the file — `.../nc-cli/v1.0.0/schema/naijacloud.schema.json`, not `main`. That pin is the point: an unpinned URL would complete keys from unreleased code against a CLI that rejects them, while an older pin simply offers fewer completions, never false errors, because the format is additive-only. CI fails the build if the committed schema and the generator drift apart, so the file at a tag is exactly what that binary parses. The CLI itself never fetches it — validation is local and offline, always.
 
 If your editor cannot reach GitHub, `naijacloud schema --write` drops the document at `.naijacloud/schema.json` (self-ignoring) and repoints `$schema` at it; `init` and `deploy` then keep that copy refreshed instead of writing a URL. The generated file also ships in the package at [`schema/naijacloud.schema.json`](schema/naijacloud.schema.json).
 
@@ -567,7 +571,7 @@ No token goes into the MCP config — the server reads the credentials `naijaclo
 If you installed from source and `naijacloud` is not on your PATH, register the absolute path to the built entrypoint instead:
 
 ```bash
-claude mcp add --transport stdio naijacloud -- node /absolute/path/to/naijacloud-cli/build/cli.js mcp
+claude mcp add --transport stdio naijacloud -- node /absolute/path/to/nc-cli/build/cli.js mcp
 ```
 
 For **Claude Desktop**, add this to `claude_desktop_config.json`:
