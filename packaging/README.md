@@ -37,7 +37,9 @@ Artifact names are fixed across all of them:
 naijacloud_<version>_<os>_<arch>.tar.gz    darwin/linux, amd64/arm64
 naijacloud_<version>_windows_amd64.zip
 naijacloud_<version>_checksums.txt
-naijacloud_<version>_<arch>.deb  /  naijacloud-<version>.<arch>.rpm
+naijacloud_<version>_<arch>.deb            amd64/arm64
+naijacloud-<version>-1.<arch>.rpm          x86_64/aarch64 — nfpm adds the `-1`
+                                           release field and the RPM arch names
 ```
 
 ### Two command names

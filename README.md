@@ -1,18 +1,20 @@
 # naijacloud
 
-A single CLI that does three jobs:
+A single CLI that does four jobs:
 
-- **`naijacloud deploy`** — ship a static site from your machine in one command, and manage what is already running: projects, services, deployments, build logs, environment variables and custom domains.
-- **`naijacloud login` / `logout` / `whoami`** — authenticate against NaijaCloud from your terminal.
-- **`naijacloud mcp`** — run an [MCP](https://modelcontextprotocol.io) server over stdio so an AI agent (Claude Code, Claude Desktop, …) can do the same things: list projects and services, trigger and inspect deploys, pull build logs, attach domains, and set environment variables.
+- **[`naijacloud project`](#explore-a-project)** — the interactive view of everything you have running. It walks the resource tree the way the platform models it, **project → environment → service**, one level per screen, down to a service's deployments, variables, domains and database console. This is the command to reach for when you do not already know the name of the thing you want.
+- **[`naijacloud deploy`](#deploy-a-static-site)** — ship a static site from your machine in one command.
+- **[the flag-based commands](#manage-from-the-terminal)** — `projects`, `services`, `deployments`, `env`, `domains`, `db` and `redeploy`: the same operations as the navigator, scriptable, every one of them with `--json`.
+- **[`naijacloud mcp`](#register-with-claude-code)** — run an [MCP](https://modelcontextprotocol.io) server over stdio so an AI agent (Claude Code, Claude Desktop, …) can do most of the same things: list projects and services, trigger and inspect deploys, pull build logs, attach domains, and set environment variables.
 
-Think of it as what the Vercel CLI is for Vercel, with the agent-facing half exposed as MCP tools.
+Plus `login` / `logout` / `whoami` to authenticate. Think of it as what the Vercel CLI is for Vercel, with the agent-facing half exposed as MCP tools.
 
 Every install channel puts the command on your PATH under **two names**: `naijacloud` and the shorter **`njc`**. They are the same executable, so `njc deploy` and `naijacloud deploy` are interchangeable — this README uses the long name throughout, but you can type either.
 
 ```bash
 njc login
-njc deploy
+njc project         # look around
+njc deploy          # ship the directory you are in
 njc --help          # help is written in whichever name you used
 ```
 
@@ -43,15 +45,55 @@ npx naijacloud-cli login
 **Homebrew:**
 
 ```bash
-brew install naijacloud
+brew install Pherwerz/tap/naijacloud
 ```
 
+The formula lives in [`Pherwerz/homebrew-tap`](https://github.com/Pherwerz/homebrew-tap),
+not homebrew-core, so it needs the tap prefix. `brew tap Pherwerz/tap` once, and
+plain `brew install naijacloud` works after that.
+
 ### Linux
+
+The `.deb` and `.rpm` are published as assets on each
+[GitHub release](https://github.com/TGod-Ajayi/nc-cli/releases). There is no apt
+or yum repository to add — install the package directly.
+
+**Debian, Ubuntu:**
+
+```bash
+curl -fLO https://github.com/TGod-Ajayi/nc-cli/releases/download/v0.4.0/naijacloud_0.4.0_amd64.deb
+sudo dpkg -i naijacloud_0.4.0_amd64.deb        # or _arm64.deb
+```
+
+**RedHat, Fedora, CentOS:**
+
+```bash
+curl -fLO https://github.com/TGod-Ajayi/nc-cli/releases/download/v0.4.0/naijacloud-0.4.0-1.x86_64.rpm
+sudo rpm -i naijacloud-0.4.0-1.x86_64.rpm      # or .aarch64.rpm
+```
+
+Both declare **no dependency on nodejs** — the binary embeds its own runtime, so
+it installs on a machine that has never seen Node. Upgrading is the same file a
+version later: `dpkg -i` replaces in place, and `rpm -U` upgrades where `rpm -i`
+would refuse.
+
+Because there is no repository behind these, `apt upgrade` will not carry the
+CLI forward — you install a new release the same way you installed this one. If
+you would rather have something that resolves the latest version for you, the
+[install script](#install-script-macos-linux) does exactly that, into your home
+directory and without `sudo`.
+
+<!-- Once a signed, indexed repository exists (Cloudsmith / Packagecloud, or
+     self-hosted aptly + createrepo_c — see packaging/README.md), the two-line
+     install below replaces the blocks above. It is commented out because
+     nothing publishes to packages.naijacloud.com today: the release workflow
+     builds the .deb/.rpm and attaches them to the GitHub release, and there is
+     no repo-push step. Left here so the wording is ready when the repo is.
 
 **apt (Debian, Ubuntu):**
 
 ```bash
-curl -s https://packages.naijacloud.com/keys/naijacloud.gpg | sudo gpg --dearmor -o /usr/share/keyrings/naijacloud.gpg
+curl -fsS https://packages.naijacloud.com/keys/naijacloud.gpg | sudo gpg --dearmor -o /usr/share/keyrings/naijacloud.gpg
 echo "deb [signed-by=/usr/share/keyrings/naijacloud.gpg] https://packages.naijacloud.com/deb stable main" | sudo tee /etc/apt/sources.list.d/naijacloud.list
 sudo apt update
 sudo apt install naijacloud
@@ -63,13 +105,7 @@ sudo apt install naijacloud
 echo -e "[naijacloud]\nname=naijacloud\nbaseurl=https://packages.naijacloud.com/rpm/\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.naijacloud.com/keys/naijacloud.gpg" | sudo tee /etc/yum.repos.d/naijacloud.repo
 sudo yum install naijacloud
 ```
-
-Or install a single package straight from a [release](https://github.com/TGod-Ajayi/nc-cli/releases), with no repository:
-
-```bash
-sudo dpkg -i naijacloud_0.2.0_amd64.deb        # Debian, Ubuntu
-sudo rpm -i naijacloud-0.2.0.x86_64.rpm        # RedHat, Fedora, CentOS
-```
+-->
 
 ### Windows
 
@@ -113,13 +149,13 @@ The script downloads the release archive for your platform, **verifies its SHA-2
 
 Override any of it with environment variables:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `NAIJACLOUD_VERSION` | `latest` | Release to install, e.g. `0.2.0` |
-| `NAIJACLOUD_REPO_SLUG` | `TGod-Ajayi/nc-cli` | GitHub `owner/repo` to install from |
-| `NAIJACLOUD_BASE_URL` | the GitHub release | Mirror or internal artifact host |
-| `NAIJACLOUD_HOME` | `~/.local/share/naijacloud` | Where the binary lives |
-| `NAIJACLOUD_BIN_DIR` | `~/.local/bin` | Where the symlink goes |
+| Variable               | Default                     | Purpose                             |
+| ---------------------- | --------------------------- | ----------------------------------- |
+| `NAIJACLOUD_VERSION`   | `latest`                    | Release to install, e.g. `0.4.0`    |
+| `NAIJACLOUD_REPO_SLUG` | `TGod-Ajayi/nc-cli`         | GitHub `owner/repo` to install from |
+| `NAIJACLOUD_BASE_URL`  | the GitHub release          | Mirror or internal artifact host    |
+| `NAIJACLOUD_HOME`      | `~/.local/share/naijacloud` | Where the binary lives              |
+| `NAIJACLOUD_BIN_DIR`   | `~/.local/bin`              | Where the symlink goes              |
 
 > Every channel above except npm ships the same standalone executable, which embeds its own runtime — so `brew`, `apt`, `yum`, `scoop` and `winget` installs work on machines with no Node at all. Packaging details, and what a release runs, are in [`packaging/README.md`](packaging/README.md).
 
@@ -159,13 +195,73 @@ naijacloud logout    # deletes ~/.naijacloud/config.json (friendly no-op if abse
 
 ### Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `HOSTING_API_TOKEN` | — | Access token. **Takes precedence over the stored credentials**, so an MCP host can override the account per-server (CI, a second account). |
-| `HOSTING_API_BASE_URL` | `https://api.naijacloud.com` | API base URL |
-| `HOSTING_API_TIMEOUT_MS` | `30000` | Per-request timeout |
+| Variable                       | Default                      | Purpose                                                                                                                                    |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HOSTING_API_TOKEN`            | —                            | Access token. **Takes precedence over the stored credentials**, so an MCP host can override the account per-server (CI, a second account). |
+| `HOSTING_API_BASE_URL`         | `https://api.naijacloud.com` | API base URL                                                                                                                               |
+| `HOSTING_API_TIMEOUT_MS`       | `30000`                      | Per-request timeout                                                                                                                        |
+| `HOSTING_UPLOAD_TIMEOUT_MS`    | `600000`                     | Timeout for the static-site upload, which is a single large PUT rather than a GraphQL call                                                 |
+| `NAIJACLOUD_DEPLOY_TIMEOUT_MS` | `900000`                     | How long `deploy` and `redeploy` wait for a build to reach a terminal state                                                                |
 
 Token resolution order is `HOSTING_API_TOKEN` → `~/.naijacloud/config.json`. If neither is present, every tool call fails immediately with `Not logged in. Run 'naijacloud login' first.` — never a raw 401.
+
+---
+
+## Explore a project
+
+`naijacloud project` walks the resource tree the way the platform actually
+models it — **project → environment → service** — one level per screen:
+
+```
+$ naijacloud project
+
+karakata · environments
+❯ dev                5 services · Europe (West) · 4 replicas · live
+
+  + New environment
+
+karakata / dev
+❯ karakata-api            WEB · ACTIVE · HEALTHY · https://karakataapi.naijacloud.app
+  karakata-dev            MYSQL · ACTIVE
+  karakata-user-frontend  WEB · ACTIVE · HEALTHY · https://karakatauserfrontend.naijacloud.app
+
+  + New database          Postgres · MySQL · MariaDB · MongoDB · Redis · Valkey
+```
+
+The environment level is not decoration. A service belongs to an _environment_
+inside a project, not to the project directly, and which one it is decides
+whether a redeploy is a production act — so it stays on screen the whole way
+down, and a redeploy confirms against it by name.
+
+In a directory with a [`naijacloud.json`](#naijacloudjson) — the manifest a
+deploy writes — `project` opens that project directly. Otherwise it asks.
+`naijacloud project <name|id>` targets one outright.
+
+### What a service offers depends on its type
+
+```
+karakata / dev / karakata-api        karakata / dev / karakata-dev
+❯ Overview                           ❯ Overview
+  Deployments                          Connection details
+  Variables                            Tables
+  Domains                              SQL console    opens a shell
+  Runtime logs  not implemented        Backups        not implemented (Tier 2)
+  Redeploy
+```
+
+A web service has deployments, variables and domains; a cron job has no domains;
+a database has credentials instead. Capabilities the API cannot back yet are
+listed and greyed out rather than hidden, so the menu stays an honest map of
+what exists.
+
+Everything here is a view onto the same operations the
+[flag-based commands](#manage-from-the-terminal) use — values are masked exactly
+as `env ls` masks them, and a database password needs the same deliberate
+keypress to reveal. Nothing is available in the navigator that you cannot also
+script, and nothing is scriptable that the navigator hides.
+
+Navigation is `↑↓` (or `j`/`k`), `↵` to select, `q` to go back. It needs a real
+terminal; in a pipe or CI it fails and names the scriptable equivalent.
 
 ---
 
@@ -213,10 +309,11 @@ The pipeline is: run the build, archive the output, request a presigned upload s
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/v0.2.0/schema/naijacloud.schema.json",
+  "$schema": "https://raw.githubusercontent.com/TGod-Ajayi/nc-cli/v0.4.0/schema/naijacloud.schema.json",
   "version": 1,
   "name": "acme-marketing",
   "serviceId": "svc_01HX…",
+  "environmentId": "env_01HX…",
   "build": "npm run build",
   "output": "dist",
   "spa": true,
@@ -224,15 +321,16 @@ The pipeline is: run the build, archive the output, request a presigned upload s
 }
 ```
 
-| Field | Purpose |
-| --- | --- |
-| `name` | Site name, used for the `*.naijacloud.com` subdomain. First deploy only. |
-| `serviceId` | Written by the first successful deploy. **Its presence is what makes the next deploy a redeploy.** |
-| `build` | Run locally before archiving. A non-zero exit aborts before anything is uploaded. |
-| `output` | Directory to deploy, relative to the manifest. May also be a single `.html` file. |
-| `spa` | Serve the entry file for unmatched paths, so client-side routes survive a refresh. |
-| `index` | Entry file, when it is not `index.html`. |
-| `ignore` | Globs excluded from the archive. |
+| Field           | Purpose                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`          | Site name, used for the `*.naijacloud.com` subdomain. First deploy only.                                                                         |
+| `serviceId`     | Written by the first successful deploy. **Its presence is what makes the next deploy a redeploy.**                                               |
+| `environmentId` | The environment the site was created in, written when `--env` or the setup question picked one. Absent when the platform placed the site itself. |
+| `build`         | Run locally before archiving. A non-zero exit aborts before anything is uploaded.                                                                |
+| `output`        | Directory to deploy, relative to the manifest. May also be a single `.html` file.                                                                |
+| `spa`           | Serve the entry file for unmatched paths, so client-side routes survive a refresh.                                                               |
+| `index`         | Entry file, when it is not `index.html`.                                                                                                         |
+| `ignore`        | Globs excluded from the archive.                                                                                                                 |
 
 Commit it. The `serviceId` is not a secret — it is only actionable with credentials for the owning team — and committing it is what lets CI deploy from a clean checkout with no linking step and no extra configuration.
 
@@ -240,17 +338,41 @@ Commit it. The `serviceId` is not a secret — it is only actionable with creden
 
 ### Options
 
-| Flag | Effect |
-| --- | --- |
-| `--prebuilt` | Skip the manifest's build command; the output is already built. |
-| `--new` | Create a new site, ignoring the manifest's `serviceId`. |
-| `--env <project/environment>` | Create the site inside a specific environment. Recorded in the manifest as `environmentId`. |
-| `--yes` | Accept detected defaults instead of prompting. Required for a first deploy in CI. |
-| `--no-wait` | Return as soon as the build is queued. |
-| `--json` | Machine-readable result on stdout. |
-| `--name` `--output` `--index` `--spa` / `--no-spa` | One-off overrides of the manifest fields. |
+| Flag                                               | Effect                                                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `--prebuilt`                                       | Skip the manifest's build command; the output is already built.                             |
+| `--new`                                            | Create a new site, ignoring the manifest's `serviceId`.                                     |
+| `--env <project/environment>`                      | Create the site inside a specific environment. Recorded in the manifest as `environmentId`. |
+| `--yes`                                            | Accept detected defaults instead of prompting. Required for a first deploy in CI.           |
+| `--no-wait`                                        | Return as soon as the build is queued.                                                      |
+| `--json`                                           | Machine-readable result on stdout.                                                          |
+| `--name` `--output` `--index` `--spa` / `--no-spa` | One-off overrides of the manifest fields.                                                   |
 
 A positional path deploys that directory directly: `naijacloud deploy ./dist` treats it as already built.
+
+### Writing the manifest without deploying
+
+```bash
+naijacloud init                  # same questions, same file, no deploy
+naijacloud init --yes            # accept every detected default
+naijacloud init --force          # rewrite an existing manifest
+```
+
+Nobody strictly needs this — a first `naijacloud deploy` asks the same questions
+and writes the same file, from the same code. It exists for when configuring the
+repo and shipping the site are separate acts: setting up CI before the build
+works, reviewing the manifest in a pull request, or committing it from a machine
+with no credentials. It takes the same `--name` / `--output` / `--index` /
+`--spa` / `--env` flags as `deploy`.
+
+The one thing it cannot do is invent a `serviceId` — that only exists once a
+deploy has created a site — so the manifest it writes always means "create a new
+site on the next deploy". An existing `serviceId` is carried over untouched, so
+`--force` re-answers the questions without unlinking the site.
+
+Unlike `deploy`, `init` does not walk up the tree looking for a manifest: it
+reads and writes the one in the directory you point it at, so initialising a
+subdirectory never silently edits its parent's.
 
 ### Where the site lands
 
@@ -284,7 +406,7 @@ naijacloud schema             # print the JSON Schema
 naijacloud schema --write     # write a local copy and point $schema at it
 ```
 
-`init` and the first deploy set `$schema` to the hosted copy for the version that wrote the file — `.../nc-cli/v0.2.0/schema/naijacloud.schema.json`, not `main`. That pin is the point: an unpinned URL would complete keys from unreleased code against a CLI that rejects them, while an older pin simply offers fewer completions, never false errors, because the format is additive-only. CI fails the build if the committed schema and the generator drift apart, so the file at a tag is exactly what that binary parses. The CLI itself never fetches it — validation is local and offline, always.
+`init` and the first deploy set `$schema` to the hosted copy for the version that wrote the file — `.../nc-cli/v0.4.0/schema/naijacloud.schema.json`, not `main`. That pin is the point: an unpinned URL would complete keys from unreleased code against a CLI that rejects them, while an older pin simply offers fewer completions, never false errors, because the format is additive-only. CI fails the build if the committed schema and the generator drift apart, so the file at a tag is exactly what that binary parses. The CLI itself never fetches it — validation is local and offline, always.
 
 If your editor cannot reach GitHub, `naijacloud schema --write` drops the document at `.naijacloud/schema.json` (self-ignoring) and repoints `$schema` at it; `init` and `deploy` then keep that copy refreshed instead of writing a URL. The generated file also ships in the package at [`schema/naijacloud.schema.json`](schema/naijacloud.schema.json).
 
@@ -292,64 +414,11 @@ Unknown keys are reported and preserved, never rejected — an older CLI can sti
 
 ---
 
-## Explore a project
-
-`naijacloud project` walks the resource tree the way the platform actually
-models it — **project → environment → service** — one level per screen:
-
-```
-$ naijacloud project
-
-karakata · environments
-❯ dev                5 services · Europe (West) · 4 replicas · live
-
-  + New environment
-
-karakata / dev
-❯ karakata-api            WEB · ACTIVE · HEALTHY · https://karakataapi.naijacloud.app
-  karakata-dev            MYSQL · ACTIVE
-  karakata-user-frontend  WEB · ACTIVE · HEALTHY · https://karakatauserfrontend.naijacloud.app
-
-  + New database          Postgres · MySQL · MariaDB · MongoDB · Redis · Valkey
-```
-
-The environment level is not decoration. A service belongs to an *environment*
-inside a project, not to the project directly, and which one it is decides
-whether a redeploy is a production act — so it stays on screen the whole way
-down, and a redeploy confirms against it by name.
-
-In a directory with a `naijacloud.json`, `project` opens that project directly.
-Otherwise it asks. `naijacloud project <name|id>` targets one outright.
-
-### What a service offers depends on its type
-
-```
-karakata / dev / karakata-api        karakata / dev / karakata-dev
-❯ Overview                           ❯ Overview
-  Deployments                          Connection details
-  Variables                            Tables
-  Domains                              SQL console    opens a shell
-  Runtime logs  not implemented        Backups        not implemented (Tier 2)
-  Redeploy
-```
-
-A web service has deployments, variables and domains; a cron job has no domains;
-a database has credentials instead. Capabilities the API cannot back yet are
-listed and greyed out rather than hidden, so the menu stays an honest map of
-what exists.
-
-Everything here is a view onto the same operations the flag-based commands use —
-values are masked exactly as `env ls` masks them, and a database password needs
-the same deliberate keypress to reveal.
-
-Navigation is `↑↓` (or `j`/`k`), `↵` to select, `q` to go back. It needs a real
-terminal; in a pipe or CI it fails and names the scriptable equivalent.
-
----
-
 ## Manage from the terminal
 
-Everything the agent can do, you can do at a prompt.
+Everything [the navigator](#explore-a-project) shows and everything the agent can
+do, you can also do at a prompt — named, flagged and scriptable. The navigator is
+for looking around; these are for when you already know what you want.
 
 ```bash
 naijacloud projects ls                     # every project, across every team
@@ -528,19 +597,25 @@ The Inspector opens a browser UI where you can list the tools and call them indi
 
 All eleven tools, as the agent sees them:
 
-| Tool | Parameters | Notes |
-| --- | --- | --- |
-| `list_projects` | — | Every project across all your teams. Read-only. |
-| `get_project` | `projectId` | Project + its environments + the services in each. **This is how you get a `serviceId`.** Read-only. |
-| `list_deployments` | `serviceId` \| `projectId` | Exactly one. `projectId` fans out across the project's services. Read-only. |
-| `get_deployment` | `deploymentId` | Status, branch, commit, and failure reason. Read-only. |
-| `create_deployment` | `serviceId`, `branch?`, `commit?` | Triggers a build + release. Read the environment note below. |
-| `delete_deployment` | `deploymentId`, `confirm` | **Cancels** — see below. Requires `confirm: true`. |
-| `get_deployment_logs` | `deploymentId`, `limit?` | Build/runtime lines with level and stream. Read-only. |
-| `list_domains` | `serviceId` \| `projectId` | Custom domains + the DNS records they need. Read-only. |
-| `add_domain` | `serviceId`, `domain` | Attaches a domain; returns the DNS target to point at. |
-| `list_env_vars` | `serviceId` \| `projectId` | **Values always masked.** Read-only. |
-| `set_env_var` | `serviceId`, `key`, `value`, `target?`, `secret?`, `confirm` | Upserts one variable. Requires `confirm: true`. |
+| Tool                  | Parameters                                                   | Notes                                                                                                |
+| --------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `list_projects`       | —                                                            | Every project across all your teams. Read-only.                                                      |
+| `get_project`         | `projectId`                                                  | Project + its environments + the services in each. **This is how you get a `serviceId`.** Read-only. |
+| `list_deployments`    | `serviceId` \| `projectId`                                   | Exactly one. `projectId` fans out across the project's services. Read-only.                          |
+| `get_deployment`      | `deploymentId`                                               | Status, branch, commit, and failure reason. Read-only.                                               |
+| `create_deployment`   | `serviceId`, `branch?`, `commit?`                            | Triggers a build + release. Read the environment note below.                                         |
+| `delete_deployment`   | `deploymentId`, `confirm`                                    | **Cancels** — see below. Requires `confirm: true`.                                                   |
+| `get_deployment_logs` | `deploymentId`, `limit?`                                     | Build/runtime lines with level and stream. Read-only.                                                |
+| `list_domains`        | `serviceId` \| `projectId`                                   | Custom domains + the DNS records they need. Read-only.                                               |
+| `add_domain`          | `serviceId`, `domain`                                        | Attaches a domain; returns the DNS target to point at.                                               |
+| `list_env_vars`       | `serviceId` \| `projectId`                                   | **Values always masked.** Read-only.                                                                 |
+| `set_env_var`         | `serviceId`, `key`, `value`, `target?`, `secret?`, `confirm` | Upserts one variable. Requires `confirm: true`.                                                      |
+
+The MCP surface is deliberately narrower than the CLI's. Static deploys read and
+write the local filesystem, and the database console runs write-capable SQL
+whose guardrails are a terminal prompt — neither survives the translation to a
+tool call an agent makes on its own, so `deploy`, `init` and `db` stay
+CLI-only.
 
 ### Safety behaviour
 
@@ -552,18 +627,6 @@ All eleven tools, as the agent sees them:
 
 ---
 
-## How this maps onto NaijaCloud's actual API
-
-Worth knowing, because the resource model is **not** Vercel's.
-
-**The control plane is GraphQL, not REST.** It lives at `https://api.naijacloud.com/graphql` and authenticates with `Authorization: Bearer <accessToken>`. NaijaCloud's published documentation covers the dashboard only — there is no REST API reference and no `/v1/...` surface (every such path 404s). The operations in [`src/api-client.ts`](src/api-client.ts) were taken from the live schema by introspection, so they are the real operation names and argument types rather than invented paths. You can re-derive the schema yourself:
-
-```bash
-curl -sS -X POST https://api.naijacloud.com/graphql \
-  -H 'content-type: application/json' \
-  -d '{"query":"{ __schema { mutationType { fields { name } } } }"}'
-```
-
 **The hierarchy is `Team → Project → Environment → Service → Deployment`.** Deployments, custom domains and environment variables all belong to a **service**, not to a project. That is why most tools take a `serviceId`, with `projectId` accepted as a convenience that fans out over the project's services in one nested query. `get_project` is the discovery hop that turns a project into service ids.
 
 Three places where the requested tool shape and the platform genuinely disagree, and what this CLI does about it:
@@ -574,12 +637,12 @@ Three places where the requested tool shape and the platform genuinely disagree,
 
 **Environment variable scopes.** NaijaCloud's scopes are `PROD`, `UAT`, `DEV` and `ALL`. The tool's `target` parameter maps onto them:
 
-| `target` | NaijaCloud scope |
-| --- | --- |
-| `production` *(default)* | `PROD` |
-| `preview` | `UAT` — NaijaCloud's pre-production scope; there is no `PREVIEW` |
-| `development` | `DEV` |
-| `all` | `ALL` |
+| `target`                 | NaijaCloud scope                                                 |
+| ------------------------ | ---------------------------------------------------------------- |
+| `production` _(default)_ | `PROD`                                                           |
+| `preview`                | `UAT` — NaijaCloud's pre-production scope; there is no `PREVIEW` |
+| `development`            | `DEV`                                                            |
+| `all`                    | `ALL`                                                            |
 
 `setEnvVars` upserts by key (the platform has a separate `deleteEnvVar` mutation for removal), so setting one variable leaves the service's others untouched. The response reports `needsRedeploy` when the service must be redeployed for the change to take effect.
 
@@ -595,32 +658,49 @@ Three places where the requested tool shape and the platform genuinely disagree,
 ├── schema
 │   └── naijacloud.schema.json    # generated from src/deploy-static/manifest.ts
 ├── scripts
-│   ├── build-binary.mjs    # esbuild + Node SEA -> standalone executable
+│   ├── build-binary.mjs    # bun build --compile -> standalone executable
 │   └── render-packaging.mjs # fills the package manifests from real checksums
 ├── packaging               # Homebrew / nfpm / Scoop / WinGet + how to release
 ├── .github/workflows       # ci.yml, release.yml
 └── src
     ├── cli.ts              # entrypoint: arg parsing and dispatch
+    ├── program-name.ts     # whether this run is `naijacloud` or `njc`
     ├── terminal.ts         # stderr prompts; refuses to block without a TTY
+    ├── interactive.ts      # arrow-key selection for the `project` navigator
+    ├── output.ts           # one aligned table for humans, one JSON for scripts
     ├── api
     │   ├── transport.ts    # GraphQL execute/authed, errors, configuration
     │   ├── types.ts        # the schema subset the CLI surfaces
     │   ├── fields.ts       # shared field selections
     │   ├── account.ts      # me, login
     │   ├── projects.ts     # teams, projects, environments, services
+    │   ├── environments.ts # environments, and creating services inside them
     │   ├── deployments.ts  # history, trigger, cancel, logs
     │   ├── domains.ts      # custom domains
     │   ├── env-vars.ts     # environment variables
+    │   ├── database.ts     # write-capable query, tables, dump, export
     │   ├── static-sites.ts # presigned upload, deploy, redeploy
     │   └── index.ts        # barrel — callers import from here
     ├── auth
     │   └── credentials.ts  # the 0600 credential file and token resolution
     ├── commands
     │   ├── auth.ts         # login / logout / whoami
+    │   ├── init.ts         # write a naijacloud.json without deploying
     │   ├── deploy.ts       # build → archive → upload → release → poll
+    │   ├── project.ts      # the interactive project → environment → service view
+    │   ├── projects.ts     # projects ls | show
+    │   ├── services.ts     # services ls | show
+    │   ├── deployments.ts  # deployments ls|show|logs|cancel, redeploy
+    │   ├── env.ts          # env ls | set | rm, and the masking
+    │   ├── domains.ts      # domains ls | add | verify | rm
+    │   ├── db.ts           # the SQL console and its confirmation rules
+    │   ├── resolve.ts      # name or id → the UUID the API wants
+    │   ├── wait.ts         # polling a deployment to a terminal state
     │   └── schema.ts       # JSON Schema generation + the `schema` command
     ├── deploy-static
     │   ├── manifest.ts     # naijacloud.json: schema, detection, file selection
+    │   ├── configure.ts    # the questions init and the first deploy share
+    │   ├── target.ts       # "where should this site live?" — the environment
     │   └── zip.ts          # dependency-free ZIP writer (node:zlib)
     ├── mcp
     │   └── server.ts       # the MCP server and its eleven tools
@@ -635,5 +715,25 @@ npm run build       # compile src/ -> build/, regenerate schema/naijacloud.schem
 npm run typecheck   # types only, no emit
 npm run inspector   # build/cli.js mcp under the MCP Inspector
 npm run binary      # standalone executable for this platform, into dist-bin/
+npm run binary:all  # cross-compile every platform from this one
 npm run packaging   # render the Homebrew / Scoop / WinGet manifests
 ```
+
+The binary builds shell out to [Bun](https://bun.sh) — `bun build --compile`
+bundles `src/cli.ts` into a copy of the Bun runtime. Unlike Node's SEA support
+it **cross-compiles**, so one Linux runner produces every platform's artifact,
+and Bun ad-hoc signs its own Mach-O output, which is why nothing here needs a
+macOS host or a `codesign` step. Only the binary targets need Bun; `npm run
+build`, `typecheck` and the published npm package are plain Node.
+
+The Windows `.zip` is written by the CLI's own archiver
+([`src/deploy-static/zip.ts`](src/deploy-static/zip.ts)) rather than an external
+tool, because no external one exists in both places it has to work: `zip` is
+absent from the Windows runner image, and `Compress-Archive` cannot run on the
+Linux box that cross-builds the Windows target. That means the binary build
+needs `npm run build` to have run first, which `npm run binary` and the
+workflows all do.
+
+CI pins the same Bun version the release uses, and compiles the binary on Linux,
+macOS and Windows on every push, because a packaging break is invisible to `tsc`
+and only shows up when the executable is assembled.
