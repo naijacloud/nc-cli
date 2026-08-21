@@ -29,6 +29,23 @@ export type ServiceType =
 
 export type EnvVarScope = "ALL" | "PROD" | "UAT" | "DEV";
 
+/**
+ * Where a service's code comes from.
+ *
+ * These two are the whole enum. There is deliberately no "upload" member: the
+ * platform builds a web service from a connected repository or runs a prebuilt
+ * image, and the only thing that accepts uploaded bytes is a STATIC service via
+ * `staticUploadId`. That is why `services create` cannot take a local directory
+ * for a web service, and why `deploy` remains the path for local code.
+ */
+export type SourceType = "GITHUB_APP" | "DOCKER_IMAGE";
+
+/** Resource sizes a service can be created at. */
+export type ServiceTier = "STARTER" | "STANDARD" | "PRO";
+
+/** How a service inside a monorepo is built. */
+export type MonorepoStrategy = "WORKSPACE" | "ISOLATED";
+
 /** The `target` values the MCP tools accept, and how they map onto EnvVarScope. */
 export type EnvTarget = "production" | "preview" | "development" | "all";
 
@@ -229,6 +246,47 @@ export interface CustomDomain {
 
 export interface DomainWithService extends CustomDomain {
   serviceName?: string;
+}
+
+/**
+ * One variable as `createService` and `setEnvVars` accept it.
+ *
+ * The same input type serves both, which is what lets a service be created with
+ * its configuration already in place instead of being created empty, built,
+ * crashed, and then fixed up.
+ */
+export interface EnvVarInput {
+  key: string;
+  value: string;
+  scope?: EnvVarScope;
+  secret?: boolean;
+}
+
+/**
+ * What the platform inferred about how to build a connected repository.
+ *
+ * Every field is nullable and in practice most of them often are — detection
+ * looks at the repository's default branch and gives up quietly rather than
+ * guessing. Treat it as a source of *defaults for a prompt*, never as an answer:
+ * a flow that assumes `startCommand` is populated will create services that
+ * cannot boot.
+ */
+export interface DetectedBuild {
+  framework: string | null;
+  runtime: string | null;
+  runtimeVersion: string | null;
+  buildCommand: string | null;
+  startCommand: string | null;
+  port: number | null;
+  packageManager: string | null;
+  monorepoStrategy: MonorepoStrategy | null;
+}
+
+/** A repository the team's GitHub App installation can see. */
+export interface InstallationRepo {
+  fullName: string;
+  private: boolean;
+  defaultBranch: string | null;
 }
 
 export interface ServiceEnvVar {

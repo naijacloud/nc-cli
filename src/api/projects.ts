@@ -59,6 +59,52 @@ export async function listProjects(): Promise<ProjectWithTeam[]> {
   return await projectsAcrossTeams(PROJECT_FIELDS);
 }
 
+/**
+ * Creates a project inside a team.
+ *
+ * `teamId` is required by the schema and has no default, so a caller with more
+ * than one team must choose — which is why the interactive flows ask for the
+ * team first and the flag-driven ones take `--team`.
+ *
+ * A new project arrives with whatever environments the platform seeds it with,
+ * so the returned `environments` is read rather than assumed: it may be empty,
+ * and `createEnvironment` is what fills it.
+ */
+export async function createProject(input: {
+  teamId: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+}): Promise<Project> {
+  const data = await authed<{ createProject: Project }>(
+    `
+      mutation CreateProject(
+        $teamId: ID!
+        $name: String!
+        $displayName: String
+        $description: String
+      ) {
+        createProject(
+          teamId: $teamId
+          name: $name
+          displayName: $displayName
+          description: $description
+        ) {
+          ${PROJECT_FIELDS}
+          environments { id name isPreview }
+        }
+      }
+    `,
+    {
+      teamId: input.teamId,
+      name: input.name,
+      displayName: input.displayName ?? null,
+      description: input.description ?? null,
+    },
+  );
+  return data.createProject;
+}
+
 /** One `project / environment` pair — a place a service can be created. */
 export interface EnvironmentChoice {
   projectId: string;

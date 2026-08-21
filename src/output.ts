@@ -52,6 +52,23 @@ export function printTable<T>(
     process.stderr.write(`${indent}${empty}\n`);
     return;
   }
+  process.stdout.write(renderTable(rows, columns, indent));
+}
+
+/**
+ * The same table as a string, for callers that are not writing a *result*.
+ *
+ * A table shown inside a prompt — "here is what I am about to import, confirm?"
+ * — is progress, and progress belongs on stderr with the rest of the questions.
+ * Returning the text rather than adding a stream argument keeps the choice of
+ * destination at the call site, where the answer is obvious.
+ */
+export function renderTable<T>(
+  rows: readonly T[],
+  columns: readonly Column<T>[],
+  indent = "",
+): string {
+  if (rows.length === 0) return "";
 
   const body = rows.map((row) => columns.map((column) => cell(column.value(row))));
   const widths = columns.map((column, index) =>
@@ -70,7 +87,7 @@ export function printTable<T>(
       .trimEnd();
 
   const lines = [render(columns.map((column) => column.header)), ...body.map(render)];
-  process.stdout.write(`${lines.map((line) => `${indent}${line}`).join("\n")}\n`);
+  return `${lines.map((line) => `${indent}${line}`).join("\n")}\n`;
 }
 
 /**

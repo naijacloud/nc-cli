@@ -8,7 +8,14 @@
 
 import { authed } from "./transport.js";
 import { SERVICE_FIELDS } from "./fields.js";
-import type { ServiceSummary, ServiceType } from "./types.js";
+import type {
+  EnvVarInput,
+  MonorepoStrategy,
+  ServiceSummary,
+  ServiceTier,
+  ServiceType,
+  SourceType,
+} from "./types.js";
 
 export interface EnvironmentRef {
   id: string;
@@ -95,6 +102,63 @@ export async function createStaticService(input: {
       }
     `,
     { input: { ...input, type: "STATIC" } },
+  );
+  return data.createService;
+}
+
+/**
+ * Creates a service that runs code — a web service or a cron job.
+ *
+ * The counterpart to `createDatastore`: same mutation, the other half of
+ * `CreateServiceInput`. Where a datastore fills in almost nothing, this fills in
+ * where the code comes from and how to build it.
+ *
+ * **Source is not optional in practice.** `sourceType` has exactly two members,
+ * `GITHUB_APP` and `DOCKER_IMAGE`, and there is no upload variant — so a web
+ * service is either a connected repository or a prebuilt image, and local code
+ * has no path here at all. Callers that want to ship a directory want
+ * `createStaticService`, or `deploy`.
+ *
+ * `envVars` is the reason this takes configuration rather than being followed by
+ * a `setEnvVars` call: the first build starts as soon as the service exists, so
+ * variables supplied here are present for it. Setting them afterwards means the
+ * first build ran without them.
+ */
+export async function createRuntimeService(input: {
+  environmentId: string;
+  name: string;
+  /** WEB or CRON. Datastores go through `createDatastore`. */
+  type: ServiceType;
+  sourceType?: SourceType;
+  /** `owner/repo`, for a GITHUB_APP source. */
+  repoFullName?: string;
+  branch?: string;
+  /** Image reference, for a DOCKER_IMAGE source. */
+  image?: string;
+  buildCommand?: string;
+  startCommand?: string;
+  runtimeVersion?: string;
+  port?: number;
+  rootDir?: string;
+  watchPaths?: string;
+  monorepoStrategy?: MonorepoStrategy;
+  /** Cron expression; only meaningful when `type` is CRON. */
+  schedule?: string;
+  healthCheckPath?: string;
+  region?: string;
+  tier?: ServiceTier;
+  envVars?: EnvVarInput[];
+}): Promise<ServiceSummary> {
+  const data = await authed<{ createService: ServiceSummary }>(
+    `
+      mutation CreateRuntimeService($input: CreateServiceInput!) {
+        createService(input: $input) { ${SERVICE_FIELDS} }
+      }
+    `,
+    // Undefined keys are dropped by JSON.stringify, so an omitted option never
+    // reaches the API as an explicit null — which the schema would treat as
+    // "clear this", not "leave it to the platform".
+    { input },
   );
   return data.createService;
 }

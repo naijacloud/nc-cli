@@ -44,6 +44,7 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
   [
     "Ship",
     [
+      ["launch [dir]", "Guided: project → environment → service"],
       ["deploy [dir]", "Build, upload and release a static site"],
       ["redeploy [service]", "Rebuild a repo-connected service from its branch"],
       ["init [dir]", "Write a naijacloud.json, without deploying"],
@@ -59,11 +60,12 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
   [
     "Resources",
     [
-      ["projects ls|show", "Projects, environments and their services"],
-      ["services ls|show", "Services this account can reach"],
+      ["projects ls|show|create", "Projects, environments and their services"],
+      ["environments ls|create|rm", "Environments inside a project"],
+      ["services ls|show|create", "Services this account can reach"],
       ["deployments ls|show|logs", "Deployment history and build output"],
       ["cancel <deployment>", "Stop an in-flight deployment"],
-      ["env ls|set|rm", "Environment variables on a service"],
+      ["env ls|set|rm|import", "Environment variables on a service"],
       ["domains ls|add|verify|rm", "Custom domains on a service"],
       ["db query|shell|tables", "SQL console; also describe, dump, export"],
     ],
@@ -108,6 +110,52 @@ Resource options
   Services and projects are named or referenced by id. Where one name matches
   two services, qualify it as project/name.
 
+Launch options
+  --dotenv <path>              Seed the new service from this .env
+  --no-env-file                Do not look for or ask about a .env
+  --no-wait                    Return once the first build is queued
+
+  Walks team → project → environment → service, creating each level that does
+  not exist yet. A web service or cron job is built from a connected GitHub
+  repository; a static site is built here and uploaded. For a service that
+  needs configuration it offers the .env it finds, shows what is in it with the
+  values masked, and passes it to \`createService\` — so the first build already
+  has it, instead of failing and being fixed afterwards.
+
+Projects create options
+  --team <name|id>             Team to own it; required if you have several
+  --description <text>         Freeform description
+  --display-name <text>        Human-facing name, when it differs from --name
+
+Environments options
+  --project <name|id>          Project to list in or create under (required)
+  --yes                        Skip the confirmation on rm
+
+  \`environments rm\` deletes every service in the environment with it, so the
+  prompt names them. Spelled in full because \`env\` is variables, not this.
+
+Services create options
+  --env <project/environment>  Where it lives (required)
+  --repo <owner/repo>          GitHub repository to build from (required)
+  --branch <name>              Branch to build (default: the repo's own)
+  --type <web|cron>            Kind of service (default web)
+  --schedule <cron>            Cron expression; required for --type cron
+  --build <command>            Build command
+  --start <command>            Start command
+  --port <n>                   Port the service listens on
+  --root-dir <path>            Subdirectory to build, for a monorepo
+  --runtime-version <version>  Runtime version, when not the default
+  --health-check <path>        HTTP path polled for health
+  --region <key>               Region, when not the team's default
+  --tier <starter|standard|pro>  Resource size
+  --dotenv <path>              Seed the service with this .env
+  --no-env-file                Do not look for a .env
+  --no-wait                    Return once the first build is queued
+
+  A repository is the only source: the platform builds from a repo it can
+  reach, and there is no upload-and-build path for a web service. Local code is
+  either a static site (\`deploy\`) or it is in a repo.
+
 Env options
   --reveal                     Print values, which are masked by default
   --scope <all|prod|uat|dev>   Scope to write (default prod; uat = preview)
@@ -115,6 +163,27 @@ Env options
 
   \`env set KEY\` with no value reads it from a hidden prompt, or from stdin
   when piped — so a credential need not land in your shell history.
+
+Env import options  (\`env import [file]\`)
+  --env <project/environment>  Derive the scope from this environment
+  --scope <all|prod|uat|dev>   Scope to write, instead of deriving it
+  --secret                     Mark every imported variable secret
+  --yes                        Skip the preview and the confirmation
+
+  Upserts: keys in the file are written, keys only on the service are left
+  alone. Without --scope the scope follows the environment — UAT for a preview
+  one, PROD otherwise — because a variable written to a scope the environment
+  never reads looks like a success and behaves like a missing variable.
+  Secrets are guessed from the key name and shown before anything is written.
+
+  With no path it reads the .env in this directory. \`launch\` and
+  \`services create\` are the opposite: without a terminal they never pick one up
+  unless --dotenv names it, so a stray .env in a CI checkout cannot become
+  configuration nobody asked for.
+
+  It is --dotenv and not --env-file because Node owns that name from v20.6: it
+  loads the file into its own environment and exits before this CLI starts if
+  the path is missing. --env-file is still accepted where Node lets it through.
 
 Db options
   --max-rows <n>               Cap rows returned by a query
@@ -256,6 +325,7 @@ const RESOURCE_BOOLEANS = new Set([
   "secret",
   "wait",
   "no-wait",
+  "no-env-file",
 ]);
 
 /**
@@ -271,6 +341,22 @@ function tristate(flags: Map<string, string>, name: string): boolean | undefined
 /** An optional flag value, with empty treated as absent. */
 function value(flags: Map<string, string>, name: string): string | undefined {
   return flags.get(name) || undefined;
+}
+
+/**
+ * The `.env` to seed a new service from.
+ *
+ * Spelled `--dotenv` because **Node itself owns `--env-file`** from v20.6: it
+ * scans for the flag even after the script path, loads that file into
+ * `process.env`, and — when the path does not exist — exits with code 9 before
+ * a single line of this CLI runs. Neither behaviour is ours to intercept, so the
+ * flag that always works has a name Node does not take.
+ *
+ * `--env-file` is still accepted, because it is the name people reach for and it
+ * does work when the file exists. `--dotenv` wins if both are given.
+ */
+function dotenvFlag(flags: Map<string, string>): string | undefined {
+  return value(flags, "dotenv") ?? value(flags, "env-file");
 }
 
 /** A positive integer flag, rejected loudly rather than silently ignored. */
@@ -368,6 +454,19 @@ async function main(): Promise<void> {
       return;
     }
 
+    case "launch": {
+      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { launch } = await import("./commands/launch.js");
+
+      await launch({
+        dir: positionals[0],
+        envFile: dotenvFlag(flags),
+        noEnvFile: flags.has("no-env-file"),
+        wait: tristate(flags, "wait") ?? true,
+      });
+      return;
+    }
+
     case "deploy": {
       const { flags, positionals } = parseArgs(rest, DEPLOY_BOOLEANS);
       // Imported lazily so the auth commands never pay to load zod and the
@@ -417,7 +516,9 @@ async function main(): Promise<void> {
 
     case "projects": {
       const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
-      const { projectsList, projectsShow } = await import("./commands/projects.js");
+      const { projectsCreate, projectsList, projectsShow } = await import(
+        "./commands/projects.js"
+      );
       const options = { json: flags.has("json") };
 
       switch (positionals[0]) {
@@ -431,14 +532,62 @@ async function main(): Promise<void> {
             options,
           );
           return;
+        case "create":
+          await projectsCreate(
+            required(positionals[1], "A project name", "projects create <name>"),
+            {
+              ...options,
+              team: value(flags, "team"),
+              description: value(flags, "description"),
+              displayName: value(flags, "display-name"),
+            },
+          );
+          return;
         default:
-          throw unknownSubcommand("projects", positionals[0], ["ls", "show"]);
+          throw unknownSubcommand("projects", positionals[0], ["ls", "show", "create"]);
+      }
+    }
+
+    // Spelled in full, because `env` in this CLI is environment *variables*.
+    // The two are different resources and the six extra characters are cheaper
+    // than the collision.
+    case "environments":
+    case "envs": {
+      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { environmentsCreate, environmentsList, environmentsRemove } = await import(
+        "./commands/environments.js"
+      );
+      const json = flags.has("json");
+      const project = value(flags, "project");
+
+      switch (positionals[0]) {
+        case "ls":
+        case "list":
+          await environmentsList({ project, json });
+          return;
+        case "create":
+          await environmentsCreate(
+            required(positionals[1], "An environment name", "environments create <name> --project <p>"),
+            { project, json },
+          );
+          return;
+        case "rm":
+        case "remove":
+          await environmentsRemove(
+            required(positionals[1], "An environment", "environments rm <project>/<name>"),
+            { yes: flags.has("yes"), json },
+          );
+          return;
+        default:
+          throw unknownSubcommand("environments", positionals[0], ["ls", "create", "rm"]);
       }
     }
 
     case "services": {
       const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
-      const { servicesList, servicesShow } = await import("./commands/services.js");
+      const { servicesCreate, servicesList, servicesShow } = await import(
+        "./commands/services.js"
+      );
       const options = { json: flags.has("json"), project: value(flags, "project") };
 
       switch (positionals[0]) {
@@ -452,8 +601,38 @@ async function main(): Promise<void> {
             options,
           );
           return;
+        case "create":
+          await servicesCreate(
+            required(
+              positionals[1],
+              "A service name",
+              "services create <name> --env <project>/<environment> --repo owner/repo",
+            ),
+            {
+              env: value(flags, "env"),
+              repo: value(flags, "repo"),
+              branch: value(flags, "branch"),
+              type: value(flags, "type"),
+              build: value(flags, "build"),
+              start: value(flags, "start"),
+              port: value(flags, "port"),
+              rootDir: value(flags, "root-dir"),
+              runtimeVersion: value(flags, "runtime-version"),
+              schedule: value(flags, "schedule"),
+              healthCheck: value(flags, "health-check"),
+              region: value(flags, "region"),
+              tier: value(flags, "tier"),
+              envFile: dotenvFlag(flags),
+              noEnvFile: flags.has("no-env-file"),
+              scope: value(flags, "scope"),
+              secret: flags.has("secret"),
+              wait: tristate(flags, "wait") ?? true,
+              json: flags.has("json"),
+            },
+          );
+          return;
         default:
-          throw unknownSubcommand("services", positionals[0], ["ls", "show"]);
+          throw unknownSubcommand("services", positionals[0], ["ls", "show", "create"]);
       }
     }
 
@@ -542,8 +721,20 @@ async function main(): Promise<void> {
             json,
           });
           return;
+        case "import": {
+          const { envImport } = await import("./commands/env-import.js");
+          await envImport(positionals[1], {
+            service,
+            env: value(flags, "env"),
+            scope: value(flags, "scope"),
+            secret: flags.has("secret"),
+            yes: flags.has("yes"),
+            json,
+          });
+          return;
+        }
         default:
-          throw unknownSubcommand("env", positionals[0], ["ls", "set", "rm"]);
+          throw unknownSubcommand("env", positionals[0], ["ls", "set", "rm", "import"]);
       }
     }
 

@@ -12,7 +12,12 @@
  */
 
 import { MANIFEST_FILENAME, findManifest, readManifest } from "../deploy-static/manifest.js";
-import { getProjectTree, listMyServices, listProjects } from "../api/index.js";
+import {
+  getProjectTree,
+  listEnvironmentChoices,
+  listMyServices,
+  listProjects,
+} from "../api/index.js";
 import type { MyService, ProjectWithTeam } from "../api/index.js";
 import { programName } from "../program-name.js";
 
@@ -127,9 +132,59 @@ export async function resolveProjectId(reference: string): Promise<string> {
  * first. The schema offers no environment-by-name lookup to make it safe.
  */
 export async function resolveEnvironmentId(reference: string): Promise<string> {
+  return (await resolveEnvironment(reference)).id;
+}
+
+/** An environment resolved to its id, with the context a caller may also need. */
+export interface ResolvedEnvironment {
+  id: string;
+  /** Null when the reference was an id and the lookup could not be completed. */
+  name: string | null;
+  projectName: string | null;
+  /**
+   * Whether this is a preview environment — which decides the scope variables
+   * must be written at, since a preview environment reads UAT and nothing else.
+   * Defaults to false when it could not be determined.
+   */
+  isPreview: boolean;
+}
+
+/**
+ * Resolves an environment reference to its id *and* its properties.
+ *
+ * The extra lookup exists for one reason: `isPreview` decides which scope an
+ * environment variable has to be written at, and a scope chosen wrongly writes
+ * successfully into a scope the service never reads — a silent misconfiguration
+ * rather than an error.
+ *
+ * An id resolves through `listEnvironmentChoices`, which is the only query that
+ * joins an environment to its project in one request. If that lookup fails or
+ * finds nothing, the id is still returned: an environment the caller named
+ * explicitly should not be rejected because the *description* of it could not be
+ * fetched.
+ */
+export async function resolveEnvironment(reference: string): Promise<ResolvedEnvironment> {
   const trimmed = reference.trim();
   if (trimmed === "") throw new Error("An environment is required.");
-  if (looksLikeId(trimmed)) return trimmed;
+
+  if (looksLikeId(trimmed)) {
+    try {
+      const found = (await listEnvironmentChoices()).find(
+        (choice) => choice.environmentId === trimmed,
+      );
+      if (found) {
+        return {
+          id: trimmed,
+          name: found.environmentName,
+          projectName: found.projectName,
+          isPreview: found.isPreview,
+        };
+      }
+    } catch {
+      // Fall through: the id is usable even when the description is not.
+    }
+    return { id: trimmed, name: null, projectName: null, isPreview: false };
+  }
 
   const { project, name } = split(trimmed);
   if (project === undefined) {
@@ -145,7 +200,15 @@ export async function resolveEnvironmentId(reference: string): Promise<string> {
     matches(environment.name, name),
   );
 
-  if (found.length === 1) return found[0]!.id;
+  const only = found[0];
+  if (found.length === 1 && only) {
+    return {
+      id: only.id,
+      name: only.name,
+      projectName: tree.name,
+      isPreview: only.isPreview,
+    };
+  }
   if (found.length > 1) {
     throw new Error(
       `'${name}' matches ${found.length} environments in ${tree.name}. Use the id:\n` +

@@ -1,6 +1,6 @@
 {
   "name": "@naijacloud/cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Command-line interface for NaijaCloud hosting: authenticate, and manage projects, services, deployments, domains and environment variables. Also serves those operations to AI agents over MCP via `naijacloud mcp`.",
   "type": "module",
   "license": "MIT",

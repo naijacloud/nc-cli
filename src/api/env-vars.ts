@@ -4,7 +4,12 @@
  */
 
 import { authed } from "./transport.js";
-import type { EnvVarMutationResult, EnvVarScope, ServiceEnvVar } from "./types.js";
+import type {
+  EnvVarInput,
+  EnvVarMutationResult,
+  EnvVarScope,
+  ServiceEnvVar,
+} from "./types.js";
 
 
 export async function listEnvVarsByService(serviceId: string): Promise<ServiceEnvVar[]> {
@@ -48,21 +53,23 @@ export async function listEnvVarKeysByProject(
 }
 
 /**
- * Creates or updates a single variable.
+ * Creates or updates variables in bulk.
  *
- * `setEnvVars` takes a list and upserts by key — the sibling `deleteEnvVar`
- * mutation is what removes variables, so sending one entry here leaves the
- * service's other variables untouched.
+ * `setEnvVars` **upserts by key** and leaves every key not mentioned alone, so
+ * this is an import rather than a replace — a `.env` with three keys does not
+ * wipe the twelve already on the service. Removing one is `deleteEnvVar`.
+ *
+ * One request for the whole set, which matters beyond politeness: the response
+ * carries a single `needsRedeploy`, so the caller tells the user once that the
+ * service has to restart, instead of once per variable.
  */
-export async function setEnvVar(
+export async function setEnvVars(
   serviceId: string,
-  key: string,
-  value: string,
-  scope: EnvVarScope,
-  secret?: boolean,
+  vars: readonly EnvVarInput[],
 ): Promise<EnvVarMutationResult> {
-  const variable: Record<string, unknown> = { key, value, scope };
-  if (secret !== undefined) variable["secret"] = secret;
+  if (vars.length === 0) {
+    throw new Error("No variables to set.");
+  }
 
   const data = await authed<{ setEnvVars: EnvVarMutationResult }>(
     `
@@ -74,9 +81,29 @@ export async function setEnvVar(
         }
       }
     `,
-    { serviceId, vars: [variable] },
+    // Spread so an undefined `secret` is dropped rather than sent as null; the
+    // platform treats an explicit null as "not a secret", not as "unspecified".
+    { serviceId, vars: vars.map((variable) => ({ ...variable })) },
   );
   return data.setEnvVars;
+}
+
+/**
+ * Creates or updates a single variable.
+ *
+ * A thin call through `setEnvVars`, which is the only mutation the platform
+ * offers for writing them — there is no single-variable form to prefer.
+ */
+export async function setEnvVar(
+  serviceId: string,
+  key: string,
+  value: string,
+  scope: EnvVarScope,
+  secret?: boolean,
+): Promise<EnvVarMutationResult> {
+  const variable: EnvVarInput = { key, value, scope };
+  if (secret !== undefined) variable.secret = secret;
+  return await setEnvVars(serviceId, [variable]);
 }
 
 /**

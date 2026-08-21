@@ -3,8 +3,9 @@
 A single CLI that does four jobs:
 
 - **[`naijacloud project`](#explore-a-project)** — the interactive view of everything you have running. It walks the resource tree the way the platform models it, **project → environment → service**, one level per screen, down to a service's deployments, variables, domains and database console. This is the command to reach for when you do not already know the name of the thing you want.
+- **[`naijacloud launch`](#stand-something-up-from-nothing)** — go from an empty account to a running service in one guided pass: create the project, create the environment, connect a repo or upload a directory, and hand over your `.env` so the first build already has its configuration.
 - **[`naijacloud deploy`](#deploy-a-static-site)** — ship a static site from your machine in one command.
-- **[the flag-based commands](#manage-from-the-terminal)** — `projects`, `services`, `deployments`, `env`, `domains`, `db` and `redeploy`: the same operations as the navigator, scriptable, every one of them with `--json`.
+- **[the flag-based commands](#manage-from-the-terminal)** — `projects`, `environments`, `services`, `deployments`, `env`, `domains`, `db` and `redeploy`: the same operations as the navigator, scriptable, every one of them with `--json`.
 - **[`naijacloud mcp`](#register-with-claude-code)** — run an [MCP](https://modelcontextprotocol.io) server over stdio so an AI agent (Claude Code, Claude Desktop, …) can do most of the same things: list projects and services, trigger and inspect deploys, pull build logs, attach domains, and set environment variables.
 
 Plus `login` / `logout` / `whoami` to authenticate. Think of it as what the Vercel CLI is for Vercel, with the agent-facing half exposed as MCP tools.
@@ -13,6 +14,7 @@ Every install channel puts the command on your PATH under **two names**: `naijac
 
 ```bash
 njc login
+njc launch          # project → environment → service, from nothing
 njc project         # look around
 njc deploy          # ship the directory you are in
 njc --help          # help is written in whichever name you used
@@ -211,6 +213,140 @@ Token resolution order is `HOSTING_API_TOKEN` → `~/.naijacloud/config.json`. I
 
 ---
 
+## Stand something up from nothing
+
+The platform models everything as **team → project → environment → service**, and
+all four have to exist before anything runs. `naijacloud launch` is those four
+steps in one pass, creating each level that is not there yet:
+
+```
+$ naijacloud launch
+
+launch  project → environment → service
+
+  Team             Fawaz Adebayo's Team
+  Project          ❯ + New project
+  Project name     : storefront
+  Environment      ❯ + New environment
+  Environment name : prod
+
+What are you deploying?
+❯ Web service   from a GitHub repo · built and run by the platform
+  Cron job      from a GitHub repo · runs on a schedule
+  Static site   from this directory · built locally and uploaded
+
+Repository
+❯ acme/storefront    private · main
+
+  Branch           [main]:
+  Service name     [storefront]:
+  Root directory   (blank unless it is a monorepo):
+  Build command    (blank for none): npm run build
+  Start command    (blank to use the platform default): npm start
+  Port             (blank to let the platform decide): 3000
+```
+
+Each level you pick is remembered for the next one, so the ids never leave the
+process. A single team is not offered as a question, and neither is a project or
+environment you have already chosen.
+
+### It asks for your `.env`
+
+A service that needs configuration and is created without it builds, starts,
+fails, and gets fixed afterwards. So the last question before anything is created
+is the `.env` — and the variables are passed to `createService` itself, which
+means **the first build already has them**:
+
+```
+/path/to/app/.env — 6 variables, 3 classified as secret
+
+  KEY                  SECRET  VALUE
+  DATABASE_URL         yes     ******** (43)
+  STRIPE_SECRET_KEY    yes     ******** (32)
+  SESSION_SECRET       yes     ******** (44)
+  NEXT_PUBLIC_API_URL  no      ******** (23)
+  NODE_ENV             no      ******** (10)
+  PORT                 no      ******** (4)
+
+  Scope  PROD
+  Import these 6 into the new service? [Y/n]
+```
+
+Four things about that screen are deliberate:
+
+- **Values are masked, even here.** This is the one screen guaranteed to be
+  showing credentials, and it is often the screen someone is sharing.
+- **Secrets are guessed, and the guess is shown.** A key whose name contains
+  `SECRET`, `PASSWORD`, `TOKEN`, `APIKEY` or `PRIVATEKEY`, or that has `KEY`,
+  `PASS`, `CREDENTIAL`, `PRIVATE`, `SALT`, `CERT`, `DSN` as a whole word, is
+  marked secret — as is any value that is a URL carrying `user:password@`.
+  Framework-public prefixes (`NEXT_PUBLIC_`, `VITE_`, `REACT_APP_`, `PUBLIC_`,
+  `EXPO_PUBLIC_`, `NUXT_PUBLIC_`, `GATSBY_`, `STORYBOOK_`) are never marked,
+  because those are compiled into the client bundle and served to every visitor.
+  `--secret` marks everything instead.
+- **The scope follows the environment.** UAT for a preview environment, PROD
+  otherwise. A variable written to a scope the environment never reads looks
+  like a successful write and behaves like a missing variable.
+- **Lines it cannot parse are reported, never guessed at.** Duplicate keys,
+  invalid names, unterminated quotes and junk lines are all listed with their
+  line numbers before you confirm.
+
+The parser handles what real `.env` files contain: `export` prefixes, `#`
+comments (including trailing ones, while leaving `secret#1` intact), all three
+quote styles, values that run across lines like a PEM key, and backslash escapes
+inside double quotes only — single quotes stay literal, as they do in every
+shell.
+
+**In CI a `.env` is never picked up implicitly.** `launch` and `services create`
+only read one when `--dotenv` names it, so a stray `.env` in a checkout cannot
+become configuration nobody asked for.
+
+> **Why `--dotenv` and not `--env-file`?** Node owns that name from v20.6. It
+> scans for `--env-file` even after the script path, loads the file into its own
+> `process.env`, and exits with code 9 before this CLI starts if the path does
+> not exist — so `njc services create … --env-file missing.env` would fail with
+> `node: missing.env: not found` and no way for the CLI to say anything better.
+> `--env-file` is still accepted where Node lets it through; `--dotenv` always
+> works.
+
+### The same steps, with flags
+
+`launch` is a front door, not a second implementation — every step calls exactly
+what these call, so a service made either way is identical:
+
+```bash
+naijacloud projects create storefront --team acme
+naijacloud environments create prod --project storefront
+naijacloud services create api \
+  --env storefront/prod \
+  --repo acme/storefront --branch main \
+  --build "npm run build" --start "npm start" --port 3000 \
+  --dotenv .env
+```
+
+`services create` also takes `--type cron --schedule "0 3 * * *"`, `--root-dir`
+for a monorepo, `--runtime-version`, `--health-check`, `--region`, `--tier` and
+`--no-wait`.
+
+### A web service comes from a repository
+
+Worth knowing before you plan around it: the platform builds a web service from
+a **connected GitHub repository** or runs a **prebuilt image** — there is no
+upload-and-build path for one. The only thing that accepts bytes from your
+machine is a static site.
+
+So local code is either a static site (`naijacloud deploy`, or *Static site* in
+`launch`) or it is in a repo. If the team has no GitHub App installation yet,
+`launch` says so and prints the install URL rather than failing:
+
+```
+Error: No repositories are connected to acme.
+Install the NaijaCloud GitHub App, then run `naijacloud launch` again:
+  https://github.com/apps/naija-cloud/installations/new?state=…
+```
+
+---
+
 ## Explore a project
 
 `naijacloud project` walks the resource tree the way the platform actually
@@ -229,6 +365,7 @@ karakata / dev
   karakata-dev            MYSQL · ACTIVE
   karakata-user-frontend  WEB · ACTIVE · HEALTHY · https://karakatauserfrontend.naijacloud.app
 
+  + New service           web · cron · static site
   + New database          Postgres · MySQL · MariaDB · MongoDB · Redis · Valkey
 ```
 
@@ -238,8 +375,14 @@ whether a redeploy is a production act — so it stays on screen the whole way
 down, and a redeploy confirms against it by name.
 
 In a directory with a [`naijacloud.json`](#naijacloudjson) — the manifest a
-deploy writes — `project` opens that project directly. Otherwise it asks.
+deploy writes — `project` opens that project directly. Otherwise it asks, and
+that picker offers **+ New project** too, so an empty account is navigable
+instead of being met with an error telling you to go to the dashboard.
 `naijacloud project <name|id>` targets one outright.
+
+**+ New service** joins [`launch`](#stand-something-up-from-nothing) at its
+fourth step — the project and environment are already chosen by the time you get
+there — so the navigator does not carry its own copy of those questions.
 
 ### What a service offers depends on its type
 
@@ -427,8 +570,15 @@ for looking around; these are for when you already know what you want.
 ```bash
 naijacloud projects ls                     # every project, across every team
 naijacloud projects show karakata          # environments + the services in each
+naijacloud projects create shop --team acme
+
+naijacloud environments ls --project shop  # spelled in full; `env` is variables
+naijacloud environments create prod --project shop
+naijacloud environments rm shop/staging    # and every service in it
+
 naijacloud services ls                     # flat list, one request
 naijacloud services show karakata-api      # repo, branch, build command, URL
+naijacloud services create api --env shop/prod --repo acme/shop --dotenv .env
 
 naijacloud deployments ls --service api --limit 10
 naijacloud deployments show <id>
@@ -439,6 +589,7 @@ naijacloud cancel <id>                     # stop an in-flight build
 naijacloud env ls --service api
 naijacloud env set DATABASE_URL --service api --secret
 naijacloud env rm OLD_FLAG --service api
+naijacloud env import .env --service api   # upserts; leaves other keys alone
 
 naijacloud domains ls --service api
 naijacloud domains add app.example.com --service api
@@ -473,7 +624,7 @@ Exit status is non-zero on failure, so `redeploy` gates a pipeline on its own:
 naijacloud redeploy api || exit 1   # waits by default; --no-wait returns once queued
 ```
 
-`--yes` skips the confirmation on `cancel`, `env rm` and `domains rm`, which is what CI needs. `--limit` caps rows.
+`--yes` skips the confirmation on `cancel`, `env rm`, `env import`, `environments rm` and `domains rm`, which is what CI needs. `--limit` caps rows.
 
 ### The database console
 
@@ -553,6 +704,20 @@ printf '%s' "$SECRET" | naijacloud env set DATABASE_URL --service api --secret
 ```
 
 `--scope` selects which scope to write: `all`, `prod` (default), `uat` (what preview environments read) or `dev`. A write that needs a redeploy to take effect says so.
+
+`env import` puts a whole `.env` on an existing service in one request, with the
+same preview, masking and secret-guessing [`launch` uses](#it-asks-for-your-env):
+
+```bash
+naijacloud env import .env --service api              # asks first
+naijacloud env import .env --service api --yes        # CI
+naijacloud env import .env --service api --env shop/preview   # scope follows it
+```
+
+It **upserts**: keys in the file are written, keys only on the service are left
+alone — so a re-import is safe, and removing a variable is still `env rm`. With
+no path it reads the `.env` in the current directory. Without `--scope` the scope
+is derived from `--env`, defaulting to `PROD`.
 
 ---
 
@@ -672,6 +837,7 @@ Three places where the requested tool shape and the platform genuinely disagree,
     ├── terminal.ts         # stderr prompts; refuses to block without a TTY
     ├── interactive.ts      # arrow-key selection for the `project` navigator
     ├── output.ts           # one aligned table for humans, one JSON for scripts
+    ├── env-file.ts         # .env parsing, secret heuristic, scope derivation
     ├── api
     │   ├── transport.ts    # GraphQL execute/authed, errors, configuration
     │   ├── types.ts        # the schema subset the CLI surfaces
@@ -679,6 +845,7 @@ Three places where the requested tool shape and the platform genuinely disagree,
     │   ├── account.ts      # me, login
     │   ├── projects.ts     # teams, projects, environments, services
     │   ├── environments.ts # environments, and creating services inside them
+    │   ├── source.ts       # connected repos, GitHub App install, detectBuild
     │   ├── deployments.ts  # history, trigger, cancel, logs
     │   ├── domains.ts      # custom domains
     │   ├── env-vars.ts     # environment variables
@@ -691,11 +858,14 @@ Three places where the requested tool shape and the platform genuinely disagree,
     │   ├── auth.ts         # login / logout / whoami
     │   ├── init.ts         # write a naijacloud.json without deploying
     │   ├── deploy.ts       # build → archive → upload → release → poll
+    │   ├── launch.ts       # the guided project → environment → service flow
     │   ├── project.ts      # the interactive project → environment → service view
-    │   ├── projects.ts     # projects ls | show
-    │   ├── services.ts     # services ls | show
+    │   ├── projects.ts     # projects ls | show | create
+    │   ├── environments.ts # environments ls | create | rm
+    │   ├── services.ts     # services ls | show | create
     │   ├── deployments.ts  # deployments ls|show|logs|cancel, redeploy
     │   ├── env.ts          # env ls | set | rm, and the masking
+    │   ├── env-import.ts   # env import, and the shared "hand me your .env" step
     │   ├── domains.ts      # domains ls | add | verify | rm
     │   ├── db.ts           # the SQL console and its confirmation rules
     │   ├── resolve.ts      # name or id → the UUID the API wants

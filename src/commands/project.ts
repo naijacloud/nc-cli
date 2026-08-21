@@ -25,6 +25,7 @@ import process from "node:process";
 import {
   createDatastore,
   createEnvironment,
+  createProject,
   getProjectTree,
   getServiceConnection,
   getService,
@@ -34,6 +35,7 @@ import {
   listEnvVarsByService,
   listMyServices,
   listProjects,
+  listTeams,
   isQueryable,
   triggerDeploy,
 } from "../api/index.js";
@@ -43,6 +45,8 @@ import type {
   ServiceSummary,
   ServiceType,
 } from "../api/index.js";
+import { sanitizeName } from "../deploy-static/manifest.js";
+import { NAVIGATOR_LAUNCH, addServiceToEnvironment } from "./launch.js";
 import { formatWhen, printDetail, printTable, shortSha, firstLine } from "../output.js";
 import { heading, pause, requireInteractive, select } from "../interactive.js";
 import type { Choice } from "../interactive.js";
@@ -102,19 +106,65 @@ async function resolveProject(reference: string | undefined): Promise<string | n
   }
 
   const projects = await listProjects();
-  if (projects.length === 0) {
-    throw new Error("No projects on this account yet. Create one in the dashboard first.");
+
+  // "+ New project" is what makes an empty account navigable: without it the
+  // first thing a new user meets is an error telling them to leave for the
+  // dashboard, which is the one place this CLI exists to avoid.
+  const choices: Choice<string | null>[] = projects.map((project) => ({
+    label: project.name,
+    hint: `${project.teamName}${project.region ? ` · ${project.region}` : ""}`,
+    value: project.id,
+  }));
+  choices.push({
+    label: "+ New project",
+    value: NEW_PROJECT,
+    separated: choices.length > 0,
+  });
+
+  const picked = await select("Select a project", choices, {
+    footer: "↑↓ move · ↵ open · q quit",
+  });
+  if (picked === null) return null;
+  if (picked !== NEW_PROJECT) return picked;
+
+  return await newProject();
+}
+
+/** Sentinel for the "+ New project" row, distinct from backing out of the menu. */
+const NEW_PROJECT = "\u0000new";
+
+/**
+ * Creates a project from the picker and opens it.
+ *
+ * The team is resolved the same way `projects create` resolves it, so an
+ * account with several teams is asked rather than guessed at here too.
+ */
+async function newProject(): Promise<string | null> {
+  const teams = await listTeams();
+  const only = teams[0];
+  let teamId: string;
+
+  if (teams.length === 1 && only) {
+    teamId = only.id;
+  } else {
+    const picked = await select(
+      "Team",
+      teams.map((team) => ({ label: team.name, value: team.id })),
+      { footer: "↑↓ move · ↵ select · q cancel" },
+    );
+    if (picked === null) return null;
+    teamId = picked;
   }
 
-  return await select(
-    "Select a project",
-    projects.map((project) => ({
-      label: project.name,
-      hint: `${project.teamName}${project.region ? ` · ${project.region}` : ""}`,
-      value: project.id,
-    })),
-    { footer: "↑↓ move · ↵ open · q quit" },
-  );
+  const typed = (await promptLine("Project name: ")).trim();
+  if (typed === "") {
+    write("Cancelled — a name is required.\n");
+    return null;
+  }
+
+  const created = await createProject({ teamId, name: sanitizeName(typed) });
+  write(`Created project ${created.name}\n`);
+  return created.id;
 }
 
 export async function projectCommand(options: ProjectOptions): Promise<void> {
@@ -205,7 +255,10 @@ function serviceHint(service: ServiceSummary): string {
   return parts.join(" · ");
 }
 
-type ServiceAction = { kind: "open"; service: ServiceSummary } | { kind: "newDatabase" };
+type ServiceAction =
+  | { kind: "open"; service: ServiceSummary }
+  | { kind: "newDatabase" }
+  | { kind: "newService" };
 
 /**
  * Re-reads the project on every pass rather than caching the environment: a
@@ -230,16 +283,22 @@ async function serviceLoop(project: Project, environmentId: string): Promise<voi
     if (choices.length === 0) {
       choices.push({
         label: "(no services in this environment)",
-        value: { kind: "newDatabase" },
+        value: { kind: "newService" },
         disabled: true,
       });
     }
 
     choices.push({
+      label: "+ New service",
+      hint: "web · cron · static site",
+      value: { kind: "newService" },
+      separated: true,
+    });
+
+    choices.push({
       label: "+ New database",
       hint: "Postgres · MySQL · MariaDB · MongoDB · Redis · Valkey",
       value: { kind: "newDatabase" },
-      separated: true,
     });
 
     const picked = await select(
@@ -254,8 +313,39 @@ async function serviceLoop(project: Project, environmentId: string): Promise<voi
       continue;
     }
 
+    if (picked.kind === "newService") {
+      await newService(tree, environment);
+      continue;
+    }
+
     await serviceMenu(`${tree.name} / ${environment.name}`, picked.service);
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Creating a service                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Adds a web service, cron job or static site to this environment.
+ *
+ * The questions live in `launch`, not here. This screen has already answered the
+ * first three of them — team, project, environment — so it joins that flow at
+ * step four rather than asking anything twice or growing its own copy.
+ *
+ * Errors are caught rather than thrown: an uninstalled GitHub App or a build
+ * that fails is a thing to read and move on from, not a reason to drop the user
+ * out of the navigator and back to a shell prompt.
+ */
+async function newService(project: Project, environment: EnvironmentSummary): Promise<void> {
+  try {
+    await addServiceToEnvironment(project, environment, NAVIGATOR_LAUNCH);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "Cancelled.") return;
+    write(`\n${message}\n`);
+  }
+  await pause();
 }
 
 /* -------------------------------------------------------------------------- */
