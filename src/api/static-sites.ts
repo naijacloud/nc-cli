@@ -49,7 +49,7 @@ export async function createStaticUpload(input: {
   const data = await authed<{ createStaticUpload: StaticUploadSlot }>(
     `
       mutation CreateStaticUpload($input: StaticUploadInput!) {
-        createStaticUpload(input: $input) {
+        createStaticUpload(StaticUploadInput: $input) {
           uploadId
           url
           method
@@ -118,7 +118,7 @@ export async function deployStaticSite(input: {
   }>(
     `
       mutation DeployStaticSite($input: DeployStaticSiteInput!) {
-        deployStaticSite(input: $input) {
+        deployStaticSite(DeployStaticSiteInput: $input) {
           site { ${STATIC_SITE_FIELDS} }
           deployment { id status }
         }
@@ -142,7 +142,7 @@ export async function redeployStaticSite(input: {
   const data = await authed<{ redeployStaticSite: { id: string; status: DeploymentStatus } }>(
     `
       mutation RedeployStaticSite($input: RedeployStaticSiteInput!) {
-        redeployStaticSite(input: $input) { id status }
+        redeployStaticSite(RedeployStaticSiteInput: $input) { id status }
       }
     `,
     { input },
@@ -151,11 +151,11 @@ export async function redeployStaticSite(input: {
 }
 
 export async function getStaticSite(serviceId: string): Promise<StaticSite> {
-  const data = await authed<{ service: StaticSite }>(
-    `query StaticSite($id: ID!) { service(id: $id) { ${STATIC_SITE_FIELDS} } }`,
+  const data = await authed<{ getService: StaticSite }>(
+    `query StaticSite($id: ID!) { getService(id: $id) { ${STATIC_SITE_FIELDS} } }`,
     { id: serviceId },
   );
-  return data.service;
+  return data.getService;
 }
 
 /** Light deployment read used while polling; `getDeployment` is the full record. */
@@ -163,11 +163,11 @@ export async function getDeploymentStatus(
   deploymentId: string,
 ): Promise<{ id: string; status: DeploymentStatus; error: string | null }> {
   const data = await authed<{
-    deployment: { id: string; status: DeploymentStatus; error: string | null };
-  }>(`query StaticDeployment($id: ID!) { deployment(id: $id) { id status error } }`, {
+    getDeployment: { id: string; status: DeploymentStatus; error: string | null };
+  }>(`query StaticDeployment($id: ID!) { getDeployment(id: $id) { id status error } }`, {
     id: deploymentId,
   });
-  return data.deployment;
+  return data.getDeployment;
 }
 
 /**

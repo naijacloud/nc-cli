@@ -3,17 +3,17 @@
  * that is still in flight.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import { DEPLOYMENT_FIELDS } from "./fields.js";
 import type { Deployment, DeploymentLog, DeploymentWithService } from "./types.js";
 
 
 export async function listDeploymentsByService(serviceId: string): Promise<Deployment[]> {
-  const data = await authed<{ deployments: Deployment[] }>(
-    `query Deployments($serviceId: ID!) { deployments(serviceId: $serviceId) { ${DEPLOYMENT_FIELDS} } }`,
+  return await authedAllPages<Deployment, { getDeployments: { items: Deployment[]; pageInfo: { hasNextPage: boolean } } }>(
+    `query Deployments($serviceId: ID!, $page: OffsetPaginationArgs) { getDeployments(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection(DEPLOYMENT_FIELDS)} } }`,
     { serviceId },
+    (data) => data.getDeployments,
   );
-  return data.deployments;
 }
 
 /** Every deployment across every service in a project, in one nested query. */
@@ -21,7 +21,7 @@ export async function listDeploymentsByProject(
   projectId: string,
 ): Promise<DeploymentWithService[]> {
   const data = await authed<{
-    project: {
+    getProject: {
       environments: {
         name: string;
         services: { id: string; name: string; deployments: Deployment[] }[];
@@ -30,7 +30,7 @@ export async function listDeploymentsByProject(
   }>(
     `
       query ProjectDeployments($id: ID!) {
-        project(id: $id) {
+        getProject(id: $id) {
           environments {
             name
             services {
@@ -45,7 +45,7 @@ export async function listDeploymentsByProject(
     { id: projectId },
   );
 
-  return data.project.environments.flatMap((environment) =>
+  return data.getProject.environments.flatMap((environment) =>
     environment.services.flatMap((service) =>
       service.deployments.map((deployment) => ({
         ...deployment,
@@ -58,11 +58,11 @@ export async function listDeploymentsByProject(
 
 export async function getDeployment(deploymentId: string): Promise<DeploymentWithService> {
   const data = await authed<{
-    deployment: Deployment & { service: { id: string; name: string; url: string | null } | null };
+    getDeployment: Deployment & { service: { id: string; name: string; url: string | null } | null };
   }>(
     `
       query GetDeployment($id: ID!) {
-        deployment(id: $id) {
+        getDeployment(id: $id) {
           ${DEPLOYMENT_FIELDS}
           service { id name url }
         }
@@ -71,7 +71,7 @@ export async function getDeployment(deploymentId: string): Promise<DeploymentWit
     { id: deploymentId },
   );
 
-  const { service, ...deployment } = data.deployment;
+  const { service, ...deployment } = data.getDeployment;
   return service ? { ...deployment, serviceName: service.name } : deployment;
 }
 
@@ -102,13 +102,17 @@ export async function cancelDeployment(deploymentId: string): Promise<Deployment
 }
 
 export async function getDeploymentLogs(deploymentId: string): Promise<DeploymentLog[]> {
-  const data = await authed<{ deploymentLogs: DeploymentLog[] }>(
+  // Oldest first is the API's default for this list, which is the order build
+  // output reads in; every page is read so a long build is not cut at 100 lines.
+  return await authedAllPages<DeploymentLog, { getDeploymentLogs: { items: DeploymentLog[]; pageInfo: { hasNextPage: boolean } } }>(
     `
-      query DeploymentLogs($deploymentId: ID!) {
-        deploymentLogs(deploymentId: $deploymentId) { id level stream line createdAt }
+      query DeploymentLogs($deploymentId: ID!, $page: OffsetPaginationArgs) {
+        getDeploymentLogs(deploymentId: $deploymentId, OffsetPaginationArgs: $page) {
+          ${pageSelection("id level stream line createdAt")}
+        }
       }
     `,
     { deploymentId },
+    (data) => data.getDeploymentLogs,
   );
-  return data.deploymentLogs;
 }

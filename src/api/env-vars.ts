@@ -3,7 +3,7 @@
  * masking is the caller's job.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import type {
   EnvVarInput,
   EnvVarMutationResult,
@@ -13,11 +13,11 @@ import type {
 
 
 export async function listEnvVarsByService(serviceId: string): Promise<ServiceEnvVar[]> {
-  const data = await authed<{ serviceEnvVars: ServiceEnvVar[] }>(
-    `query ServiceEnvVars($serviceId: ID!) { serviceEnvVars(serviceId: $serviceId) { key value scope secret linked } }`,
+  return await authedAllPages<ServiceEnvVar, { getServiceEnvVars: { items: ServiceEnvVar[]; pageInfo: { hasNextPage: boolean } } }>(
+    `query ServiceEnvVars($serviceId: ID!, $page: OffsetPaginationArgs) { getServiceEnvVars(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("key value scope secret linked")} } }`,
     { serviceId },
+    (data) => data.getServiceEnvVars,
   );
-  return data.serviceEnvVars;
 }
 
 /**
@@ -28,13 +28,13 @@ export async function listEnvVarKeysByProject(
   projectId: string,
 ): Promise<{ serviceId: string; serviceName: string; environmentName: string; keys: string[] }[]> {
   const data = await authed<{
-    project: {
+    getProject: {
       environments: { name: string; services: { id: string; name: string; envVarKeys: string[] }[] }[];
     };
   }>(
     `
       query ProjectEnvVarKeys($id: ID!) {
-        project(id: $id) {
+        getProject(id: $id) {
           environments { name services { id name envVarKeys } }
         }
       }
@@ -42,7 +42,7 @@ export async function listEnvVarKeysByProject(
     { id: projectId },
   );
 
-  return data.project.environments.flatMap((environment) =>
+  return data.getProject.environments.flatMap((environment) =>
     environment.services.map((service) => ({
       serviceId: service.id,
       serviceName: service.name,
@@ -74,7 +74,7 @@ export async function setEnvVars(
   const data = await authed<{ setEnvVars: EnvVarMutationResult }>(
     `
       mutation SetEnvVars($serviceId: ID!, $vars: [EnvVarInput!]!) {
-        setEnvVars(serviceId: $serviceId, vars: $vars) {
+        setEnvVars(serviceId: $serviceId, EnvVarInput: $vars) {
           needsRedeploy
           warnings
           envVars { key value scope secret linked }

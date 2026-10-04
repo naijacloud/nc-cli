@@ -48,6 +48,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Every GraphQL operation is validated against a snapshot of the API's
+      # schema, so a rename on the API side fails here instead of in a user's
+      # terminal.
+      - name: Test
+        run: node --test test/*.test.mjs
+
       - name: The generated schema must match the committed one
         shell: bash
         run: |

@@ -224,6 +224,16 @@ export async function envRemove(key: string, options: EnvRemoveOptions): Promise
     `env rm ${key} --service <name|id>`,
   );
 
+  // The API answers a delete of a key that does not exist with success, so
+  // without this check a typo is reported as "removed".
+  const existing = await listEnvVarsByService(serviceId);
+  if (!existing.some((variable) => variable.key === key)) {
+    throw new Error(
+      `No variable called ${key} on service ${serviceId}. ` +
+        `Run \`${programName()} env ls --service ${serviceId}\` to see its variables.`,
+    );
+  }
+
   if (!options.yes && isInteractive()) {
     const confirmed = await promptYesNo(`Remove ${key} from service ${serviceId}?`, false);
     if (!confirmed) {

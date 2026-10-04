@@ -199,7 +199,7 @@ Db options
 Login options
   --email <email>              Email, instead of being prompted
   --password <password>        Password, instead of being prompted
-  --token <token>              Store an access token you already have (CI)
+  --token <token>              Store a token or an nc_live_ API key (CI)
 
 Init options
   --name/--output/--index      Manifest values, instead of being prompted
@@ -432,9 +432,11 @@ async function main(): Promise<void> {
       logout();
       return;
 
-    case "whoami":
-      await whoami();
+    case "whoami": {
+      const { flags } = parseArgs(rest, new Set(["json"]));
+      await whoami({ json: flags.has("json") });
       return;
+    }
 
     case "init": {
       const { flags, positionals } = parseArgs(rest, INIT_BOOLEANS);

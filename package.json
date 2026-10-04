@@ -28,6 +28,7 @@
   "scripts": {
     "build": "tsc && chmod +x build/cli.js && node build/scripts/write-schema.js",
     "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
     "clean": "rm -rf build dist-bin dist-packaging dist-pkg",
     "//clean:build": "Only build/, which is all the npm tarball contains. `clean` also removes the release artifacts, and prepublishOnly must not do that — the Homebrew and Scoop steps run after `npm publish` and read dist-packaging/.",
     "clean:build": "rm -rf build",
@@ -57,6 +58,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "graphql": "^16.14.2",
     "typescript": "^7.0.2"
   }
 }

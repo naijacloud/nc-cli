@@ -65,14 +65,18 @@ function preview(path: string, parsed: ParsedEnvFile, scope: EnvVarScope): void 
         ),
   );
 
-  if (parsed.skipped.length > 0) {
-    write(`\nSkipped ${parsed.skipped.length} line(s):\n`);
-    for (const skip of parsed.skipped) {
-      write(`  line ${skip.line}${skip.key ? ` (${skip.key})` : ""}: ${skip.reason}\n`);
-    }
-  }
+  reportSkipped(parsed);
 
   write(`\n  Scope  ${scope}\n`);
+}
+
+/** Lines the parser could not read. Never dropped silently — see the README. */
+function reportSkipped(parsed: ParsedEnvFile): void {
+  if (parsed.skipped.length === 0) return;
+  write(`\nSkipped ${parsed.skipped.length} line(s):\n`);
+  for (const skip of parsed.skipped) {
+    write(`  line ${skip.line}${skip.key ? ` (${skip.key})` : ""}: ${skip.reason}\n`);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -237,7 +241,8 @@ export async function envImport(
     );
   }
 
-  if (!options.yes && isInteractive()) {
+  const previewing = !options.yes && isInteractive();
+  if (previewing) {
     preview(path, parsed, scope);
     const confirmed = await promptYesNo(
       `  Import these ${parsed.entries.length} into ${serviceId}?`,
@@ -272,6 +277,9 @@ export async function envImport(
   process.stdout.write(
     `Imported ${vars.length} variable${vars.length === 1 ? "" : "s"} from ${path} (${scope})\n`,
   );
+  // With --yes (or no terminal) the preview never ran, so this is the only
+  // place the user hears that part of the file was not imported.
+  if (!previewing) reportSkipped(parsed);
   for (const warning of result.warnings) write(`Warning: ${warning}\n`);
   if (result.needsRedeploy) {
     write(

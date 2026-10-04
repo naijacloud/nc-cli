@@ -15,6 +15,8 @@
 import process from "node:process";
 
 import {
+  CANCELLABLE_STATUSES,
+  NaijaCloudError,
   cancelDeployment,
   getDeployment,
   getDeploymentLogs,
@@ -23,7 +25,7 @@ import {
   listDeploymentsByService,
   triggerDeploy,
 } from "../api/index.js";
-import type { DeploymentStatus, DeploymentWithService } from "../api/index.js";
+import type { DeploymentStatus, DeploymentWithService, ServiceDetail } from "../api/index.js";
 import { firstLine, formatWhen, printDetail, printJson, printTable, shortSha } from "../output.js";
 import type { Column } from "../output.js";
 import { programName } from "../program-name.js";
@@ -164,6 +166,23 @@ export interface RedeployOptions {
 }
 
 /**
+ * The service's name, environment and URL, for the lines around a redeploy — or
+ * null when the credential may deploy but not read services.
+ *
+ * A workspace API key scoped to Deploys alone is what the API docs recommend
+ * for CI that only ships existing services, and it cannot call `getService`.
+ * The read is decoration; the deploy is the point, so it must not block it.
+ */
+async function describeService(serviceId: string): Promise<ServiceDetail | null> {
+  try {
+    return await getService(serviceId);
+  } catch (error) {
+    if (error instanceof NaijaCloudError && error.statusCode === 403) return null;
+    throw error;
+  }
+}
+
+/**
  * Builds and releases a service from its configured source.
  *
  * The platform has no per-deploy branch or commit override, so there is nothing
@@ -177,14 +196,16 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
     "Redeploying",
     "redeploy <name|id>",
   );
-  const service = await getService(serviceId);
+  const service = await describeService(serviceId);
 
   // Which environment this lands in decides whether it is a production deploy,
   // and the service name alone does not say. Print it before the build starts,
   // while it is still useful.
   write(
-    `${service.name}${service.environment ? ` (${service.environment.name})` : ""}` +
-      `${service.branch ? ` · branch ${service.branch}` : ""}\n`,
+    service
+      ? `${service.name}${service.environment ? ` (${service.environment.name})` : ""}` +
+          `${service.branch ? ` · branch ${service.branch}` : ""}\n`
+      : `Service ${serviceId}\n`,
   );
 
   const deployment = await triggerDeploy(serviceId);
@@ -202,12 +223,12 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
       ok: status === "RUNNING" || !options.wait,
       deploymentId: deployment.id,
       serviceId,
-      service: service.name,
-      environment: service.environment?.name ?? null,
-      branch: service.branch,
+      service: service?.name ?? null,
+      environment: service?.environment?.name ?? null,
+      branch: service?.branch ?? null,
       status,
       error: failure,
-      url: service.url,
+      url: service?.url ?? null,
     });
   }
 
@@ -222,7 +243,7 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
   }
 
   if (!options.json) {
-    if (service.url) process.stdout.write(`${service.url}\n`);
+    if (service?.url) process.stdout.write(`${service.url}\n`);
     if (!options.wait) {
       write(`Deployment ${deployment.id} queued; not waiting (--no-wait).\n`);
     }
@@ -232,14 +253,6 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
 /* -------------------------------------------------------------------------- */
 /* Cancel                                                                     */
 /* -------------------------------------------------------------------------- */
-
-/** Deployment states a cancel can still act on. */
-const IN_FLIGHT: ReadonlySet<DeploymentStatus> = new Set<DeploymentStatus>([
-  "QUEUED",
-  "BUILDING",
-  "TESTING",
-  "DEPLOYING",
-]);
 
 /**
  * Stops an in-flight deployment.
@@ -254,7 +267,7 @@ export async function deploymentsCancel(
 ): Promise<void> {
   const current = await getDeployment(deploymentId);
 
-  if (!IN_FLIGHT.has(current.status)) {
+  if (!CANCELLABLE_STATUSES.has(current.status)) {
     throw new Error(
       `Deployment ${deploymentId} is ${current.status}, which cancelling cannot change — ` +
         "it only stops a build that is still QUEUED, BUILDING, TESTING or DEPLOYING. " +
@@ -276,7 +289,7 @@ export async function deploymentsCancel(
   const cancelled = await cancelDeployment(deploymentId);
 
   if (options.json) {
-    printJson({ cancelled: true, deployment: cancelled });
+    printJson({ cancelled: cancelled.status === "CANCELLED", deployment: cancelled });
     return;
   }
 

@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import {
   addDomain,
+  CANCELLABLE_STATUSES,
   cancelDeployment,
   getDeployment,
   getDeploymentLogs,
@@ -359,8 +360,20 @@ export function createServer(): McpServer {
           );
         }
 
+        // The API answers a cancel of a finished deployment with the record
+        // unchanged, so check first: "cancelled: true" next to a RUNNING status
+        // would tell the agent it stopped something it did not.
+        const current = await getDeployment(deploymentId);
+        if (!CANCELLABLE_STATUSES.has(current.status)) {
+          return fail(
+            `Deployment ${deploymentId} is ${current.status}, so there is nothing to cancel: ` +
+              "cancelling only stops a deployment that is QUEUED, BUILDING, TESTING or DEPLOYING. " +
+              "It does not roll back a live release.",
+          );
+        }
+
         const deployment = await cancelDeployment(deploymentId);
-        return ok({ cancelled: true, deployment });
+        return ok({ cancelled: deployment.status === "CANCELLED", deployment });
       }),
   );
 

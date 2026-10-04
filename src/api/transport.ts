@@ -130,6 +130,22 @@ function describe(error: GraphQLError): string {
 }
 
 /**
+ * Whether a 400 is the server refusing the operation's shape — a field or
+ * argument this CLI sends that the API no longer has. That only happens when
+ * the API moved on and this build did not, so it gets its own message.
+ */
+async function isSchemaMismatch(response: Response): Promise<boolean> {
+  try {
+    const body = (await response.json()) as GraphQLResponse<unknown>;
+    return (body.errors ?? []).some(
+      (error) => error.extensions?.code === "GRAPHQL_VALIDATION_FAILED",
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Executes one GraphQL operation. `token` is sent as a bearer credential; when
  * omitted the request is anonymous (only `login` and `signup` allow that).
  */
@@ -154,16 +170,29 @@ export async function execute<T>(
       signal: AbortSignal.timeout(timeoutMs()),
     });
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    throw new NaijaCloudError(`Cannot reach the NaijaCloud API at ${url} (${reason}).`);
+    const timedOut = cause instanceof Error && cause.name === "TimeoutError";
+    throw new NaijaCloudError(
+      timedOut
+        ? `The NaijaCloud API at ${url} did not answer within ${Math.round(timeoutMs() / 1000)}s. ` +
+            "Check your connection and try again, or raise HOSTING_API_TIMEOUT_MS on a slow link."
+        : `Cannot reach the NaijaCloud API at ${url}. Check your internet connection and try again.`,
+    );
   }
 
   // The GraphQL endpoint answers 200 even for application errors; a non-2xx
-  // here means the gateway or a proxy failed.
+  // here means the gateway or a proxy failed — or that the server refused the
+  // operation itself, which Apollo answers with 400 and a JSON body.
   if (!response.ok && response.status !== 200) {
     if (response.status === 401 || response.status === 403) {
       throw new NotLoggedInError(
         "NaijaCloud rejected the stored credentials. Run 'naijacloud login' again.",
+      );
+    }
+    if (response.status === 400 && (await isSchemaMismatch(response))) {
+      throw new NaijaCloudError(
+        `This version of the CLI (${CLIENT_VERSION}) no longer matches the NaijaCloud API. ` +
+          "Update it — npm install -g @naijacloud/cli@latest, or reinstall the way you installed it — and try again.",
+        { code: "GRAPHQL_VALIDATION_FAILED", statusCode: 400 },
       );
     }
     throw new NaijaCloudError(
@@ -218,4 +247,48 @@ export async function authed<T>(query: string, variables: Record<string, unknown
   const resolved = resolveToken();
   if (!resolved) throw new NotLoggedInError();
   return await execute<T>(query, variables, resolved.token);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pagination                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** The largest page the API serves (`OffsetPaginationArgs.limit` is capped at 100). */
+export const MAX_PAGE_SIZE = 100;
+
+/** A safety stop, so a server that always reports another page cannot loop us forever. */
+const MAX_PAGES = 200;
+
+/** The `{ items pageInfo }` envelope every list query returns. */
+export interface OffsetPage<T> {
+  items: T[];
+  pageInfo: { hasNextPage: boolean };
+}
+
+/** The selection a paginated field needs, wrapped around the item selection. */
+export function pageSelection(itemSelection: string): string {
+  return `items { ${itemSelection} } pageInfo { hasNextPage }`;
+}
+
+/**
+ * Reads every page of a paginated list query.
+ *
+ * The query must declare `$page: OffsetPaginationArgs` and pass it to the list
+ * field as `OffsetPaginationArgs: $page`; `pick` returns that field's envelope
+ * from the response. Pages are read at the maximum size, so a list of up to 100
+ * rows is still one request.
+ */
+export async function authedAllPages<T, D>(
+  query: string,
+  variables: Record<string, unknown>,
+  pick: (data: D) => OffsetPage<T>,
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const data = await authed<D>(query, { ...variables, page: { page, limit: MAX_PAGE_SIZE } });
+    const envelope = pick(data);
+    all.push(...envelope.items);
+    if (!envelope.pageInfo.hasNextPage) break;
+  }
+  return all;
 }

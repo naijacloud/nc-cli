@@ -8,7 +8,7 @@
 
 import process from "node:process";
 
-import { apiBaseUrl, getCurrentUser, loginWithPassword } from "../api/index.js";
+import { NotLoggedInError, apiBaseUrl, getCurrentUser, loginWithPassword } from "../api/index.js";
 import type { User } from "../api/index.js";
 import {
   CONFIG_FILE,
@@ -17,6 +17,7 @@ import {
   resolveToken,
   writeStoredCredentials,
 } from "../auth/credentials.js";
+import { printJson } from "../output.js";
 import { programName } from "../program-name.js";
 import { promptLine, requireTty, write } from "../terminal.js";
 
@@ -34,10 +35,10 @@ export interface LoginOptions {
 /**
  * Authenticates and stores the resulting access token.
  *
- * NaijaCloud's control plane has no personal-access-token concept: the
- * documented way in is the `login(email, password)` mutation, which returns a
- * bearer token. So this prompts for email + password by default, and accepts
- * `--token` for CI where a token has already been obtained.
+ * Prompts for email + password by default, which the `login` mutation exchanges
+ * for a short-lived session token. `--token` stores a credential already in
+ * hand — in CI that is a workspace API key (`nc_live_…`, from Settings → API
+ * keys), which the API accepts as a bearer token like a session.
  */
 export async function login(options: LoginOptions = {}): Promise<void> {
   const base = apiBaseUrl();
@@ -72,7 +73,9 @@ export async function login(options: LoginOptions = {}): Promise<void> {
   try {
     user = await getCurrentUser(accessToken);
   } catch (error) {
-    if (options.token && error instanceof Error) {
+    // Only an authentication failure says anything about the token; a network
+    // or server error must not be reported as "your token was rejected".
+    if (options.token && error instanceof NotLoggedInError) {
       throw new Error(
         `The token passed to --token was rejected by NaijaCloud (${error.message}). Nothing was saved.`,
       );
@@ -107,9 +110,14 @@ export function logout(): void {
   }
 }
 
-export async function whoami(): Promise<void> {
+export async function whoami(options: { json?: boolean } = {}): Promise<void> {
   const resolved = resolveToken();
   if (!resolved) {
+    if (options.json) {
+      printJson({ loggedIn: false });
+      process.exitCode = 1;
+      return;
+    }
     // The CLI's own `whoami`, so it can name the invoked command. The
     // equivalent in src/api/transport.ts stays canonical: the MCP server shares
     // it, and there is no invoked name behind a tool call.
@@ -122,11 +130,22 @@ export async function whoami(): Promise<void> {
   const origin = resolved.source === "env" ? `${TOKEN_ENV_VAR} env var` : CONFIG_FILE;
 
   const name = displayName(user);
+  if (options.json) {
+    printJson({
+      loggedIn: true,
+      id: user.id,
+      email: user.email,
+      name,
+      status: user.status,
+      apiBaseUrl: apiBaseUrl(),
+      tokenSource: resolved.source,
+    });
+    return;
+  }
   process.stdout.write(
     [
       `${user.email}${name ? ` (${name})` : ""}`,
       `  user id:  ${user.id}`,
-      `  plan:     ${user.plan}`,
       `  status:   ${user.status}`,
       `  api:      ${apiBaseUrl()}`,
       `  token:    from ${origin}`,

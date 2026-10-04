@@ -10,15 +10,15 @@ import type { User } from "./types.js";
 export async function getCurrentUser(token?: string): Promise<User> {
   const query = `
     query CurrentUser {
-      me { id email name firstName lastName plan status createdAt }
+      getMe { id email name firstName lastName status createdAt }
     }
   `;
   if (token) {
-    const data = await execute<{ me: User }>(query, {}, token);
-    return data.me;
+    const data = await execute<{ getMe: User }>(query, {}, token);
+    return data.getMe;
   }
-  const data = await authed<{ me: User }>(query);
-  return data.me;
+  const data = await authed<{ getMe: User }>(query);
+  return data.getMe;
 }
 
 export async function loginWithPassword(
@@ -27,9 +27,9 @@ export async function loginWithPassword(
 ): Promise<{ accessToken: string; user: User }> {
   const query = `
     mutation Login($input: LoginInput!) {
-      login(input: $input) {
+      login(LoginInput: $input) {
         accessToken
-        user { id email name firstName lastName plan status createdAt }
+        user { id email name firstName lastName status createdAt }
       }
     }
   `;
