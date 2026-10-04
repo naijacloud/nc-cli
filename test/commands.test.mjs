@@ -100,3 +100,30 @@ test("whoami --json prints JSON", async () => {
   assert.equal(parsed.email, "a@example.com");
   assert.equal(parsed.loggedIn, true);
 });
+
+test("redeploy works with a key that may deploy but not read services", async () => {
+  const { redeploy } = await import("../build/commands/deployments.js");
+  const realFetch = globalThis.fetch;
+  const sent = [];
+  process.env.HOSTING_API_TOKEN = "nc_live_test";
+  globalThis.fetch = async (_url, init) => {
+    const { query } = JSON.parse(init.body);
+    sent.push(query);
+    if (/getService/.test(query)) {
+      return Response.json({
+        errors: [{ message: "This API key does not have the PLATFORM_API scope.", extensions: { code: "FORBIDDEN" } }],
+        data: null,
+      });
+    }
+    return Response.json({ data: { triggerDeploy: { id: "dep1", serviceId: SERVICE, status: "QUEUED" } } });
+  };
+  const realErr = process.stderr.write;
+  process.stderr.write = () => true;
+  try {
+    await redeploy({ service: SERVICE, wait: false, json: false });
+  } finally {
+    globalThis.fetch = realFetch;
+    process.stderr.write = realErr;
+  }
+  assert.ok(sent.some((query) => /triggerDeploy/.test(query)), "triggerDeploy was never sent");
+});
