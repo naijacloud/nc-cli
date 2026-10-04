@@ -86,8 +86,10 @@ repository name must begin with `homebrew-`, because that prefix is how
 refuses to give a branch otherwise) and a `Formula/` directory. The workflow
 commits [the rendered formula](templates/homebrew/naijacloud.rb) into it on
 every release, so `brew install naijacloud/tap/naijacloud` works, and
-`brew install naijacloud` once the tap is tapped. It still needs a `TAP_TOKEN`
-secret with write access to that repository, or the step skips.
+`brew install naijacloud` once the tap is tapped. It needs a `TAP_TOKEN`
+secret with write access to that repository; without one the
+`package-managers` job fails and says so (npm and the GitHub release still go
+out first).
 
 The formula was previously published to a personal tap, `Pherwerz/homebrew-tap`.
 Anyone who tapped that still points at it: `brew untap Pherwerz/tap` and re-tap.
@@ -157,10 +159,23 @@ been submitted since the alias was added. Worth checking on that first PR.
 | Secret                | Used for                            | Missing means                    |
 | --------------------- | ----------------------------------- | -------------------------------- |
 | `NPM_TOKEN`           | `npm publish --provenance`          | npm step is skipped              |
-| `TAP_TOKEN`           | pushing to the tap and bucket repos | those steps are skipped          |
+| `TAP_TOKEN`           | pushing to the tap and bucket repos | the `package-managers` job fails, naming the cause |
 
-Steps are conditional on their secret existing, so a first release with none of
-them still produces a complete GitHub release.
+`TAP_TOKEN` is a **fine-grained** personal access token, resource owner
+`naijacloud`, with access to only `naijacloud/homebrew-tap` and
+`naijacloud/scoop-bucket` and the single repository permission
+**Contents: Read and write**. Save it with
+`gh secret set TAP_TOKEN --repo naijacloud/nc-cli`. Give it an expiry you will
+see coming: an expired token is what left the tap and bucket empty through
+v0.4.0 and v1.1.0 (TGL-724).
+
+The tap and the bucket are pushed by their own job, `package-managers`, which
+runs only after the `publish` job has created the GitHub release and published
+to npm. So a missing, expired or under-scoped `TAP_TOKEN` can never hold up the
+other channels. The job tries the tap and the bucket independently, then fails
+with one error naming which of them did not get the version and why. Fix the
+secret and use **Re-run failed jobs** on the same run; there is no need to
+re-tag.
 
 ---
 
@@ -191,8 +206,11 @@ a smooth install.
    cross-compiles five binaries on one runner, runs each on its native platform
    to confirm it starts and reports the expected version, generates checksums,
    builds `.deb`/`.rpm`, renders every manifest from the **published** checksums,
-   creates the GitHub release, publishes to npm, and updates the tap and the
-   bucket. WinGet is not submitted — that job is commented out.
+   creates the GitHub release, publishes to npm, and then, in a separate job,
+   updates the tap and the bucket. WinGet is not submitted — that job is
+   commented out.
+4. Check the run's `homebrew + scoop` job. If it is red, its error says which
+   repository was not updated and why; fix `TAP_TOKEN` and re-run that job.
 
 The workflow refuses to run if the tag and `package.json` disagree, and `smoke`
 is `fail-fast` on purpose: rendering a formula whose hashes point at artifacts
