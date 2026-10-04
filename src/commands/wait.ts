@@ -17,6 +17,8 @@ export const TERMINAL: ReadonlySet<DeploymentStatus> = new Set<DeploymentStatus>
   "RUNNING",
   "FAILED",
   "CANCELLED",
+  // Went live, then a newer deploy replaced it before this poll saw RUNNING.
+  "REPLACED",
   "SUPERSEDED",
 ]);
 

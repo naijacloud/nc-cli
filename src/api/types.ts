@@ -14,6 +14,7 @@ export type DeploymentStatus =
   | "RUNNING"
   | "FAILED"
   | "CANCELLED"
+  | "REPLACED"
   | "SUPERSEDED";
 
 export type ServiceType =
@@ -64,7 +65,6 @@ export interface User {
   name: string | null;
   firstName: string | null;
   lastName: string | null;
-  plan: string;
   status: string;
   createdAt: string;
 }

@@ -8,7 +8,7 @@
  * that treats them as authoritative will create services that cannot start.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import type { DetectedBuild, InstallationRepo } from "./types.js";
 
 const DETECTED_BUILD_FIELDS = `
@@ -30,15 +30,17 @@ const DETECTED_BUILD_FIELDS = `
  * cue to offer `githubAppInstallUrl`, never an error.
  */
 export async function listGithubRepositories(teamId: string): Promise<InstallationRepo[]> {
-  const data = await authed<{ githubRepositories: InstallationRepo[] }>(
+  return await authedAllPages<InstallationRepo, { getGithubRepositories: { items: InstallationRepo[]; pageInfo: { hasNextPage: boolean } } }>(
     `
-      query GithubRepositories($teamId: ID!) {
-        githubRepositories(teamId: $teamId) { fullName private defaultBranch }
+      query GithubRepositories($teamId: ID!, $page: OffsetPaginationArgs) {
+        getGithubRepositories(teamId: $teamId, OffsetPaginationArgs: $page) {
+          ${pageSelection("fullName private defaultBranch")}
+        }
       }
     `,
     { teamId },
+    (data) => data.getGithubRepositories,
   );
-  return data.githubRepositories;
 }
 
 /**
@@ -48,11 +50,11 @@ export async function listGithubRepositories(teamId: string): Promise<Installati
  * team at the moment it is shown rather than being a constant worth caching.
  */
 export async function githubAppInstallUrl(teamId: string): Promise<string> {
-  const data = await authed<{ githubAppInstallUrl: string }>(
-    `query GithubAppInstallUrl($teamId: ID!) { githubAppInstallUrl(teamId: $teamId) }`,
+  const data = await authed<{ getGithubAppInstallUrl: string }>(
+    `query GithubAppInstallUrl($teamId: ID!) { getGithubAppInstallUrl(teamId: $teamId) }`,
     { teamId },
   );
-  return data.githubAppInstallUrl;
+  return data.getGithubAppInstallUrl;
 }
 
 /**
@@ -70,15 +72,15 @@ export async function detectBuild(input: {
   rootDir?: string;
 }): Promise<DetectedBuild | null> {
   try {
-    const data = await authed<{ detectBuild: DetectedBuild }>(
+    const data = await authed<{ getDetectBuild: DetectedBuild }>(
       `
         query DetectBuild($input: DetectBuildInput!) {
-          detectBuild(input: $input) { ${DETECTED_BUILD_FIELDS} }
+          getDetectBuild(DetectBuildInput: $input) { ${DETECTED_BUILD_FIELDS} }
         }
       `,
       { input },
     );
-    return data.detectBuild;
+    return data.getDetectBuild;
   } catch {
     return null;
   }

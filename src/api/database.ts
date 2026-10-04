@@ -11,7 +11,7 @@
  * genuine null so an empty string and a NULL stay distinguishable.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import type { ServiceType } from "./types.js";
 
 export interface DbQueryResult {
@@ -112,11 +112,11 @@ export interface DbObject {
 }
 
 export async function listDatabaseObjects(serviceId: string): Promise<DbObject[]> {
-  const data = await authed<{ databaseObjects: DbObject[] }>(
-    `query DatabaseObjects($serviceId: ID!) { databaseObjects(serviceId: $serviceId) { kind name schema } }`,
+  return await authedAllPages<DbObject, { getDatabaseObjects: { items: DbObject[]; pageInfo: { hasNextPage: boolean } } }>(
+    `query DatabaseObjects($serviceId: ID!, $page: OffsetPaginationArgs) { getDatabaseObjects(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("kind name schema")} } }`,
     { serviceId },
+    (data) => data.getDatabaseObjects,
   );
-  return data.databaseObjects;
 }
 
 export interface TableStat {
@@ -127,11 +127,11 @@ export interface TableStat {
 }
 
 export async function listTableStats(serviceId: string): Promise<TableStat[]> {
-  const data = await authed<{ tableStats: TableStat[] }>(
-    `query TableStats($serviceId: ID!) { tableStats(serviceId: $serviceId) { name schema estimatedRows } }`,
+  return await authedAllPages<TableStat, { getTableStats: { items: TableStat[]; pageInfo: { hasNextPage: boolean } } }>(
+    `query TableStats($serviceId: ID!, $page: OffsetPaginationArgs) { getTableStats(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("name schema estimatedRows")} } }`,
     { serviceId },
+    (data) => data.getTableStats,
   );
-  return data.tableStats;
 }
 
 export interface DbColumn {
@@ -158,10 +158,10 @@ export async function getTableColumns(
   const variables: Record<string, unknown> = { serviceId, table };
   if (schema !== undefined) variables["schema"] = schema;
 
-  const data = await authed<{ tableColumns: DbTableSchema }>(
+  const data = await authed<{ getTableColumns: DbTableSchema }>(
     `
       query TableColumns($serviceId: ID!, $table: String!, $schema: String) {
-        tableColumns(serviceId: $serviceId, table: $table, schema: $schema) {
+        getTableColumns(serviceId: $serviceId, table: $table, schema: $schema) {
           name
           schema
           primaryKey
@@ -178,7 +178,7 @@ export async function getTableColumns(
     `,
     variables,
   );
-  return data.tableColumns;
+  return data.getTableColumns;
 }
 
 /**

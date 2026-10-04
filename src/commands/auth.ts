@@ -8,7 +8,7 @@
 
 import process from "node:process";
 
-import { apiBaseUrl, getCurrentUser, loginWithPassword } from "../api/index.js";
+import { NotLoggedInError, apiBaseUrl, getCurrentUser, loginWithPassword } from "../api/index.js";
 import type { User } from "../api/index.js";
 import {
   CONFIG_FILE,
@@ -72,7 +72,9 @@ export async function login(options: LoginOptions = {}): Promise<void> {
   try {
     user = await getCurrentUser(accessToken);
   } catch (error) {
-    if (options.token && error instanceof Error) {
+    // Only an authentication failure says anything about the token; a network
+    // or server error must not be reported as "your token was rejected".
+    if (options.token && error instanceof NotLoggedInError) {
       throw new Error(
         `The token passed to --token was rejected by NaijaCloud (${error.message}). Nothing was saved.`,
       );
@@ -126,7 +128,6 @@ export async function whoami(): Promise<void> {
     [
       `${user.email}${name ? ` (${name})` : ""}`,
       `  user id:  ${user.id}`,
-      `  plan:     ${user.plan}`,
       `  status:   ${user.status}`,
       `  api:      ${apiBaseUrl()}`,
       `  token:    from ${origin}`,

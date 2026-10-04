@@ -1,0 +1,6450 @@
+enum AbuseAction {
+  FLAGGED
+  OBSERVED
+  SUSPENDED
+}
+
+enum AbuseEnforcementMode {
+  FLAG
+  OFF
+  SUSPEND
+}
+
+type AbuseFact {
+  label: String!
+  value: String!
+}
+
+type AbuseFindingCounts {
+  all: Int!
+  exempt: Int!
+  flagged: Int!
+  needsReview: Int!
+  observed: Int!
+  suspended: Int!
+}
+
+enum AbuseFindingFilter {
+  ALL
+  EXEMPT
+  FLAGGED
+  NEEDS_REVIEW
+  OBSERVED
+  SUSPENDED
+}
+
+type AbuseFindingRow {
+  action: AbuseAction!
+  agreeingSweeps: Int!
+  exemptAt: DateTime
+  exemptBy: String
+  exemptReason: String
+  facts: [AbuseFact!]!
+  id: String!
+  projectName: String!
+  reasons: [String!]!
+  region: String!
+  score: Int!
+  serviceId: String!
+  serviceName: String!
+  signals: AbuseSignalSet!
+  suspendedAt: DateTime
+  sweepsRequired: Int!
+  windowEnd: DateTime!
+  windowStart: DateTime!
+}
+
+type AbuseFindingsPage {
+  counts: AbuseFindingCounts!
+  flagThreshold: Int!
+  mode: AbuseEnforcementMode!
+  rows: [AbuseFindingRow!]!
+  suspendThreshold: Int!
+  sweepsRequired: Int!
+}
+
+type AbuseSignalSet {
+  pinned: Float!
+  silent: Float!
+  unserved: Float!
+}
+
+type ActivityItem {
+  at: DateTime!
+  kind: ActivityKind!
+  text: String!
+}
+
+enum ActivityKind {
+  DEPLOY
+  SIGNUP
+  TICKET_OPENED
+  TICKET_RESOLVED
+}
+
+type AdminAuthPayload {
+  accessToken: String!
+  email: String!
+}
+
+type AdminDrainResult {
+  cordoned: Boolean!
+  nodeName: String!
+  objectStores: Int!
+  plannedServices: Int!
+  recoveryId: ID!
+  servicesWithoutBackup: [String!]!
+  targetNodeName: String!
+}
+
+type AdminEmailCounts {
+  all: Int!
+  healthy: Int!
+  suspended: Int!
+  watch: Int!
+}
+
+enum AdminEmailFailureKind {
+  BLOCKED
+  COMPLAINT
+  HARD_BOUNCE
+  SOFT_BOUNCE
+  SUPPRESSED
+}
+
+type AdminEmailFailureReason {
+  count: Int!
+  kind: AdminEmailFailureKind!
+  share: Float!
+}
+
+type AdminEmailOverview {
+  bounceRate: Float!
+  bounced30d: Int!
+  complained30d: Int!
+  complaintRate: Float!
+  counts: AdminEmailCounts!
+  delivered30d: Int!
+  deliveryRate: Float!
+  failureTotal: Int!
+  failures: [AdminEmailFailureReason!]!
+  rows: [AdminEmailSenderRow!]!
+  sent30d: Int!
+  sentPrev30d: Int!
+  thresholds: AdminEmailThresholds!
+  volume: [AdminEmailVolumePoint!]!
+}
+
+enum AdminEmailSenderFilter {
+  ALL
+  HEALTHY
+  SUSPENDED
+  WATCH
+}
+
+type AdminEmailSenderRow {
+  belowMinVolume: Boolean!
+  bounceRate: Float!
+  complaintRate: Float!
+  domain: String!
+  domainId: ID!
+  ownerEmail: String
+  region: String!
+  reputationScore: Int!
+  sent30d: Int!
+  status: AdminEmailSenderStatus!
+  suspendedReason: String
+  teamId: ID!
+  teamName: String!
+}
+
+enum AdminEmailSenderStatus {
+  SENDING
+  SUSPENDED
+  WATCHLIST
+}
+
+type AdminEmailThresholds {
+  bouncePause: Float!
+  bounceWarn: Float!
+  complaintPause: Float!
+  complaintWarn: Float!
+  deliveryTarget: Float!
+  minVolume: Int!
+}
+
+type AdminEmailVolumePoint {
+  bounced: Int!
+  day: DateTime!
+  delivered: Int!
+}
+
+type AdminFleet {
+  nodes: [AdminNodeRow!]!
+  regions: [AdminFleetRegion!]!
+  summary: AdminFleetSummary!
+}
+
+type AdminFleetRegion {
+  cpuPct: Float
+  diskPct: Float
+  label: String!
+  memoryPct: Float
+  nodes: Int!
+  online: Int!
+  region: String!
+  status: RegionStatus!
+  throughputBytesPerSec: Float!
+  workloads: Int!
+  zones: [String!]!
+}
+
+type AdminFleetSummary {
+  allocatableHeadroomPct: Float
+  allocatableVcpu: Float
+  avgCpuPct: Float!
+  avgDiskPct: Float!
+  avgMemoryPct: Float!
+  capacityUndeclaredNodes: [String!]!
+  cordoned: Int!
+  degraded: Int!
+  hotNodes: [String!]!
+  online: Int!
+  provisioning: Int!
+  throughputBytesPerSec: Float!
+  total: Int!
+  unhealthyWorkloads: Int!
+  unreachable: Int!
+  workloads: Int!
+}
+
+type AdminNodeAlert {
+  code: String!
+  level: FleetAlertLevel!
+  message: String!
+}
+
+type AdminNodeDetail {
+  alerts: [AdminNodeAlert!]!
+  groups: [AdminWorkloadGroup!]!
+  node: AdminNodeRow!
+}
+
+type AdminNodeRow {
+  agentVersion: String
+  allocatedDiskBytes: Float!
+  allocatedMemoryBytes: Float!
+  allocatedVcpu: Float!
+  appDomain: String!
+  applications: Int!
+  capabilities: [String!]!
+  capacityDeclared: Boolean!
+  capacityEnvKeys: [String!]!
+  cordonReason: String
+  cordonedAt: DateTime
+  cpuPct: Float
+  cronJobs: Int!
+  databases: Int!
+  diskPct: Float
+  diskTotalBytes: Float
+  dockerVersion: String
+  id: ID!
+  ingressType: NodeIngressType
+  isDefaultRegion: Boolean!
+  kind: NodeKind!
+  liveCpuVcpu: Float
+  liveDiskBytes: Float
+  liveMemoryBytes: Float
+  memoryPct: Float
+  memoryTotalBytes: Float
+  name: String!
+  objectStores: Int!
+  probeError: String
+  probedAt: DateTime!
+  reachable: Boolean!
+  region: String
+  regionLabel: String
+  sampledWorkloads: Int!
+  schedulable: Boolean!
+  status: AdminNodeStatus!
+  throughputBytesPerSec: Float!
+  unhealthyWorkloads: Int!
+  vcpu: Float
+  workloads: Int!
+  zone: String
+}
+
+enum AdminNodeStatus {
+  CORDONED
+  DEGRADED
+  HEALTHY
+  PROVISIONING
+  UNREACHABLE
+}
+
+type AdminOverview {
+  activeProjects: Int!
+  collectedKobo: Float!
+  computeLoadPct: Float!
+  highPriorityTickets: Int!
+  mrrKobo: Float!
+  mrrMoMPct: Float
+  openTickets: Int!
+  projectsThisWeek: Int!
+  recentActivity: [ActivityItem!]!
+  regions: [RegionLoad!]!
+  signups: [SignupPoint!]!
+  signupsTotal: Int!
+  totalUsers: Int!
+  usersMoMPct: Float
+}
+
+type AdminProjectRow {
+  health: ProjectHealth!
+  id: ID!
+  name: String!
+  ownerName: String!
+  region: String!
+  regionKey: String!
+  services: Int!
+  spendKobo: Float!
+}
+
+type AdminProjectsPage {
+  projects: [AdminProjectRow!]!
+  regionCount: Int!
+  total: Int!
+}
+
+type AdminResourceUsageRow {
+  bandwidthPct: Float!
+  computePct: Float!
+  databasePct: Float!
+  id: ID!
+  name: String!
+  ownerName: String!
+  region: String!
+  spendKobo: Float!
+  storagePct: Float!
+}
+
+"""A page of per-project resource usage with pagination metadata"""
+type AdminResourceUsageRowOffsetPaginated {
+  """The AdminResourceUsageRow rows on this page"""
+  items: [AdminResourceUsageRow!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type AdminUserRow {
+  email: String!
+  id: ID!
+  joinedAt: DateTime!
+  name: String!
+  plan: UserPlan!
+  projects: Int!
+  status: UserStatus!
+}
+
+type AdminUsersPage {
+  activeTotal: Int!
+  total: Int!
+  users: [AdminUserRow!]!
+}
+
+type AdminWorkloadGroup {
+  count: Int!
+  items: [AdminWorkloadItem!]!
+  kind: FleetWorkloadKind!
+  label: String!
+}
+
+type AdminWorkloadItem {
+  cpuVcpu: Float
+  environmentName: String
+  health: ServiceHealth
+  healthDetail: String
+  id: ID!
+  kind: FleetWorkloadKind!
+  memoryBytes: Float
+  meta: String!
+  name: String!
+  projectName: String
+  serviceType: ServiceType
+  state: String!
+  status: ServiceStatus!
+  storageBytes: Float
+  teamId: String
+}
+
+type AdvancedUsageRow {
+  amountKobo: Float!
+  label: String!
+  quantity: String!
+}
+
+input AnnouncementInput {
+  audience: HubAudience
+  audienceValue: String
+  body: String
+  impact: String
+  kind: HubAnnouncementKind!
+  pinned: Boolean
+  regions: [String!]
+  scheduledFor: DateTime
+  title: String!
+  windowEnd: DateTime
+  windowStart: DateTime
+}
+
+type AnnouncementView {
+  audience: HubAudience!
+  audienceLabel: String!
+  audienceValue: String
+  author: HubStaffMember
+  body: String!
+  commentCount: Int!
+  id: ID!
+  impact: String
+  kind: HubAnnouncementKind!
+  pinned: Boolean!
+  publishedAt: DateTime
+  reachCount: Int!
+  regions: [String!]!
+  scheduledFor: DateTime
+  state: HubPublishState!
+  title: String!
+  updatedAt: DateTime!
+  windowEnd: DateTime
+  windowStart: DateTime
+}
+
+"""A page of announcements with pagination metadata"""
+type AnnouncementViewOffsetPaginated {
+  """The AnnouncementView rows on this page"""
+  items: [AnnouncementView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type ApiToken {
+  createdAt: DateTime!
+  expiresAt: DateTime
+  id: ID!
+  lastUsedAt: DateTime
+  name: String!
+  revokedAt: DateTime
+  scopes: [ApiTokenScope!]!
+  teamId: ID
+
+  """The head of the key including its prefix, to identify it in a list."""
+  tokenHint: String!
+
+  """
+  Last characters of the key, to identify it against a value stored in a .env file or a CI secret. Null for keys issued before this was recorded.
+  """
+  tokenTail: String
+  updatedAt: DateTime!
+}
+
+"""A page of API tokens with pagination metadata"""
+type ApiTokenOffsetPaginated {
+  """The ApiToken rows on this page"""
+  items: [ApiToken!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""
+What an API key may do. READ/WRITE is the access level (READ = queries only); EMAIL_SEND, DATABASES, DEPLOYS and PLATFORM_API are the resource areas it may reach. Anything not covered by a narrower area requires PLATFORM_API.
+"""
+enum ApiTokenScope {
+  DATABASES
+  DEPLOYS
+  EMAIL_SEND
+  PLATFORM_API
+  READ
+  WRITE
+}
+
+type AuthPayload {
+  accessToken: String!
+  user: User!
+}
+
+type Backup {
+  bucket: String
+  completedAt: DateTime
+  createdAt: DateTime!
+  error: String
+  expiresAt: DateTime
+  id: ID!
+  objectKey: String
+  region: String
+  serviceId: String!
+  sizeBytes: Float
+  startedAt: DateTime
+  status: BackupStatus!
+  trigger: BackupTrigger!
+  updatedAt: DateTime!
+}
+
+enum BackupFrequency {
+  DAILY
+  HOURLY
+  WEEKLY
+}
+
+"""A page of database backups with pagination metadata"""
+type BackupOffsetPaginated {
+  """The Backup rows on this page"""
+  items: [Backup!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type BackupSchedule {
+  backupRegion: String
+  createdAt: DateTime!
+  dailyEnabled: Boolean!
+  hourlyEnabled: Boolean!
+  id: ID!
+  pitrEnabled: Boolean!
+  retentionDays: Int!
+  scheduleHour: Int!
+  scheduleMinute: Int!
+  serviceId: String!
+  updatedAt: DateTime!
+  weeklyEnabled: Boolean!
+}
+
+enum BackupStatus {
+  COMPLETED
+  FAILED
+  PENDING
+  RUNNING
+}
+
+enum BackupTrigger {
+  DAILY
+  HOURLY
+  MANUAL
+  PRE_RESTORE
+  WEEKLY
+}
+
+enum BalanceState {
+  EMPTY
+  HEALTHY
+  LOW
+  NEW
+}
+
+input BatchRowChangesInput {
+  deletes: [RowDeleteInput!]
+  inserts: [[ColumnValueInput!]!]
+  schema: String
+  serviceId: ID!
+  table: String!
+  updates: [RowUpdateInput!]
+}
+
+type BatchRowChangesResult {
+  deleted: Int!
+  inserted: Int!
+  message: String
+  updated: Int!
+}
+
+type BillingOverview {
+  balanceKobo: Float!
+  categories: [CategorySpend!]!
+  creditKobo: Float!
+  creditRemainingKobo: Float!
+  creditUsedKobo: Float!
+  currency: String!
+  currentPeriodEnd: DateTime!
+  currentPeriodStart: DateTime!
+  cycleSpendKobo: Float!
+  cycleUsageKobo: Float!
+  lowThresholdKobo: Float!
+  monthlyEstimateKobo: Float!
+  runwayDays: Float
+  state: BalanceState!
+  suspended: Boolean!
+  teamId: ID!
+  unbilledKobo: Float!
+}
+
+input BillingSettingsInput {
+  autoTopUpAmountKobo: Float
+  autoTopUpEnabled: Boolean
+  autoTopUpThresholdKobo: Float
+  lowBalanceThresholdKobo: Float
+  protectionPolicy: ProtectionPolicy
+  spendingLimitEnabled: Boolean
+  spendingLimitKobo: Float
+  usageAlertPercents: [Int!]
+}
+
+type BillingSettingsView {
+  autoTopUpAmountKobo: Float
+  autoTopUpCharges: Boolean!
+  autoTopUpEnabled: Boolean!
+  autoTopUpThresholdKobo: Float
+  lowBalanceThresholdKobo: Float!
+  protectionPolicy: ProtectionPolicy!
+  spendingLimitEnabled: Boolean!
+  spendingLimitKobo: Float
+  suspendedAt: DateTime
+  teamId: ID!
+  usageAlertPercents: [Int!]!
+}
+
+enum BootstrapMode {
+  NEW
+  REBUILD
+}
+
+input BootstrapNodeInput {
+  appDomain: String
+  host: String!
+  nodeName: String!
+  region: String
+  regionLabel: String
+  sshPassword: String
+  sshPort: Int! = 22
+  sshPrivateKey: String
+  sshUser: String! = "root"
+  zone: String
+}
+
+enum BootstrapPhase {
+  ACTIVATE
+  AGENT
+  CONNECT
+  DOCKER
+  EDGE
+  HARDEN
+  INGRESS
+  MTLS
+  NETWORKS
+  SSH_IDENTITY
+  TAILSCALE
+  TENANT_FIREWALL
+  VERIFY
+}
+
+type BootstrapPhasePlan {
+  description: String!
+  implemented: Boolean!
+  phase: BootstrapPhase!
+}
+
+enum BootstrapStatus {
+  CANCELLED
+  COMPLETED
+  FAILED
+  PENDING
+  RUNNING
+}
+
+enum BucketVisibility {
+  PRIVATE
+  PUBLIC_READ
+}
+
+enum BuildMethod {
+  DOCKERFILE
+  GENERATED
+  IMAGE
+  STATIC
+}
+
+type CategorySpend {
+  amountKobo: Float!
+  category: UsageCategory!
+  label: String!
+}
+
+type ChangelogEntryView {
+  author: HubStaffMember
+  commentCount: Int!
+  heroImageUrl: String
+  id: ID!
+  lastEditedBy: HubStaffMember
+  links: [ChangelogLinkView!]!
+  notifiedCount: Int!
+  pendingNotifyCount: Int!
+  publishedAt: DateTime
+  scheduledFor: DateTime
+  sections: [ChangelogSectionView!]!
+  slug: String!
+  state: HubPublishState!
+  summary: String!
+  tag: String
+  title: String!
+  updatedAt: DateTime!
+}
+
+"""A page of changelog entries with pagination metadata"""
+type ChangelogEntryViewOffsetPaginated {
+  """The ChangelogEntryView rows on this page"""
+  items: [ChangelogEntryView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+input ChangelogLinkInput {
+  label: String!
+  postId: ID
+  roadmapItemId: ID
+}
+
+type ChangelogLinkView {
+  kind: HubSearchKind
+  label: String!
+  postId: ID
+  roadmapItemId: ID
+}
+
+input ChangelogSectionInput {
+  items: [String!]!
+  label: String!
+}
+
+type ChangelogSectionView {
+  items: [String!]!
+  label: String!
+}
+
+input ColumnValueInput {
+  column: String!
+  value: String
+}
+
+type CommunityBadge {
+  key: String!
+  label: String!
+}
+
+type CommunityContribution {
+  at: DateTime!
+  id: ID!
+  kind: HubPostKind!
+  title: String!
+}
+
+type CommunityContributor {
+  badge: String
+  initials: String!
+  name: String!
+  reputation: Int!
+  userId: ID!
+}
+
+input CommunityFeedInput {
+  kinds: [HubPostKind!]
+  sort: HubSort
+  status: HubThreadStatus
+  tag: String
+}
+
+type CommunityItem {
+  author: HubActor!
+  confirmCount: Int!
+  createdAt: DateTime!
+  excerpt: String!
+  id: ID!
+  kind: HubPostKind!
+  lastActivityAt: DateTime!
+  locked: Boolean!
+  pinned: Boolean!
+  reference: String!
+  replyCount: Int!
+  solved: Boolean!
+  status: HubThreadStatus
+  statusLabel: String
+  tags: [String!]!
+  title: String!
+  viewCount: Int!
+  viewerHasConfirmed: Boolean!
+  viewerHasVoted: Boolean!
+  viewerIsFollowing: Boolean!
+  voteCount: Int!
+}
+
+type CommunityItemDetail {
+  attachments: [HubAttachment!]!
+  body: String!
+  item: CommunityItem!
+  related: [CommunityRelated!]!
+  replies: [CommunityReply!]!
+  reproductionSteps: String
+}
+
+"""A page of community posts with pagination metadata"""
+type CommunityItemOffsetPaginated {
+  """The CommunityItem rows on this page"""
+  items: [CommunityItem!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type CommunityProfile {
+  acceptedAnswerCount: Int!
+  badges: [CommunityBadge!]!
+  contributions: [CommunityContribution!]!
+  initials: String!
+  joinedAt: DateTime!
+  name: String!
+  postCount: Int!
+  replyCount: Int!
+  reputation: Int!
+  upvotesReceived: Int!
+  userId: ID!
+}
+
+type CommunityRelated {
+  id: ID!
+  kind: HubSearchKind!
+  meta: String!
+  title: String!
+}
+
+type CommunityReply {
+  accepted: Boolean!
+  author: HubActor!
+  body: String!
+  createdAt: DateTime!
+  id: ID!
+  pinned: Boolean!
+  voteCount: Int!
+}
+
+input CommunityReplyInput {
+  body: String!
+  postId: ID!
+}
+
+input CommunityReportInput {
+  commentId: ID
+  detail: String
+  postId: ID
+  reason: HubModerationReason!
+}
+
+enum ComponentScope {
+  GLOBAL
+  REGIONAL
+}
+
+enum ComponentStatus {
+  DEGRADED
+  DOWN
+  MAINTENANCE
+  OPERATIONAL
+  UNKNOWN
+}
+
+type ComputeGateStatusView {
+  enabled: Boolean!
+  mayCreate: Boolean!
+  required: [ComputeRequirement!]!
+  unmet: [ComputeRequirement!]!
+}
+
+enum ComputeRequirement {
+  EMAIL
+  PAYMENT
+  PHONE
+}
+
+type CorsRule {
+  allowedHeaders: [String!]
+  allowedMethods: [String!]!
+  allowedOrigins: [String!]!
+  exposeHeaders: [String!]
+  maxAgeSeconds: Int
+}
+
+input CorsRuleInput {
+  allowedHeaders: [String!]
+  allowedMethods: [String!]!
+  allowedOrigins: [String!]!
+  exposeHeaders: [String!]
+  maxAgeSeconds: Int
+}
+
+input CreateApiTokenInput {
+  expiresInDays: Int
+  name: String!
+  neverExpires: Boolean
+  scopes: [ApiTokenScope!]
+  teamId: ID
+}
+
+input CreateBucketInput {
+  name: String!
+  visibility: BucketVisibility
+}
+
+input CreateChangelogInput {
+  heroImageUrl: String
+  links: [ChangelogLinkInput!]
+  sections: [ChangelogSectionInput!]
+  summary: String
+  tag: String
+  title: String!
+}
+
+input CreateCommunityPostInput {
+  attachments: [HubAttachmentInput!]
+  body: String!
+  kind: HubPostKind!
+  productArea: String
+  projectId: ID
+  region: String
+  reproductionSteps: String
+  serviceId: ID
+  tags: [String!]
+  title: String!
+  version: String
+}
+
+input CreateServiceInput {
+  branch: String
+  buildCommand: String
+  command: String
+  connectionEnvName: String
+  dbName: String
+  dbPassword: String
+  dbUser: String
+  envVars: [EnvVarInput!]
+  environmentId: ID!
+  gitUrl: String
+  healthCheckPath: String
+  image: String
+  imageCommand: String
+  injectConnectionUrl: Boolean
+  installationId: String
+  monorepoStrategy: MonorepoStrategy
+  name: String!
+  port: Int
+  region: String
+  repoFullName: String
+  rootDir: String
+  runtimeVersion: String
+  schedule: String
+  secretFiles: [SecretFileInput!]
+  sourceType: SourceType
+  startCommand: String
+  staticIndexPath: String
+  staticOutputDir: String
+  staticSpa: Boolean
+  staticUploadId: String
+  subdomain: String
+  tier: ServiceTier
+  type: ServiceType!
+  watchPaths: [String!]
+}
+
+input CreateTeamRoleInput {
+  allProjects: Boolean
+  description: String
+  name: String!
+  permissions: [TeamPermission!]
+  projectIds: [ID!]
+  readOnly: Boolean
+  teamId: ID!
+}
+
+input CreateTicketInput {
+  body: String!
+  priority: TicketPriority
+  projectId: ID
+  serviceId: ID
+  subject: String!
+}
+
+type CreatedApiToken {
+  """
+  The token, shown only in this response. Store it now — it cannot be retrieved again.
+  """
+  secret: String!
+  token: ApiToken!
+}
+
+type CreatedMailKey {
+  key: MailApiKey!
+
+  """Shown once, at creation. Never recoverable afterwards."""
+  secret: String!
+}
+
+type CreatedMailWebhookEndpoint {
+  endpoint: MailWebhookEndpoint!
+
+  """
+  Shown once, here. Store it before closing this dialog — it is never returned again.
+  """
+  secret: String!
+}
+
+enum CronLogStream {
+  OUTPUT
+  SYSTEM
+}
+
+type CronRun {
+  commitSha: String
+  createdAt: DateTime!
+  error: String
+  exitCode: Int
+  finishedAt: DateTime
+  id: ID!
+  imageTag: String
+  seq: Int
+  serviceId: String!
+  startedAt: DateTime
+  status: CronRunStatus!
+  trigger: CronRunTrigger!
+  updatedAt: DateTime!
+}
+
+type CronRunLog {
+  createdAt: DateTime!
+  cronRunId: String!
+  id: ID!
+  line: String!
+  stream: CronLogStream!
+  updatedAt: DateTime!
+}
+
+"""A page of cron run log lines with pagination metadata"""
+type CronRunLogOffsetPaginated {
+  """The CronRunLog rows on this page"""
+  items: [CronRunLog!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A page of cron runs with pagination metadata"""
+type CronRunOffsetPaginated {
+  """The CronRun rows on this page"""
+  items: [CronRun!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum CronRunStatus {
+  FAILED
+  QUEUED
+  RUNNING
+  SKIPPED
+  SUCCEEDED
+  TIMED_OUT
+}
+
+enum CronRunTrigger {
+  MANUAL
+  SCHEDULED
+}
+
+type CronStats {
+  successRate: Float!
+  windowRuns: Int!
+}
+
+type CustomDomain {
+  createdAt: DateTime!
+  dnsTarget: CustomDomainDnsTarget!
+  domain: String!
+  id: ID!
+  lastCheck: String
+  serviceId: String!
+  status: CustomDomainStatus!
+  updatedAt: DateTime!
+  verifiedAt: DateTime
+}
+
+type CustomDomainDnsTarget {
+  aRecord: String
+  cname: String!
+  conflicts: [DnsRecordInstruction!]
+  isApex: Boolean!
+  records: [DnsRecordInstruction!]
+}
+
+"""A page of custom domains with pagination metadata"""
+type CustomDomainOffsetPaginated {
+  """The CustomDomain rows on this page"""
+  items: [CustomDomain!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum CustomDomainStatus {
+  ACTIVE
+  PENDING
+}
+
+type DailySpend {
+  amountKobo: Float!
+  date: DateTime!
+}
+
+type DataProvisionResult {
+  database: String!
+  engine: ServiceType!
+  externalUrl: String
+  generatedName: Boolean!
+  generatedPassword: Boolean!
+  generatedUser: Boolean!
+  host: String!
+  password: String!
+  port: Int!
+  url: String!
+  username: String!
+}
+
+enum DatabaseExportFormat {
+  ARCHIVE
+  SQL
+}
+
+type DatabaseStats {
+  cacheHitRatio: Float
+  connections: Int
+  engine: ServiceType!
+  itemCount: Float
+  itemLabel: String
+  opsPerSec: Float
+  opsTotal: Float
+  storageBytes: Float
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type DbColumn {
+  default: String
+  isPrimaryKey: Boolean!
+  name: String!
+  nullable: Boolean!
+  references: DbForeignKeyRef
+  type: String!
+}
+
+type DbForeignKeyRef {
+  column: String!
+  schema: String
+  table: String!
+}
+
+type DbMigration {
+  appliedAt: DateTime
+  id: String!
+  name: String!
+  sql: String
+  status: String!
+}
+
+"""A page of applied schema migrations with pagination metadata"""
+type DbMigrationOffsetPaginated {
+  """The DbMigration rows on this page"""
+  items: [DbMigration!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type DbObject {
+  kind: String!
+  name: String!
+  schema: String
+}
+
+"""A page of database tables/views with pagination metadata"""
+type DbObjectOffsetPaginated {
+  """The DbObject rows on this page"""
+  items: [DbObject!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type DbQueryResult {
+  columns: [String!]!
+  engine: ServiceType!
+  executionMs: Int!
+  message: String
+  notices: [String!]!
+  rowCount: Int!
+  rows: [DbRow!]!
+  truncated: Boolean!
+}
+
+type DbRow {
+  cells: [String]!
+}
+
+type DbTableSchema {
+  columns: [DbColumn!]!
+  name: String!
+  primaryKey: [String!]!
+  schema: String
+}
+
+enum DeployErrorCode {
+  BUILD_FAILED
+  BUILD_OOM
+  COMMAND_NOT_FOUND
+  CRASH
+  HEALTH_TIMEOUT
+  IMAGE_REJECTED
+  MISSING_SCRIPT
+  MODULE_NOT_FOUND
+  NODE_BUSY
+  NODE_LOW_DISK
+  OOM
+  PORT_NOT_LISTENING
+  UNKNOWN
+}
+
+type DeployLocation {
+  isDefault: Boolean!
+  label: String!
+  nodeId: ID!
+  region: String!
+}
+
+input DeployStaticSiteInput {
+  environmentId: ID
+  indexPath: String
+  name: String
+  spaFallback: Boolean
+  uploadId: ID!
+}
+
+type DeployStaticSiteResult {
+  deployment: Deployment!
+  site: Service!
+}
+
+enum DeployTrigger {
+  FIRST_DEPLOY
+  MANUAL
+  PUSH
+  ROLLBACK
+  SYSTEM
+}
+
+type Deployment {
+  authorAvatarUrl: String
+  authorName: String
+  branch: String
+  buildCommand: String
+  buildMethod: BuildMethod
+  commitMessage: String
+  commitProvisional: Boolean!
+  commitSha: String
+  containerId: String
+  createdAt: DateTime!
+  durationMs: Int
+  error: String
+  errorCode: DeployErrorCode
+  finishedAt: DateTime
+  id: ID!
+  imageDigest: String
+  imageTag: String
+  runtime: String
+  service: Service
+  serviceId: String!
+  startCommand: String
+  startedAt: DateTime
+  status: DeploymentStatus!
+  trigger: DeployTrigger
+  triggeredBy: String
+  updatedAt: DateTime!
+}
+
+type DeploymentLog {
+  createdAt: DateTime!
+  deploymentId: String!
+  id: ID!
+  level: LogLevel!
+  line: String!
+  stream: LogStream!
+  updatedAt: DateTime!
+}
+
+"""A page of deployment log lines with pagination metadata"""
+type DeploymentLogOffsetPaginated {
+  """The DeploymentLog rows on this page"""
+  items: [DeploymentLog!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A page of deployments with pagination metadata"""
+type DeploymentOffsetPaginated {
+  """The Deployment rows on this page"""
+  items: [Deployment!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum DeploymentStatus {
+  BUILDING
+  CANCELLED
+  DEPLOYING
+  FAILED
+  QUEUED
+  REPLACED
+  RUNNING
+  SUPERSEDED
+  TESTING
+}
+
+input DetectBuildInput {
+  branch: String
+  gitUrl: String
+  installationId: String
+  repoFullName: String
+  rootDir: String
+}
+
+type DetectedBuild {
+  buildCommand: String
+  framework: String
+  monorepoStrategy: MonorepoStrategy
+  packageManager: String
+  port: Int
+  runtime: String
+  runtimeVersion: String
+  startCommand: String
+  staticOutputDir: String
+  staticSpa: Boolean
+  watchPaths: [String!]
+  workspaceName: String
+}
+
+type DnsRecord {
+  content: String!
+  createdAt: DateTime!
+  editable: Boolean!
+  id: ID!
+  name: String!
+  origin: DnsRecordOrigin!
+  priority: Int
+  ttl: Int!
+  type: DnsRecordType!
+  updatedAt: DateTime!
+  zoneId: String!
+}
+
+input DnsRecordInput {
+  content: String!
+  name: String!
+  priority: Int
+  ttl: Int
+  type: DnsRecordType!
+}
+
+type DnsRecordInstruction {
+  name: String!
+  purpose: String
+  type: String!
+  value: String!
+}
+
+"""A page of DNS records with pagination metadata"""
+type DnsRecordOffsetPaginated {
+  """The DnsRecord rows on this page"""
+  items: [DnsRecord!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum DnsRecordOrigin {
+  MAIL
+  SERVICE
+  USER
+}
+
+enum DnsRecordType {
+  A
+  AAAA
+  ALIAS
+  CAA
+  CNAME
+  MX
+  NS
+  SRV
+  TXT
+}
+
+type DnsZone {
+  createdAt: DateTime!
+  id: ID!
+  lastError: String
+  name: String!
+  published: Boolean!
+  publishedAt: DateTime
+  teamId: String!
+  updatedAt: DateTime!
+}
+
+"""A page of DNS zones with pagination metadata"""
+type DnsZoneOffsetPaginated {
+  """The DnsZone rows on this page"""
+  items: [DnsZone!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A started domain purchase, awaiting payment"""
+type DomainCheckout {
+  """What they will be charged, in kobo"""
+  amountKobo: Float!
+
+  """The hosted payment page to send the customer to"""
+  checkoutUrl: String!
+
+  """Our reference for the order; echoed back on payment"""
+  reference: String!
+}
+
+"""The person or organisation a domain is registered to"""
+input DomainContactInput {
+  city: String!
+
+  """ISO 3166-1 alpha-2, e.g. NG"""
+  country: String!
+  email: String!
+  firstName: String!
+  lastName: String!
+  organization: String
+
+  """E.164, e.g. +2348012345678"""
+  phone: String!
+  postalCode: String!
+  state: String
+  street: String!
+}
+
+type DomainOrder {
+  amountKobo: Float!
+  createdAt: DateTime!
+  domain: String!
+  failureReason: String
+  id: ID!
+  kind: DomainOrderKind!
+  reference: String!
+  status: DomainOrderStatus!
+  teamId: String!
+  updatedAt: DateTime!
+  years: Float!
+}
+
+enum DomainOrderKind {
+  REGISTER
+  RENEW
+}
+
+enum DomainOrderStatus {
+  ABANDONED
+  FULFILLED
+  PAID
+  PENDING
+  REFUNDED
+  REFUND_DUE
+}
+
+"""What a renewal would cost, and what it would buy"""
+type DomainRenewalQuote {
+  """
+  What the customer pays, in kobo. Firm — the checkout is created for exactly this amount.
+  """
+  amountKobo: Float!
+  domain: String!
+
+  """The current expiry date, or null if we hold none"""
+  expiresAt: DateTime
+
+  """
+  What the expiry becomes once paid. Extends the current date rather than restarting from today, so renewing early loses nothing.
+  """
+  newExpiresAt: DateTime!
+
+  """Years this quote covers"""
+  years: Int!
+}
+
+"""Domain search results, grouped and ordered"""
+type DomainSearchResults {
+  """What they asked for and can have, cheapest first"""
+  available: [DomainSearchRow!]!
+
+  """How many rows across all groups can be bought"""
+  availableCount: Int!
+
+  """The bare name searched, after stripping any URL"""
+  query: String!
+
+  """
+  Name variants they could have instead, cheapest first. Always available — a suggestion somebody else owns is not a suggestion.
+  """
+  suggestions: [DomainSearchRow!]!
+
+  """
+  What they cannot have, each row carrying its own reason. Returned rather than dropped: somebody who typed a .ng needs to see why.
+  """
+  unavailable: [DomainSearchRow!]!
+}
+
+"""Availability and price for one candidate domain"""
+type DomainSearchRow {
+  """Whether this domain can be bought here, right now"""
+  available: Boolean!
+  domain: String!
+
+  """
+  Premium names are priced individually by the registry and cost far more than the standard rate
+  """
+  premium: Boolean!
+
+  """
+  What the customer pays, in kobo, for `years`. Firm, not an estimate — the checkout is created for exactly this amount, so the row, the payment page and the receipt agree. Null when it cannot be sold or cannot be priced right now.
+  """
+  priceKobo: Float
+
+  """
+  The same answer as a code. Branch on this, not on the sentence — the sentence is copy and will be reworded, and "somebody else has it" and "we cannot sell it yet" are opposite answers that look alike.
+  """
+  unavailableCode: DomainUnavailableReason
+
+  """Why it cannot be bought, in words meant for the customer"""
+  unavailableReason: String
+
+  """Years the price covers — some registries only allow one"""
+  years: Int!
+}
+
+"""The auth code and lock state needed to transfer a domain out"""
+type DomainTransferAuth {
+  """
+  The EPP/auth code the receiving registrar will ask for. Treat it as a password: it is all anyone needs to move the domain.
+  """
+  authCode: String!
+  domain: String!
+
+  """
+  When the registry transfer lock lifts, or null if there is none. ICANN forbids moving a gTLD for 60 days after registration.
+  """
+  transferLockUntil: DateTime
+}
+
+"""Why a searched domain cannot be bought"""
+enum DomainUnavailableReason {
+  CHECK_FAILED
+  PRICING_UNAVAILABLE
+  TAKEN
+  TLD_COMING_SOON
+  TLD_UNSUPPORTED
+}
+
+input EnvVarInput {
+  key: String!
+  scope: EnvVarScope
+  secret: Boolean
+  value: String!
+}
+
+type EnvVarMutationResult {
+  envVars: [ServiceEnvVar!]!
+  needsRedeploy: Boolean!
+  warnings: [String!]!
+}
+
+enum EnvVarScope {
+  ALL
+  DEV
+  PROD
+  UAT
+}
+
+type Environment {
+  createdAt: DateTime!
+  id: ID!
+  isPreview: Boolean!
+  name: String!
+  projectId: String!
+  services: [Service!]!
+  summary: EnvironmentSummary!
+  updatedAt: DateTime!
+}
+
+type EnvironmentRef {
+  id: ID!
+  name: String!
+}
+
+type EnvironmentSummary {
+  region: String
+  regionKey: String
+  replicas: Int!
+  trafficStatus: String!
+}
+
+input EstimateResourceInput {
+  cpuMillicores: Int
+  isPreview: Boolean
+  memoryMb: Int
+  storageLimitMb: Int
+  tier: ServiceTier
+  type: ServiceType!
+}
+
+type ExportResult {
+  expiresAt: DateTime!
+  filename: String!
+  format: String!
+  objectKey: String!
+  sizeBytes: Float
+  url: String!
+}
+
+type FlaggedUserView {
+  email: String
+  flagCount: Int!
+  helpfulCount: Int!
+  initials: String!
+  meta: String!
+  name: String!
+  note: String
+  state: HubUserFlagState!
+  userId: ID!
+  warningCount: Int!
+}
+
+"""A page of flagged community members with pagination metadata"""
+type FlaggedUserViewOffsetPaginated {
+  """The FlaggedUserView rows on this page"""
+  items: [FlaggedUserView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum FleetAlertLevel {
+  CRITICAL
+  INFO
+  WARNING
+}
+
+enum FleetNodeFilter {
+  ALL
+  CORDONED
+  NEEDS_ATTENTION
+  UNREACHABLE
+}
+
+enum FleetWorkloadKind {
+  APPLICATION
+  CRON
+  DATABASE
+  OBJECT_STORAGE
+}
+
+type FreeAllowanceCard {
+  analyticsEvents: Float!
+  egressBytes: Float!
+  emailMessages: Float!
+  monthlyCreditKobo: Float!
+  previewFreeHours: Int!
+  previewRateMultiplier: Float!
+  sessionReplays: Float!
+  storageBytes: Float!
+}
+
+type GithubAccount {
+  accountType: String!
+  configureUrl: String!
+  installationId: ID!
+  isPersonal: Boolean!
+  login: String!
+  repoCount: Int!
+}
+
+"""A page of connected GitHub accounts with pagination metadata"""
+type GithubAccountOffsetPaginated {
+  """The GithubAccount rows on this page"""
+  items: [GithubAccount!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A page of branch names with pagination metadata"""
+type GithubBranchOffsetPaginated {
+  """The GithubBranch rows on this page"""
+  items: [String!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type GithubConnection {
+  accounts: [String!]!
+  connected: Boolean!
+}
+
+type GithubInstallation {
+  accountLogin: String!
+  accountType: String!
+  createdAt: DateTime!
+  id: ID!
+  teamId: ID
+  updatedAt: DateTime!
+}
+
+type HubActivityItem {
+  at: DateTime!
+  id: ID!
+  postId: ID
+  text: String!
+}
+
+type HubActor {
+  avatarColor: String
+  email: String
+  id: ID
+  initials: String!
+  kind: HubAuthorKind!
+  name: String!
+  roleLabel: String
+}
+
+type HubAiAnswer {
+  citations: [HubAiCitation!]!
+  fallback: Boolean!
+  model: String
+  text: String!
+}
+
+input HubAiAskInput {
+  postId: ID
+  prompt: String!
+}
+
+type HubAiCitation {
+  id: ID
+  kind: HubSearchKind!
+  label: String!
+}
+
+type HubAiDraftView {
+  body: String!
+  confidencePercent: Int!
+  createdAt: DateTime!
+  customerName: String
+  id: ID!
+  kind: HubPostKind!
+  postId: ID!
+  postTitle: String!
+  reference: String!
+}
+
+type HubAnalytics {
+  kpis: [HubKpi!]!
+  panels: [HubMetricPanel!]!
+  windowDays: Int!
+}
+
+enum HubAnnouncementKind {
+  INCIDENT
+  MAINTENANCE
+  NEW_REGION
+  NEW_SERVICE
+  PRICING
+  PRODUCT_LAUNCH
+  PROMOTION
+  SECURITY
+}
+
+enum HubArticleState {
+  ARCHIVED
+  DRAFT
+  PUBLISHED
+}
+
+type HubAttachment {
+  name: String!
+  sizeBytes: Int
+  url: String
+}
+
+input HubAttachmentInput {
+  name: String!
+  sizeBytes: Int
+  url: String!
+}
+
+enum HubAudience {
+  AFFECTED
+  ALL
+  PLAN
+  REGION
+}
+
+enum HubAuthorKind {
+  AI
+  CUSTOMER
+  STAFF
+}
+
+input HubBugFilterInput {
+  limit: Int
+  offset: Int
+  ownerStaffId: ID
+  productArea: String
+  region: String
+  severity: HubSeverity
+  sort: HubSort
+  status: HubBugStatus
+}
+
+type HubBugPipelineStage {
+  count: Int!
+  status: HubBugStatus!
+}
+
+enum HubBugStatus {
+  CLOSED
+  CONFIRMED
+  INVESTIGATING
+  IN_PROGRESS
+  NEW
+  RESOLVED
+  TESTING
+}
+
+type HubComment {
+  accepted: Boolean!
+  aiGenerated: Boolean!
+  attachments: [HubAttachment!]!
+  author: HubActor!
+  authorKind: HubAuthorKind!
+  body: String!
+  createdAt: DateTime!
+  id: ID!
+  pinned: Boolean!
+  visibility: HubCommentVisibility!
+  voteCount: Int!
+}
+
+enum HubCommentVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+type HubConversation {
+  aiDraft: HubAiDraftView
+  body: String!
+  customer: HubCustomerContext
+  post: HubPostSummary!
+  related: [HubRelatedItem!]!
+  reproductionSteps: String
+  timeline: [HubTimelineEntry!]!
+}
+
+type HubCustomerContext {
+  company: String
+  customerSince: DateTime!
+  deployments: [HubRecentDeployment!]!
+  email: String!
+  history: [HubHistoryItem!]!
+  initials: String!
+  lifetimeItems: Int!
+  mrrNgn: Float!
+  name: String!
+  openItems: Int!
+  plan: String
+  primaryRegion: String
+  projects: [HubCustomerProject!]!
+  usage: [HubUsageMeter!]!
+  userId: ID!
+}
+
+type HubCustomerProject {
+  id: ID!
+  name: String!
+  region: String
+  serviceCount: Int!
+}
+
+type HubDashboard {
+  activity: [HubActivityItem!]!
+  aiDraftCount: Int!
+  aiDrafts: [HubAiDraftView!]!
+  healthBreakdown: [HubMetricBar!]!
+  healthScore: Int!
+  kpis: [HubKpi!]!
+  newMembers: Int!
+  popularSearches: [HubMetricBar!]!
+  trending: [HubPostSummary!]!
+}
+
+enum HubEventType {
+  ANSWER_ACCEPTED
+  ARTICLE_CREATED
+  ASSIGNED
+  BUG_STATUS_CHANGED
+  CONVERTED
+  CREATED
+  ESCALATED
+  FEATURE_STATUS_CHANGED
+  LINKED
+  MERGED
+  MODERATED
+  PRIORITY_CHANGED
+  REOPENED
+  SOLVED
+  STATUS_CHANGED
+}
+
+type HubFeatureCard {
+  enterpriseAccounts: Int!
+  links: [HubLinkedItem!]!
+  post: HubPostSummary!
+}
+
+"""A page of feature-request cards with pagination metadata"""
+type HubFeatureCardOffsetPaginated {
+  """The HubFeatureCard rows on this page"""
+  items: [HubFeatureCard!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+input HubFeatureFilterInput {
+  sort: HubSort
+  status: HubFeatureStatus
+}
+
+enum HubFeatureStatus {
+  DECLINED
+  IN_PROGRESS
+  PLANNED
+  RELEASED
+  UNDER_REVIEW
+}
+
+type HubHistoryItem {
+  id: ID!
+  kind: HubPostKind!
+  meta: String!
+  reference: String!
+  title: String!
+}
+
+type HubInboxCounts {
+  all: Int!
+  assignedToMe: Int!
+  highPriority: Int!
+  needsReply: Int!
+  resolved: Int!
+  unassigned: Int!
+  waitingOnCustomer: Int!
+}
+
+enum HubInboxFilter {
+  ALL
+  ASSIGNED_TO_ME
+  HIGH_PRIORITY
+  NEEDS_REPLY
+  RESOLVED
+  UNASSIGNED
+  WAITING_ON_CUSTOMER
+}
+
+input HubInboxInput {
+  assigneeStaffId: ID
+  filter: HubInboxFilter
+  kinds: [HubPostKind!]
+  limit: Int
+  offset: Int
+  priority: HubPriority
+  productArea: String
+  projectId: ID
+  region: String
+  search: String
+  sort: HubSort
+}
+
+type HubKpi {
+  delta: String
+  key: String!
+  label: String!
+  tone: String!
+  value: String!
+  view: String
+}
+
+type HubLinkedItem {
+  id: ID
+  kind: HubSearchKind!
+  label: String!
+}
+
+type HubMetricBar {
+  gap: Boolean!
+  label: String!
+  percent: Float!
+  value: String!
+}
+
+type HubMetricPanel {
+  key: String!
+  note: String!
+  rows: [HubMetricBar!]!
+  title: String!
+}
+
+enum HubModerationAction {
+  DELETE
+  DISMISS
+  LOCK
+  MERGE
+  SUSPEND
+  WARN
+}
+
+enum HubModerationReason {
+  ABUSE
+  DUPLICATE
+  OTHER
+  REPORTED_REPLY
+  SPAM
+}
+
+enum HubModerationState {
+  ACTIONED
+  DISMISSED
+  PENDING
+}
+
+input HubPageInput {
+  limit: Int
+  offset: Int
+  sort: HubSort
+}
+
+enum HubPermission {
+  ANNOUNCE
+  ASSIGN
+  BUG
+  CHANGELOG
+  ESCALATE
+  FEATURE
+  KB
+  MERGE
+  MODERATE
+  NOTE
+  REPLY
+  ROADMAP
+  STAFF_ADMIN
+}
+
+enum HubPostKind {
+  ANNOUNCEMENT_COMMENT
+  BUG
+  CHANGELOG_COMMENT
+  DISCUSSION
+  FEATURE_REQUEST
+  QUESTION
+}
+
+type HubPostPage {
+  hasMore: Boolean!
+  items: [HubPostSummary!]!
+  total: Int!
+}
+
+type HubPostSummary {
+  assignee: HubStaffMember
+  author: HubActor!
+  bugStatus: HubBugStatus
+  businessImpactNgn: Float!
+  commentCount: Int!
+  confirmCount: Int!
+  createdAt: DateTime!
+  customerPlan: String
+  excerpt: String!
+  featureStatus: HubFeatureStatus
+  flagged: Boolean!
+  followerCount: Int!
+  githubUrl: String
+  id: ID!
+  kind: HubPostKind!
+  lastActivityAt: DateTime!
+  locked: Boolean!
+  meta: String!
+  pinned: Boolean!
+  priority: HubPriority!
+  productArea: String
+  projectName: String
+  reference: String!
+  region: String
+  resolvedAt: DateTime
+  serviceName: String
+  severity: HubSeverity
+  solved: Boolean!
+  tags: [String!]!
+  threadStatus: HubThreadStatus
+  title: String!
+  unreadCount: Int!
+  version: String
+  viewCount: Int!
+  voteCount: Int!
+  workflowStatus: HubWorkflowStatus!
+}
+
+enum HubPriority {
+  HIGH
+  LOW
+  MEDIUM
+  URGENT
+}
+
+enum HubPublishState {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+type HubRecentDeployment {
+  at: DateTime!
+  id: ID!
+  meta: String!
+  sha: String!
+  status: String!
+}
+
+type HubRelatedItem {
+  id: ID!
+  kind: HubSearchKind!
+  matchPercent: Int!
+  merged: Boolean!
+  meta: String!
+  reference: String!
+  title: String!
+}
+
+input HubReplyInput {
+  aiGenerated: Boolean
+  body: String!
+  postId: ID!
+  status: HubWorkflowStatus
+  visibility: HubCommentVisibility
+}
+
+enum HubRoadmapStage {
+  COMING_SOON
+  IN_PROGRESS
+  PLANNED
+  RELEASED
+}
+
+enum HubRole {
+  ADMINISTRATOR
+  COMMUNITY_MANAGER
+  DEVELOPER
+  PRODUCT_MANAGER
+  SUPPORT_AGENT
+}
+
+type HubSearchHit {
+  id: ID!
+  kind: HubSearchKind!
+  meta: String!
+  reference: String
+  score: Int!
+  snippet: String!
+  title: String!
+}
+
+input HubSearchInput {
+  kinds: [HubSearchKind!]
+  limit: Int
+  query: String!
+}
+
+enum HubSearchKind {
+  ANNOUNCEMENT
+  ARTICLE
+  BUG
+  CHANGELOG
+  CUSTOMER
+  DISCUSSION
+  FEATURE_REQUEST
+  PROJECT
+  QUESTION
+  ROADMAP
+}
+
+type HubSearchResults {
+  hits: [HubSearchHit!]!
+  query: String!
+  total: Int!
+}
+
+enum HubSeverity {
+  S1
+  S2
+  S3
+}
+
+enum HubSort {
+  LAST_ACTIVITY
+  MOST_VOTES
+  NEWEST
+  OLDEST
+}
+
+input HubStaffInput {
+  active: Boolean
+  avatarColor: String
+  email: String!
+  name: String!
+  role: HubRole!
+  title: String
+}
+
+type HubStaffMember {
+  active: Boolean!
+  avatarColor: String
+  email: String!
+  id: ID!
+  initials: String!
+  name: String!
+  permissions: [HubPermission!]!
+  role: HubRole!
+  title: String
+}
+
+"""A page of hub staff members with pagination metadata"""
+type HubStaffMemberOffsetPaginated {
+  """The HubStaffMember rows on this page"""
+  items: [HubStaffMember!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum HubThreadStatus {
+  ACTIVE
+  NEEDS_STAFF
+  SOLVED
+  UNANSWERED
+}
+
+type HubTimelineEntry {
+  at: DateTime!
+  comment: HubComment
+  event: HubTimelineEvent
+  id: ID!
+  isEvent: Boolean!
+}
+
+type HubTimelineEvent {
+  actor: HubStaffMember
+  createdAt: DateTime!
+  id: ID!
+  text: String!
+  type: HubEventType!
+}
+
+type HubTriageSuggestion {
+  fallback: Boolean!
+  priority: String
+  productArea: String
+  reasoning: String!
+  severity: String
+}
+
+input HubUpdateBugInput {
+  deploymentId: ID
+  githubUrl: String
+  ownerStaffId: ID
+  postId: ID!
+  priority: HubPriority
+  productArea: String
+  region: String
+  reproductionSteps: String
+  severity: HubSeverity
+  status: HubBugStatus
+  version: String
+}
+
+type HubUsageMeter {
+  label: String!
+  percent: Float!
+  value: String!
+}
+
+enum HubUserFlagState {
+  ACTION_NEEDED
+  OK
+  SUSPENDED
+  UNDER_REVIEW
+  WARNED
+}
+
+type HubViewer {
+  aiEnabled: Boolean!
+  permissions: [HubPermission!]!
+  staff: HubStaffMember!
+}
+
+enum HubWorkflowStatus {
+  IN_PROGRESS
+  NEEDS_REPLY
+  RESOLVED
+  WAITING_ON_CUSTOMER
+}
+
+enum IncidentImpact {
+  CRITICAL
+  MAJOR
+  MINOR
+}
+
+enum IncidentStatus {
+  IDENTIFIED
+  INVESTIGATING
+  MONITORING
+  RESOLVED
+}
+
+type InstallationRepo {
+  defaultBranch: String!
+  fullName: String!
+  private: Boolean!
+}
+
+"""A page of GitHub repositories with pagination metadata"""
+type InstallationRepoOffsetPaginated {
+  """The InstallationRepo rows on this page"""
+  items: [InstallationRepo!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type Invite {
+  acceptedAt: DateTime
+  createdAt: DateTime!
+  email: String!
+  expiresAt: DateTime!
+  id: ID!
+  link: String!
+  projectIds: [String!]
+  role: Role!
+  teamId: String!
+  teamRoleId: String
+  updatedAt: DateTime!
+}
+
+type InvoiceLineItemView {
+  amountKobo: Float!
+  category: UsageCategory!
+  description: String!
+  hours: Float!
+  id: ID!
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  VOID
+}
+
+type InvoiceView {
+  code: String!
+  creditKobo: Float!
+  debitedKobo: Float!
+  id: ID!
+  issuedAt: DateTime!
+  lineItems: [InvoiceLineItemView!]!
+  number: Int!
+  periodEnd: DateTime!
+  periodStart: DateTime!
+  status: InvoiceStatus!
+  totalKobo: Float!
+  unbilledKobo: Float!
+  usageKobo: Float!
+}
+
+"""A page of statements with pagination metadata"""
+type InvoiceViewOffsetPaginated {
+  """The InvoiceView rows on this page"""
+  items: [InvoiceView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type IssuingCaInfo {
+  daysRemaining: Int!
+  isCa: Boolean!
+  issuer: String!
+  notAfter: DateTime!
+  notBefore: DateTime!
+  subject: String!
+}
+
+input KbArticleInput {
+  body: String
+  category: String
+  sourcePostId: ID
+  summary: String
+  title: String!
+}
+
+type KbArticleView {
+  author: HubStaffMember
+  body: String
+  category: String
+  helpfulPercent: Float
+  id: ID!
+  publishedAt: DateTime
+  slug: String!
+  sourceLabel: String
+  sourcePostId: ID
+  state: HubArticleState!
+  summary: String!
+  title: String!
+  updatedAt: DateTime!
+  viewCount: Int!
+}
+
+"""A page of knowledge-base articles with pagination metadata"""
+type KbArticleViewOffsetPaginated {
+  """The KbArticleView rows on this page"""
+  items: [KbArticleView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type KbCandidate {
+  answeredBy: String
+  converted: Boolean!
+  meta: String!
+  postId: ID!
+  reference: String!
+  similarAskCount: Int!
+  title: String!
+  viewCount: Int!
+}
+
+"""A page of article conversion candidates with pagination metadata"""
+type KbCandidateOffsetPaginated {
+  """The KbCandidate rows on this page"""
+  items: [KbCandidate!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type LifecycleRule {
+  enabled: Boolean!
+  expirationDays: Int
+  id: String!
+  noncurrentExpirationDays: Int
+  noncurrentTransitionDays: Int
+  prefix: String
+  transitionDays: Int
+}
+
+input LifecycleRuleInput {
+  enabled: Boolean!
+  expirationDays: Int
+  id: String!
+  noncurrentExpirationDays: Int
+  noncurrentTransitionDays: Int
+  prefix: String
+  transitionDays: Int
+}
+
+enum LogLevel {
+  ERROR
+  INFO
+  WARN
+}
+
+enum LogStream {
+  STDERR
+  STDOUT
+  SYSTEM
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type MailApiKey {
+  createdAt: DateTime!
+  id: ID!
+  isLive: Boolean!
+
+  """First characters of the key, to identify it in a list."""
+  keyHint: String!
+  lastUsedAt: DateTime
+  name: String!
+  revokedAt: DateTime
+  scope: MailKeyScope!
+  updatedAt: DateTime!
+}
+
+"""A page of mail API keys with pagination metadata"""
+type MailApiKeyOffsetPaginated {
+  """The MailApiKey rows on this page"""
+  items: [MailApiKey!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type MailDnsRecord {
+  host: String!
+  name: String!
+  priority: Float
+  problem: String
+  required: Boolean!
+  type: String!
+  value: String!
+  verified: Boolean!
+}
+
+type MailDomain {
+  createdAt: DateTime!
+  dailyQuota: Int!
+  dkimPublicKey: String!
+  failingRecords: [String!]
+  id: ID!
+  lastCheckedAt: DateTime
+  name: String!
+  region: String!
+  status: MailDomainStatus!
+  suspendedAt: DateTime
+  suspendedBy: String
+  suspendedReason: String
+  transportOverride: String
+  updatedAt: DateTime!
+  verifiedAt: DateTime
+}
+
+type MailDomainDetail {
+  """Set when the customer DMARC policy would break signing."""
+  alignmentWarning: String
+  domain: MailDomain!
+
+  """Set when DNS is right but not yet propagated."""
+  propagating: Boolean
+  records: [MailDnsRecord!]!
+}
+
+"""A page of sending domains with pagination metadata"""
+type MailDomainOffsetPaginated {
+  """The MailDomain rows on this page"""
+  items: [MailDomain!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum MailDomainStatus {
+  BROKEN
+  PENDING
+  SUSPENDED
+  VERIFIED
+}
+
+type MailEvent {
+  createdAt: DateTime!
+  detail: String
+  id: ID!
+  kind: MailEventKind!
+  occurredAt: DateTime!
+  recipient: String!
+  severity: String
+  updatedAt: DateTime!
+}
+
+enum MailEventKind {
+  ACCEPTED
+  BOUNCED
+  CLICKED
+  COMPLAINED
+  DEFERRED
+  DELIVERED
+  FAILED
+  OPENED
+  UNSUBSCRIBED
+}
+
+"""A page of mail delivery events with pagination metadata"""
+type MailEventOffsetPaginated {
+  """The MailEvent rows on this page"""
+  items: [MailEvent!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum MailKeyScope {
+  FULL
+  SEND
+}
+
+type MailMessage {
+  clicked: Boolean!
+  createdAt: DateTime!
+  deliveredAt: DateTime
+  failureReason: String
+  fromAddress: String!
+  id: ID!
+  opened: Boolean!
+  status: MailMessageStatus!
+  subject: String!
+  toAddress: String!
+  transport: String
+  updatedAt: DateTime!
+}
+
+"""A page of sent messages with pagination metadata"""
+type MailMessageOffsetPaginated {
+  """The MailMessage rows on this page"""
+  items: [MailMessage!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum MailMessageStatus {
+  BOUNCED
+  COMPLAINED
+  DEFERRED
+  DELIVERED
+  FAILED
+  QUEUED
+  REJECTED
+  SENT
+}
+
+type MailStats {
+  bounceRate: Float!
+  bounced: Int!
+  complained: Int!
+  delivered: Int!
+  deliveredRate: Float!
+  openRate: Float!
+  opened: Int!
+  sent: Int!
+}
+
+type MailSuppression {
+  active: Boolean!
+  address: String!
+  createdAt: DateTime!
+  detail: String
+  id: ID!
+  reason: MailSuppressionReason!
+  removable: Boolean!
+  softBounceCount: Float!
+  updatedAt: DateTime!
+}
+
+"""A page of suppressed addresses with pagination metadata"""
+type MailSuppressionOffsetPaginated {
+  """The MailSuppression rows on this page"""
+  items: [MailSuppression!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum MailSuppressionReason {
+  COMPLAINT
+  HARD_BOUNCE
+  MANUAL
+  REPEATED_SOFT_BOUNCE
+  UNSUBSCRIBED
+}
+
+type MailWebhookDelivery {
+  attempt: Int!
+  createdAt: DateTime!
+  deliveredAt: DateTime
+  endpointId: ID!
+  error: String
+  eventId: ID!
+  eventKind: MailEventKind!
+  id: ID!
+  nextAttemptAt: DateTime
+  responseStatus: Int
+  updatedAt: DateTime!
+  url: String!
+}
+
+"""A page of mail webhook delivery attempts with pagination metadata"""
+type MailWebhookDeliveryOffsetPaginated {
+  """The MailWebhookDelivery rows on this page"""
+  items: [MailWebhookDelivery!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type MailWebhookEndpoint {
+  consecutiveFailures: Float!
+  createdAt: DateTime!
+  description: String
+  disabledAt: DateTime
+  disabledReason: String
+  enabled: Boolean!
+  eventKinds: [MailEventKind!]!
+  id: ID!
+  lastFailureAt: DateTime
+  lastSuccessAt: DateTime
+
+  """When the rotated-out secret stops being accepted."""
+  previousSecretExpiresAt: DateTime
+
+  """First characters of the signing secret, to identify it."""
+  secretHint: String!
+  updatedAt: DateTime!
+  url: String!
+}
+
+"""A page of mail webhook endpoints with pagination metadata"""
+type MailWebhookEndpointOffsetPaginated {
+  """The MailWebhookEndpoint rows on this page"""
+  items: [MailWebhookEndpoint!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type MetricPoint {
+  blockReadBytesPerSec: Float!
+  blockWriteBytesPerSec: Float!
+  cacheHitRatio: Float
+  connections: Int
+  cpuPercent: Float!
+  memoryBytes: Float!
+  memoryLimitBytes: Float!
+  memoryPercent: Float!
+  networkRxBytesPerSec: Float!
+  networkTxBytesPerSec: Float!
+  opsPerSec: Float
+  storageBytes: Float
+  t: DateTime!
+}
+
+"""Time window for a metrics series query."""
+enum MetricRange {
+  LAST_6H
+  LAST_7D
+  LAST_24H
+  LAST_30D
+  LAST_30_MIN
+  LAST_HOUR
+}
+
+type MetricSeries {
+  bucketSeconds: Int!
+  points: [MetricPoint!]!
+  range: MetricRange!
+  serviceId: ID!
+  type: ServiceType!
+}
+
+input ModerationActionInput {
+  action: HubModerationAction!
+  itemId: ID!
+  mergeIntoPostId: ID
+  note: String
+}
+
+type ModerationItemView {
+  action: HubModerationAction
+  actionedAt: DateTime
+  actionedBy: HubStaffMember
+  author: HubActor
+  authorMeta: String
+  classifierScore: Float
+  commentId: ID
+  createdAt: DateTime!
+  excerpt: String!
+  id: ID!
+  location: String!
+  postId: ID
+  reason: HubModerationReason!
+  reporterLabel: String!
+  state: HubModerationState!
+}
+
+"""A page of moderation queue items with pagination metadata"""
+type ModerationItemViewOffsetPaginated {
+  """The ModerationItemView rows on this page"""
+  items: [ModerationItemView!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum MonorepoStrategy {
+  ISOLATED
+  WORKSPACE
+}
+
+type Mutation {
+  """
+  Redeem an invite token as the signed-in user and join the workspace. The invite must have been addressed to their own email address.
+  """
+  acceptInvite(token: String!): Team!
+
+  """
+  Attach a custom domain to a web service and start verification. Resolve dnsTarget on the result to show the record the customer must create. Triggers a redeploy so the route and certificate apply. Requires MEMBER.
+  """
+  addCustomDomain(domain: String!, serviceId: ID!): CustomDomain!
+
+  """
+  Add a record to a zone and publish it to the nameservers. Requires MEMBER on the owning team.
+  """
+  addDnsRecord(DnsRecordInput: DnsRecordInput!, zoneId: ID!): DnsRecord!
+
+  """
+  Admin-only. Assign a ticket to an admin, or hand it back by passing userId: null. Safe to repeat - assigning to the current holder is a no-op.
+  """
+  adminAssignTicket(ticketId: ID!, userId: ID): SupportTicket!
+
+  """
+  Admin-only and disruptive. Cordons a node then evacuates its workloads onto another node in the same region via node recovery; datastores are recreated and restored from their newest backup, so anything in servicesWithoutBackup comes back empty. Asynchronous - poll nodeRecovery with the returned recoveryId.
+  """
+  adminDrainNode(nodeId: ID!, targetNodeName: String): AdminDrainResult!
+
+  """
+  Public. Exchange the env-configured operator credentials (ADMIN_EMAIL / ADMIN_PASSWORD) for an admin JWT; every other admin operation requires that token.
+  """
+  adminLogin(email: String!, password: String!): AdminAuthPayload!
+
+  """
+  Admin-only. Mark a ticket resolved; the shorthand behind the console's Mark resolved button.
+  """
+  adminMarkTicketResolved(ticketId: ID!): SupportTicket!
+
+  """Admin-only. Post a support reply on a ticket and move it to PENDING."""
+  adminReplyToTicket(body: String!, ticketId: ID!): SupportTicket!
+
+  """
+  Admin-only. Let a suspended sending domain send again. A reason is mandatory: it is recorded in the audit log and emailed to the workspace owner, though the account itself no longer carries a suspension once it is lifted. Attributed to the calling admin.
+  """
+  adminResumeMailSending(domainId: ID!, reason: String!): AdminEmailSenderRow!
+
+  """
+  Admin-only. Cordon or uncordon a node. Placement only: nothing running is stopped, moved or restarted, the node simply stops receiving new workloads.
+  """
+  adminSetNodeSchedulable(nodeId: ID!, reason: String, schedulable: Boolean!): AdminNodeRow!
+
+  """
+  Admin-only. Set a ticket's status explicitly - resolve, reopen or mark pending.
+  """
+  adminSetTicketStatus(status: TicketStatus!, ticketId: ID!): SupportTicket!
+
+  """
+  Admin-only. Move a user onto a billing plan (Hobby/Pro/Scale) and return the updated row.
+  """
+  adminSetUserPlan(plan: UserPlan!, userId: ID!): AdminUserRow!
+
+  """
+  Admin-only. Set a user's account status (Active/Trial/Suspended). Suspending locks the account out.
+  """
+  adminSetUserStatus(status: UserStatus!, userId: ID!): AdminUserRow!
+
+  """
+  Admin-only. Stop a sending domain's outbound mail. Queued messages are held rather than dropped and the customer keeps console access. A reason is mandatory: it is stored on the account and emailed verbatim to the workspace owner. Attributed to the calling admin. A mail failure never fails the suspension — it is already written by then.
+  """
+  adminSuspendMailSending(domainId: ID!, reason: String!): AdminEmailSenderRow!
+
+  """
+  Commit a batch of staged table-editor changes - deletes, then updates, then inserts - in one transaction. Any failure rolls the whole batch back, so the grid is never half-saved. Requires MEMBER on the owning team.
+  """
+  applyRowChanges(BatchRowChangesInput: BatchRowChangesInput!): BatchRowChangesResult!
+
+  """
+  Admin-only. Provision a machine as a fleet node over SSH, or rebuild an existing node onto a new box (passing an existing nodeName selects REBUILD and reuses the Node row, so service assignments stay valid). Returns immediately; poll nodeBootstrap for progress.
+  """
+  bootstrapNode(BootstrapNodeInput: BootstrapNodeInput!): NodeBootstrap!
+
+  """
+  Stop a queued or in-progress deploy and mark it CANCELLED. The currently-live version is left running, because the build always bails before the zero-downtime swap. Idempotent on an already-finished deploy.
+  """
+  cancelDeployment(deploymentId: ID!): Deployment!
+
+  """
+  Finish connecting GitHub after the install round-trip: verifies the signed `state`, confirms the caller controls the installation via the OAuth code, and attaches it to the team. Afterwards githubRepositories lists that team's repos.
+  """
+  claimGithubInstallation(code: String!, installationId: String!, state: String!): GithubInstallation!
+
+  """
+  Mark one reply as the accepted answer to its thread. Only the thread's author may do this; it is where the Mark as solved button in a reply notification lands.
+  """
+  communityAcceptAnswer(commentId: ID!): CommunityItemDetail!
+
+  """Post a comment on a published announcement as the signed-in user."""
+  communityCommentOnAnnouncement(announcementId: ID!, body: String!): CommunityItemDetail!
+
+  """Post a comment on a published changelog entry as the signed-in user."""
+  communityCommentOnChangelog(body: String!, entryId: ID!): CommunityItemDetail!
+
+  """
+  Toggle the caller's "I'm seeing this too" confirmation on a bug report.
+  """
+  communityConfirmBug(postId: ID!): CommunityItem!
+
+  """
+  Open a hub thread - discussion, question, bug report or feature request - as the signed-in user, and return it with its detail view.
+  """
+  communityCreatePost(CreateCommunityPostInput: CreateCommunityPostInput!): CommunityItemDetail!
+
+  """
+  Toggle whether the caller follows an item and is notified when it moves. Use unfollowCommunityDiscussion for an idempotent unfollow.
+  """
+  communityFollow(postId: ID!): CommunityItem!
+
+  """
+  Record a helpful / not-helpful vote on a knowledge-base article and return it with updated counts.
+  """
+  communityRateArticle(articleId: ID!, helpful: Boolean!): KbArticleView!
+
+  """
+  Post a reply on a hub thread and put the thread back into the staff queue.
+  """
+  communityReply(CommunityReplyInput: CommunityReplyInput!): CommunityItemDetail!
+
+  """
+  Report a post or comment for moderation. Lands in the staff moderation queue as a pending item; the content is not hidden by this call.
+  """
+  communityReport(CommunityReportInput: CommunityReportInput!): Boolean!
+
+  """
+  Toggle the caller's vote on a feature request. Votes are weighted by the account's spend.
+  """
+  communityVote(postId: ID!): CommunityItem!
+
+  """
+  Consume a verification token and mark that address confirmed. Deliberately unauthenticated - the token is the credential - and throttled to 10 per minute.
+  """
+  confirmEmail(token: String!): Boolean!
+
+  """
+  Check a verification code against the signed-in account's open challenge and mark the number verified on success. Throttled to 10 per 10 minutes.
+  """
+  confirmPhoneVerification(code: String!): Boolean!
+
+  """
+  Mint a new API token for the caller. The secret is returned once in this response and is never recoverable afterwards. Throttled to 10 per hour.
+  """
+  createApiToken(CreateApiTokenInput: CreateApiTokenInput!): CreatedApiToken!
+
+  """
+  Create a bucket in the team's store. Pass visibility: PUBLIC_READ for a world-readable bucket; it is private when omitted. Requires ADMIN on the team.
+  """
+  createBucket(CreateBucketInput: CreateBucketInput!, region: String, teamId: ID!): StorageBucket!
+
+  """
+  Start hosting a domain on our nameservers, whether it was bought here or registered elsewhere and delegated to us. Returns the existing zone if the team already hosts it. Requires MEMBER on the team.
+  """
+  createDnsZone(name: String!, teamId: ID!): DnsZone!
+
+  """
+  Create a named environment (lowercase letters, digits and hyphens) inside a project. Requires MEMBER on the project's team.
+  """
+  createEnvironment(name: String!, projectId: ID!): Environment!
+
+  """
+  Mint a mail API key for the REST send API. The secret is returned once here and is never recoverable. Defaults to a live SEND-scoped key; throttled to 10 per hour so a stolen session cannot become a key farm.
+  """
+  createMailApiKey(live: Boolean, name: String!, scope: MailKeyScope, teamId: ID!): CreatedMailKey!
+
+  """
+  Register a sending domain for a team (default region af-west-1) and return the DNS records to publish. Each call mints an RSA DKIM keypair, so it is throttled to 20 per hour.
+  """
+  createMailDomain(name: String!, region: String, teamId: ID!): MailDomainDetail!
+
+  """
+  Register an HTTPS endpoint to receive this team's mail events. The signing secret is returned once here and is never recoverable. URLs that resolve to private, loopback or metadata addresses are refused. Omitting eventKinds subscribes to every kind. Throttled to 20 per hour.
+  """
+  createMailWebhookEndpoint(description: String, eventKinds: [MailEventKind!], teamId: ID!, url: String!): CreatedMailWebhookEndpoint!
+
+  """Create a project inside a workspace. Requires MEMBER on the team."""
+  createProject(description: String, displayName: String, name: String!, teamId: ID!): Project!
+
+  """
+  Provision a web service, cron job or datastore in an environment and queue its first deploy. Subject to the compute gate, so it can be refused until the account is verified. Requires MEMBER on the owning team.
+  """
+  createService(CreateServiceInput: CreateServiceInput!): Service!
+
+  """
+  Reserve a presigned slot for uploading a .zip or .html artifact straight to object storage, ahead of a static-site deploy.
+  """
+  createStaticUpload(StaticUploadInput: StaticUploadInput!): StaticUploadSlot!
+
+  """
+  Open a support ticket as the signed-in user and notify support. Requires a signed-in user.
+  """
+  createSupportTicket(CreateTicketInput: CreateTicketInput!): SupportTicket!
+
+  """
+  Create a workspace role. Requires ADMIN. Names are unique within the workspace.
+  """
+  createTeamRole(CreateTeamRoleInput: CreateTeamRoleInput!): TeamRole!
+
+  """
+  Destructive and irreversible. Deletes a backup row and its stored object, so it can no longer be restored or downloaded. Requires ADMIN on the owning team.
+  """
+  deleteBackup(backupId: ID!): Boolean!
+
+  """
+  Destructive. Deletes a bucket, which must already be empty. With force: true, first permanently deletes everything still in it, including every old version and delete marker left by versioning. Requires ADMIN on the team.
+  """
+  deleteBucket(
+    """Also delete every object, old version and delete marker first."""
+    force: Boolean
+    name: String!
+    region: String
+    teamId: ID!
+  ): Boolean!
+
+  """
+  Remove a bucket's CORS configuration, after which browsers can no longer read it cross-origin. Requires ADMIN on the team.
+  """
+  deleteBucketCors(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Remove every lifecycle rule from a bucket, so nothing expires automatically any more. Requires ADMIN on the team.
+  """
+  deleteBucketLifecycle(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Remove a bucket's policy entirely, which drops any public read access it granted. Requires ADMIN on the team.
+  """
+  deleteBucketPolicy(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Destructive. Delete a record from a zone and republish, so it stops resolving. Requires MEMBER on the owning team.
+  """
+  deleteDnsRecord(recordId: ID!): Boolean!
+
+  """
+  Destructive. Stop answering DNS for a domain and delete the zone and all of its records; the domain registration itself is untouched. Requires ADMIN on the owning team.
+  """
+  deleteDnsZone(zoneId: ID!): Boolean!
+
+  """
+  Remove one environment variable from a service; it disappears from the container on the next deploy. Requires MEMBER on the owning team.
+  """
+  deleteEnvVar(key: String!, serviceId: ID!): EnvVarMutationResult!
+
+  """
+  Destructive and irreversible. Tears down every service in the environment - containers, volumes, encrypted env vars and secret files - then deletes the environment and its services and deployments. Requires ADMIN on the owning team.
+  """
+  deleteEnvironment(id: ID!): Boolean!
+
+  """
+  Destructive. Removes a sending domain and its DKIM key, after which mail from that domain is refused. Requires membership of the team.
+  """
+  deleteMailDomain(id: ID!, teamId: ID!): Boolean!
+
+  """
+  Remove a webhook endpoint. Its delivery history is kept so a past failure can still be explained. Requires membership of the team.
+  """
+  deleteMailWebhookEndpoint(id: ID!, teamId: ID!): Boolean!
+
+  """
+  Destructive and irreversible unless the bucket has versioning on. Deletes one object. Requires ADMIN on the team.
+  """
+  deleteObject(bucket: String!, key: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Destructive and irreversible. Deletes the team's object store in a region along with every bucket and object in it. Requires ADMIN on the team.
+  """
+  deleteObjectStore(region: String, teamId: ID!): Boolean!
+
+  """
+  Destructive. Deletes many objects in one request and returns how many were removed. Requires ADMIN on the team.
+  """
+  deleteObjects(bucket: String!, keys: [String!]!, region: String, teamId: ID!): Int!
+
+  """
+  Destructive. Deletes everything under a prefix server-side - the delete-folder action. Returns how many were removed; call again for a folder large enough to hit the internal page cap. Requires ADMIN on the team.
+  """
+  deleteObjectsByPrefix(bucket: String!, prefix: String!, region: String, teamId: ID!): Int!
+
+  """
+  Destructive and irreversible. Tears down every service in every one of the project's environments - containers, volumes and secrets - then deletes the project. Requires ADMIN on the owning team.
+  """
+  deleteProject(id: ID!): Boolean!
+
+  """
+  Delete a saved query for the whole team; returns false if it was already gone. Requires MEMBER on the owning team.
+  """
+  deleteQuery(id: ID!): Boolean!
+
+  """
+  Destructive. Deletes one row identified by its primary key from the customer's live database. Requires MEMBER on the owning team.
+  """
+  deleteRow(pk: [ColumnValueInput!]!, schema: String, serviceId: ID!, table: String!): RowMutationResult!
+
+  """
+  Remove one secret file from a service by path; it disappears from the container on the next deploy. Requires MEMBER on the owning team.
+  """
+  deleteSecretFile(path: String!, serviceId: ID!): SecretFileMutationResult!
+
+  """
+  Destructive and irreversible. Tears down the service's containers, volumes, DNS and secrets, then deletes it - a datastore's data goes with it. Requires ADMIN on the owning team.
+  """
+  deleteService(id: ID!): Boolean!
+
+  """
+  Delete a role the workspace created. Requires ADMIN. Anyone holding it falls back to their OWNER/ADMIN/MEMBER rank. Default roles cannot be deleted — narrow their permissions instead.
+  """
+  deleteTeamRole(roleId: ID!, teamId: ID!): Boolean!
+
+  """
+  Build the cron job's image so scheduled runs have something to launch. Returns the deployment. Requires MEMBER on the owning team.
+  """
+  deployCronJob(serviceId: ID!): Deployment!
+
+  """
+  Publish an already-uploaded artifact as a new static site. Returns the created service together with its first deployment. Pass `environmentId` to create it inside a project you choose; omit it and the site lands in the team's scaffolded static-sites project, which is the original "drop a file, get a URL" behaviour.
+  """
+  deployStaticSite(DeployStaticSiteInput: DeployStaticSiteInput!): DeployStaticSiteResult!
+
+  """
+  Stop delivering events to an endpoint. Queued deliveries for it are dropped rather than retried. Requires membership of the team.
+  """
+  disableMailWebhookEndpoint(id: ID!, teamId: ID!): MailWebhookEndpoint!
+
+  """
+  Unlink a web or cron service from its GitHub repository, stopping push-to-deploy and turning PR previews off. The service keeps running its current deploy. Requires ADMIN on the owning team.
+  """
+  disconnectServiceRepo(serviceId: ID!): Service!
+
+  """
+  Resume delivering events to an endpoint and clear its failure count. The URL is re-checked first, so an endpoint that now resolves to a private address stays off. Requires membership of the team.
+  """
+  enableMailWebhookEndpoint(id: ID!, teamId: ID!): MailWebhookEndpoint!
+
+  """
+  Admin-only. Mark a service legitimate so the abuse sweep stops acting on it. A reason is mandatory and the exemption is attributed to the calling admin.
+  """
+  exemptServiceFromAbuse(reason: String!, serviceId: String!): AbuseFindingRow!
+
+  """
+  Dump the entire database straight from its container to object storage and return a short-lived presigned download URL. Format defaults to SQL. Requires MEMBER on the owning team.
+  """
+  exportDatabase(format: DatabaseExportFormat, serviceId: ID!): ExportResult!
+
+  """
+  Export one table or collection as CSV, JSON or SQL and return a short-lived presigned download URL. Requires MEMBER on the owning team.
+  """
+  exportTable(format: TableExportFormat, schema: String, serviceId: ID!, table: String!): ExportResult!
+
+  """
+  Accept a community answer on behalf of staff, marking the thread solved; pass accepted: false to undo it. Requires the REPLY hub permission.
+  """
+  hubAcceptAnswer(accepted: Boolean, commentId: ID!): HubConversation!
+
+  """
+  Add an internal note to an item - never visible to the customer. A separate entry point so staff who may note but not reply have a mutation they can call. Requires the NOTE hub permission.
+  """
+  hubAddInternalNote(body: String!, postId: ID!): HubConversation!
+
+  """
+  Move a bug one stage further along the pipeline, in one click. Requires the BUG hub permission.
+  """
+  hubAdvanceBugStatus(postId: ID!): HubConversation!
+
+  """
+  Generate an AI reply draft for a post and park it for human review; nothing is posted to the customer. Requires the REPLY hub permission.
+  """
+  hubAiDraftReply(postId: ID!): HubAiDraftView!
+
+  """
+  Apply the AI's triage suggestion to a bug - product area, severity and priority - as an explicit human decision. Requires the BUG hub permission.
+  """
+  hubApplyTriage(postId: ID!): HubConversation!
+
+  """
+  Archive an article so it leaves the help centre and search without being deleted. Requires the KB hub permission.
+  """
+  hubArchiveArticle(id: ID!): KbArticleView!
+
+  """
+  Assign an item to a staff member, or unassign it by omitting staffId. Requires the ASSIGN hub permission.
+  """
+  hubAssign(postId: ID!, staffId: ID): HubConversation!
+
+  """
+  Turn a solved thread into a draft article seeded from its accepted answer; `input` overrides the seeded fields. Requires the KB hub permission.
+  """
+  hubConvertToArticle(KbArticleInput: KbArticleInput, postId: ID!): KbArticleView!
+
+  """
+  Convert an item into a bug report, re-issuing its reference as NC-... while keeping the number. Requires the BUG hub permission.
+  """
+  hubConvertToBug(postId: ID!): HubConversation!
+
+  """
+  Convert an item back into a plain discussion thread. Requires the MERGE hub permission.
+  """
+  hubConvertToDiscussion(postId: ID!): HubConversation!
+
+  """
+  Convert an item into a feature request so it can collect votes and sit on the roadmap. Requires the FEATURE hub permission.
+  """
+  hubConvertToFeatureRequest(postId: ID!): HubConversation!
+
+  """
+  Create an announcement as a draft. Requires the ANNOUNCE hub permission.
+  """
+  hubCreateAnnouncement(AnnouncementInput: AnnouncementInput!): AnnouncementView!
+
+  """
+  Create a knowledge-base article as a draft. Requires the KB hub permission.
+  """
+  hubCreateArticle(KbArticleInput: KbArticleInput!): KbArticleView!
+
+  """
+  Create a changelog entry as a draft; nothing reaches the customer hub until it is published. Requires the CHANGELOG hub permission.
+  """
+  hubCreateChangelogEntry(CreateChangelogInput: CreateChangelogInput!): ChangelogEntryView!
+
+  """Add a card to the roadmap board. Requires the ROADMAP hub permission."""
+  hubCreateRoadmapItem(RoadmapItemInput: RoadmapItemInput!): RoadmapItemView!
+
+  """
+  Deactivate a hub staff member so they can no longer act, without deleting them - their past replies stay attributed. Requires the STAFF_ADMIN hub permission.
+  """
+  hubDeactivateStaff(id: ID!): HubStaffMember!
+
+  """
+  Destructive. Permanently delete an announcement and its comments. Requires the ANNOUNCE hub permission.
+  """
+  hubDeleteAnnouncement(id: ID!): Boolean!
+
+  """
+  Destructive. Permanently delete a knowledge-base article; archive it instead if it may be wanted back. Requires the KB hub permission.
+  """
+  hubDeleteArticle(id: ID!): Boolean!
+
+  """
+  Destructive. Permanently delete a changelog entry and its comment thread. Requires the CHANGELOG hub permission.
+  """
+  hubDeleteChangelogEntry(id: ID!): Boolean!
+
+  """
+  Destructive. Permanently remove a card from the roadmap, including for customers following it. Requires the ROADMAP hub permission.
+  """
+  hubDeleteRoadmapItem(id: ID!): Boolean!
+
+  """Discard an unsent AI reply draft. Requires the REPLY hub permission."""
+  hubDiscardAiDraft(draftId: ID!): Boolean!
+
+  """
+  Raise an item's priority, with an optional reason recorded on the timeline. Requires the ESCALATE hub permission.
+  """
+  hubEscalate(postId: ID!, priority: HubPriority!, reason: String): HubConversation!
+
+  """
+  Mark an item solved and close it out. Requires the REPLY hub permission.
+  """
+  hubMarkSolved(postId: ID!): HubConversation!
+
+  """
+  Fold a duplicate item into a master item, moving its replies and votes across. The source stops being a separate item; the surviving target is returned. Requires the MERGE hub permission.
+  """
+  hubMergePosts(sourceId: ID!, targetId: ID!): HubConversation!
+
+  """
+  Take a moderation action on reported content - delete, warn, suspend, merge, lock or dismiss - logged against the acting staff member. Requires the MODERATE hub permission.
+  """
+  hubModerate(ModerationActionInput: ModerationActionInput!): ModerationItemView!
+
+  """
+  Move a roadmap card one column to the right, or straight to a named stage. Notifies every customer following the card. Requires the ROADMAP hub permission.
+  """
+  hubMoveRoadmapItem(id: ID!, stage: HubRoadmapStage): RoadmapItemView!
+
+  """
+  Pin or unpin an announcement at the top of the customer hub. Requires the ANNOUNCE hub permission.
+  """
+  hubPinAnnouncement(id: ID!, pinned: Boolean!): AnnouncementView!
+
+  """
+  Pin or unpin a comment so it sits at the top of the thread. Requires the REPLY hub permission.
+  """
+  hubPinComment(commentId: ID!, pinned: Boolean!): HubConversation!
+
+  """
+  Publish an announcement to the customer hub now, freezing its reach count at publish time. Requires the ANNOUNCE hub permission.
+  """
+  hubPublishAnnouncement(id: ID!): AnnouncementView!
+
+  """
+  Publish a knowledge-base article to the customer help centre. Requires the KB hub permission.
+  """
+  hubPublishArticle(id: ID!): KbArticleView!
+
+  """
+  Publish a changelog entry now. Also flips the linked feature requests to Released, moves the linked roadmap cards and notifies followers - the returned entry carries how many customers were notified. Requires the CHANGELOG hub permission.
+  """
+  hubPublishChangelogEntry(id: ID!): ChangelogEntryView!
+
+  """
+  Post a public reply or an internal note on an item and return the refreshed conversation. Which permission actually applies depends on the visibility and is re-checked in the service; the guard requires the weaker REPLY.
+  """
+  hubReply(HubReplyInput: HubReplyInput!): HubConversation!
+
+  """
+  Ask the customer for more detail and park the item on their side of the queue until they answer. Requires the REPLY hub permission.
+  """
+  hubRequestMoreInfo(body: String!, postId: ID!): HubConversation!
+
+  """
+  Schedule an announcement to publish automatically at publishAt. Requires the ANNOUNCE hub permission.
+  """
+  hubScheduleAnnouncement(id: ID!, publishAt: DateTime!): AnnouncementView!
+
+  """
+  Schedule a changelog entry to publish automatically at publishAt. Requires the CHANGELOG hub permission.
+  """
+  hubScheduleChangelogEntry(id: ID!, publishAt: DateTime!): ChangelogEntryView!
+
+  """
+  Post a reviewed AI draft as a real reply, attributed to the reviewing staff member rather than the model. Pass `body` to send edited text instead. Requires the REPLY hub permission.
+  """
+  hubSendAiDraft(body: String, draftId: ID!): HubConversation!
+
+  """
+  Approve, plan, decline or release a feature request; the customer-visible roadmap follows this. Requires the FEATURE hub permission.
+  """
+  hubSetFeatureStatus(postId: ID!, status: HubFeatureStatus!): HubConversation!
+
+  """
+  Set an item's workflow status explicitly. Requires the REPLY hub permission.
+  """
+  hubSetStatus(postId: ID!, status: HubWorkflowStatus!): HubConversation!
+
+  """
+  Set a member's community standing from the flagged-users panel, which can restrict their ability to post. Requires the MODERATE hub permission.
+  """
+  hubSetUserFlagState(UserFlagInput: UserFlagInput!): FlaggedUserView!
+
+  """
+  Withdraw a published announcement from the customer hub, returning it to draft. Requires the ANNOUNCE hub permission.
+  """
+  hubUnpublishAnnouncement(id: ID!): AnnouncementView!
+
+  """
+  Pull a published changelog entry back to draft, removing it from the customer hub. Requires the CHANGELOG hub permission.
+  """
+  hubUnpublishChangelogEntry(id: ID!): ChangelogEntryView!
+
+  """Edit an announcement's content. Requires the ANNOUNCE hub permission."""
+  hubUpdateAnnouncement(AnnouncementInput: AnnouncementInput!, id: ID!): AnnouncementView!
+
+  """Edit a knowledge-base article. Requires the KB hub permission."""
+  hubUpdateArticle(KbArticleInput: KbArticleInput!, id: ID!): KbArticleView!
+
+  """
+  Edit a bug's triage fields - product area, severity, priority and status. Requires the BUG hub permission.
+  """
+  hubUpdateBug(HubUpdateBugInput: HubUpdateBugInput!): HubConversation!
+
+  """
+  Edit a changelog entry's content and links. Requires the CHANGELOG hub permission.
+  """
+  hubUpdateChangelogEntry(UpdateChangelogInput: UpdateChangelogInput!): ChangelogEntryView!
+
+  """
+  Edit a roadmap card's title, detail and linked items. Requires the ROADMAP hub permission.
+  """
+  hubUpdateRoadmapItem(RoadmapItemInput: RoadmapItemInput!, id: ID!): RoadmapItemView!
+
+  """
+  Add a hub staff member or change their role. Requires the STAFF_ADMIN hub permission on top of admin auth.
+  """
+  hubUpsertStaff(HubStaffInput: HubStaffInput!): HubStaffMember!
+
+  """
+  Insert one row into a table and return it as persisted. Requires MEMBER on the owning team.
+  """
+  insertRow(schema: String, serviceId: ID!, table: String!, values: [ColumnValueInput!]!): RowMutationResult!
+
+  """
+  Invite an email address to join the workspace and send them the invite link. Requires ADMIN on the team. `role` is the OWNER/ADMIN/MEMBER rank; `teamRoleId` optionally names a workspace role, and `projectIds` gives this person their own project scope instead of the role's. Both are stored on the invite and applied when it is accepted.
+  """
+  inviteToTeam(email: String!, projectIds: [ID!], role: Role!, teamId: ID!, teamRoleId: ID): Invite!
+
+  """
+  Public. Exchange email and password for a signed JWT and set the HttpOnly auth cookie. Throttled to 10 per minute; failures also count towards the per-account and per-IP lockout.
+  """
+  login(LoginInput: LoginInput!): AuthPayload!
+
+  """
+  Public. Exchange a GitHub OAuth code for our own signed JWT, creating the account on first use, and set the auth cookie.
+  """
+  loginWithGithub(code: String!): AuthPayload!
+
+  """
+  Public and idempotent. Ends the session: clears the HttpOnly auth cookie, which JavaScript cannot do itself, and invalidates the tokens already issued to that account so they stop working immediately. Signs the account out everywhere, not just on this device.
+  """
+  logout: Boolean!
+
+  """
+  Create the team's object store in a region. The returned credentials are shown once and cannot be retrieved again this way. Requires ADMIN on the team.
+  """
+  provisionObjectStore(region: String!, teamId: ID!): ObjectStorageConnection!
+
+  """
+  Start buying a domain: reserves the order and returns a payment page to send the customer to. The domain is registered when the payment lands, not here, so a customer who never pays costs nothing. Priced in the registrar currency; the payment page converts it. Requires ADMIN on the team.
+  """
+  purchaseDomain(PurchaseDomainInput: PurchaseDomainInput!, teamId: ID!): DomainCheckout!
+
+  """
+  Admin-only maintenance operation. Walks every team's live web services and (re)points an explicit per-service DNS record at the node it currently runs on, so apps relying only on the wildcard get their own record. Idempotent; returns how many were reconciled.
+  """
+  reconcileServiceDns: Int!
+
+  """
+  Record a completed presigned upload in the activity feed, since the upload itself never touches the control plane. `key` may be an object key or a prefix like "assets/" for a folder upload. Requires MEMBER on the team.
+  """
+  recordStorageUpload(bucket: String!, key: String!, teamId: ID!): Boolean!
+
+  """
+  Admin-only and destructive. Replays a node's workloads, recreating datastores and redeploying customer services. Omit targetNodeName to rebuild in place, or pass it to evacuate onto another node.
+  """
+  recoverNode(nodeName: String!, targetNodeName: String): NodeRecovery!
+
+  """
+  Replace an existing static site's content from a fresh upload, in place and on the same URL. Returns the new deployment.
+  """
+  redeployStaticSite(RedeployStaticSiteInput: RedeployStaticSiteInput!): Deployment!
+
+  """
+  Admin-only operator tool. Creates a user account directly, with no signup flow, verification email or auth cookie. Returns the new user.
+  """
+  register(RegisterInput: RegisterInput!): User!
+
+  """
+  Admin-only. Withdraw a service's abuse exemption, putting it back under enforcement. Attributed to the calling admin.
+  """
+  removeAbuseExemption(serviceId: String!): AbuseFindingRow!
+
+  """
+  Destructive. Detach a custom domain from its service and trigger a redeploy that drops the route, so the domain stops serving. Requires MEMBER on the owning team.
+  """
+  removeCustomDomain(id: ID!): Boolean!
+
+  """
+  Remove an address from the team's suppression list so it can be mailed again. Returns false for spam complaints, which are never removable.
+  """
+  removeMailSuppression(address: String!, teamId: ID!): Boolean!
+
+  """
+  Remove another member from the workspace, revoking their access to everything it owns. Requires ADMIN on the team.
+  """
+  removeMember(teamId: ID!, userId: ID!): Boolean!
+
+  """
+  Admin-only and destructive. Permanently delete a stored fleet credential; anything that depended on it stops working until it is uploaded again.
+  """
+  removeNodeSecret(kind: NodeSecretKind!, nodeName: String): Boolean!
+
+  """Rename a workspace. Requires ADMIN on the team."""
+  renameTeam(name: String!, teamId: ID!): Team!
+
+  """
+  Renew a domain: reserves the order and returns a payment page. The registry is extended when the payment lands, not here. Returns the existing checkout when one is already open for this domain, so a customer cannot accidentally buy two renewals. Requires ADMIN on the owning team.
+  """
+  renewDomain(domainId: ID!, years: Int = 1): DomainCheckout!
+
+  """
+  Add a customer reply to the user's own ticket, which reopens it for support. Requires a signed-in user.
+  """
+  replyToTicket(body: String!, ticketId: ID!): SupportTicket!
+
+  """
+  Publish a zone to the nameservers again. Idempotent, and intended for a zone whose last publish failed — a zone is saved before it is published, so a nameserver outage otherwise leaves it stuck. Requires MEMBER on the owning team.
+  """
+  republishDnsZone(zoneId: ID!): DnsZone!
+
+  """
+  Public. Emails a password-reset link and invalidates any previous one. Always returns true, whether or not the address maps to an account, so it cannot be used to enumerate users. Throttled to 5 per 5 minutes.
+  """
+  requestPasswordReset(email: String!): Boolean!
+
+  """
+  Send the signed-in user a fresh verification link. Throttled to 5 per 10 minutes on top of the service's own per-account limits.
+  """
+  resendVerificationEmail: Boolean!
+
+  """
+  Public. Set a new password using the token from a reset email. Throws on an invalid or expired token or a password that is too short. Throttled to 10 per minute.
+  """
+  resetPassword(newPassword: String!, token: String!): Boolean!
+
+  """
+  Destructive. Restores a backup over the live database in place, after taking an automatic safety snapshot first. Returns the PENDING restore to poll. Requires ADMIN on the owning team.
+  """
+  restoreBackup(backupId: ID!): Restore!
+
+  """
+  Admin-only. Lift an abuse suspension and bring the customer's service back up. Attributed to the calling admin.
+  """
+  resumeAbuseSuspendedService(serviceId: String!): AbuseFindingRow!
+
+  """
+  Lift a reputation pause and let a domain send again. Deliberately manual, with no automatic counterpart: a domain that un-pauses itself after a bounce storm just produces another one.
+  """
+  resumeMailDomain(id: ID!, teamId: ID!): MailDomain!
+
+  """
+  Bring a suspended service back on the same URL, by redeploying its current configuration. Requires MEMBER on the owning team.
+  """
+  resumeService(serviceId: ID!): Service!
+
+  """
+  Permanently revoke one of the caller's API tokens. Irreversible - the token stops authenticating from its next request.
+  """
+  revokeApiToken(id: ID!): Boolean!
+
+  """
+  Cancel a pending invite so its link stops working. Requires ADMIN on the team.
+  """
+  revokeInvite(inviteId: ID!): Boolean!
+
+  """
+  Permanently revoke a mail API key. Irreversible - anything sending with it starts failing immediately. Requires membership of the team.
+  """
+  revokeMailApiKey(id: ID!, teamId: ID!): MailApiKey!
+
+  """
+  Redeploy the exact image a previous deployment ran, rather than rebuilding its commit. Only offered for a successful deployment that carries an image digest. Requires MEMBER on the owning team.
+  """
+  rollbackDeployment(deploymentId: ID!): Deployment!
+
+  """
+  Mint a new signing secret for an endpoint and return it once. The previous secret keeps being signed with for 24 hours, so both are accepted while the new one is rolled out. Throttled to 20 per hour.
+  """
+  rotateMailWebhookEndpointSecret(id: ID!, teamId: ID!): CreatedMailWebhookEndpoint!
+
+  """
+  Take an on-demand backup of a database immediately. Returns the backup in PENDING. Requires MEMBER on the owning team.
+  """
+  runBackupNow(serviceId: ID!): Backup!
+
+  """
+  Run one allow-listed Redis/Valkey command from the studio CLI and return the reply as display lines. Requires MEMBER on the owning team.
+  """
+  runCacheCommand(command: String!, serviceId: ID!): [String!]!
+
+  """
+  Run a cron job once, immediately, outside its schedule. Returns the queued run to poll. Requires MEMBER on the owning team.
+  """
+  runCronJob(serviceId: ID!): CronRun!
+
+  """
+  Run a SQL statement (Postgres/MySQL/MariaDB) or a mongosh expression (MongoDB) and return a result grid. Executes as the service's own database user, so it can write and drop as well as read - treat it as a real console. Requires MEMBER on the owning team.
+  """
+  runDatabaseQuery(maxRows: Int, serviceId: ID!, statement: String!): DbQueryResult!
+
+  """
+  Admin-only. Queue a control-plane backup immediately instead of waiting for the schedule. Returns the BullMQ job id.
+  """
+  runPlatformDrBackup: String!
+
+  """
+  Admin-only. Queue a restore verification immediately - spins up a throwaway Postgres and restores the latest dump into it. Returns the BullMQ job id.
+  """
+  runPlatformDrVerify: String!
+
+  """
+  Create a saved query, or update one when `id` is supplied. Saved queries are shared with the whole team. Requires MEMBER on the owning team.
+  """
+  saveQuery(SaveQueryInput: SaveQueryInput!): SavedQuery!
+
+  """
+  Send a real test email from the dashboard, used to confirm a freshly verified domain delivers. Runs the same checks as an API send - verified domain, not paused, recipient not suppressed, within quota - and is throttled to 20 per hour.
+  """
+  sendTestEmail(body: String!, from: String!, subject: String!, teamId: ID!, to: String!): SentTestEmail!
+
+  """
+  Admin-only. Set whether the abuse sweep may suspend services on its own or only flag them for review. Attributed to the calling admin.
+  """
+  setAbuseEnforcementMode(mode: AbuseEnforcementMode!): AbuseEnforcementMode!
+
+  """
+  Turn one backup cadence (hourly, daily or weekly) on or off for a database. Returns the updated schedule. Requires MEMBER on the owning team.
+  """
+  setBackupFrequency(enabled: Boolean!, frequency: BackupFrequency!, serviceId: ID!): BackupSchedule!
+
+  """
+  Replace a bucket's CORS rules wholesale - rules not included are dropped, which can break browser uploads already relying on them. Requires ADMIN on the team.
+  """
+  setBucketCors(CorsRuleInput: [CorsRuleInput!]!, bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Replace a bucket's lifecycle rules wholesale - rules not included are dropped. Lifecycle rules expire objects, so this can schedule data deletion. Requires ADMIN on the team.
+  """
+  setBucketLifecycle(LifecycleRuleInput: [LifecycleRuleInput!]!, bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Replace a bucket's policy JSON, which is what makes it publicly readable or not. ARNs must use the real bucket name. Requires ADMIN on the team.
+  """
+  setBucketPolicy(bucket: String!, policy: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Turn block-all-public-access on or off. Turning it off is what allows a bucket policy to expose objects publicly. Requires ADMIN on the team.
+  """
+  setBucketPublicAccessBlock(bucket: String!, enabled: Boolean!, region: String, teamId: ID!): Boolean!
+
+  """
+  Enable or suspend object versioning on a bucket. Suspending stops new versions being kept; existing ones remain. Requires ADMIN on the team.
+  """
+  setBucketVersioning(bucket: String!, enabled: Boolean!, region: String, teamId: ID!): Boolean!
+
+  """
+  Change one cache configuration parameter on the running server. Only an allow-listed set of parameters is accepted; the change takes effect immediately. Returns the refreshed config. Requires MEMBER on the owning team.
+  """
+  setCacheConfig(param: String!, serviceId: ID!, value: String!): RedisConfig!
+
+  """
+  Pause or resume a cron job's scheduled runs. Manual runs still work while it is paused. Requires MEMBER on the owning team.
+  """
+  setCronJobSuspended(serviceId: ID!, suspended: Boolean!): Service!
+
+  """
+  Turn renewal reminders on or off for a domain. This does NOT renew anything and never touches the registrar's own autorenew: a renewal is a payment link the customer follows, so letting the registry renew would bill us for a customer who has not paid. What this controls is whether we email them before it expires. Requires ADMIN on the owning team.
+  """
+  setDomainAutoRenew(autoRenew: Boolean!, domainId: ID!): RegisteredDomain!
+
+  """
+  Create or update environment variables in bulk. Returns any warnings plus a hint about whether a redeploy is needed for them to take effect. Requires MEMBER on the owning team.
+  """
+  setEnvVars(EnvVarInput: [EnvVarInput!]!, serviceId: ID!): EnvVarMutationResult!
+
+  """
+  Put an existing member on a role, and optionally give them their own project scope. Requires ADMIN. A null roleId clears the named role, falling the member back to their rank.
+  """
+  setMemberRole(SetMemberRoleInput: SetMemberRoleInput!): TeamMembership!
+
+  """
+  Create or replace one secret file on a service. Applies on the next deploy. Requires MEMBER on the owning team.
+  """
+  setSecretFile(SecretFileInput: SecretFileInput!, serviceId: ID!): SecretFileMutationResult!
+
+  """
+  Configure how a datastore's connection string reaches apps in its environment: rename the injected variable so several engines of one family can coexist, and/or turn injection off. Pass connectionEnvName: null to restore the engine default; omitted arguments are unchanged. Redeploys the environment's apps. Requires ADMIN on the owning team.
+  """
+  setServiceConnectionInjection(connectionEnvName: String, injectConnectionUrl: Boolean, serviceId: ID!): Service!
+
+  """
+  Turn PR previews on or off for a web service. When on, a pull request against the tracked branch spins up a preview deployment with a branched copy of the database, torn down when the PR closes. Requires ADMIN on the owning team.
+  """
+  setServicePreviewsEnabled(enabled: Boolean!, serviceId: ID!): Service!
+
+  """
+  Set the workspace's default deploy region, used to pre-select the region for new services. Omit `region` to clear it. Requires ADMIN on the team.
+  """
+  setTeamDefaultRegion(region: String, teamId: ID!): Team!
+
+  """
+  Turn PR deployment previews on or off as the workspace-wide default for new services. Requires ADMIN on the team.
+  """
+  setTeamDeploymentPreviews(enabled: Boolean!, teamId: ID!): Team!
+
+  """
+  Public self-serve signup: creates the user and a personal team, sets the HttpOnly auth cookie and returns a JWT. Throttled to 5 per hour per client.
+  """
+  signup(RegisterInput: RegisterInput!): AuthPayload!
+
+  """
+  Retrieve the EPP/auth code needed to transfer a domain to another registrar. Nothing here changes: the domain stays registered and its DNS keeps answering until the receiving registrar completes the transfer. Refused with the date while the registry lock is on. Requires ADMIN on the owning team.
+  """
+  startDomainTransferOut(domainId: ID!): DomainTransferAuth!
+
+  """
+  Send an SMS verification code to a phone number and attach the challenge to the signed-in account. Each send costs money, so it is throttled to 5 per 10 minutes here and per-number in the service.
+  """
+  startPhoneVerification(phone: String!): PhoneVerificationStarted!
+
+  """
+  Open a top-up for the given amount in minor units and return the row carrying its checkoutUrl. Nothing is credited here - the balance moves only when the signed provider webhook confirms settlement. Requires ADMIN on the team.
+  """
+  startWalletTopUp(amountMinor: Int!, teamId: ID!): WalletTopUp!
+
+  """
+  A short-lived presigned PUT URL for uploading one object straight to the store, bypassing the control plane. Requires MEMBER on the team.
+  """
+  storageUploadUrl(PresignUploadInput: PresignUploadInput!, region: String, teamId: ID!): PresignedUrl!
+
+  """
+  Admin-only. Store or rotate one fleet credential in the encrypted secret store. nodeName is required for node-scoped kinds and ignored for fleet-scoped ones. Rotating overwrites the previous value irrecoverably; returns true, never the value.
+  """
+  storeNodeSecret(kind: NodeSecretKind!, nodeName: String, note: String, value: String!): Boolean!
+
+  """
+  Stop a service's containers while keeping everything else — variables, custom domains, subdomain, build settings, deploy history and volumes. Compute stops being billed for the suspended period; stored data is billed as normal. Requires MEMBER on the owning team.
+  """
+  suspendService(serviceId: ID!): Service!
+
+  """
+  Admin-only and disruptive. Stops the customer's running service on an abuse finding. Attributed to the calling admin.
+  """
+  suspendServiceForAbuse(serviceId: String!): AbuseFindingRow!
+
+  """
+  Destructive. Tear a PR preview down early - deletes its environment and branched database now instead of waiting for the pull request to close. Requires ADMIN on the owning team; the teardown itself runs in the background.
+  """
+  teardownPreview(id: ID!): PrPreview!
+
+  """
+  Queue a new build-and-deploy for a web service and return the created deployment. Rejects datastore services. Requires MEMBER on the owning team.
+  """
+  triggerDeploy(serviceId: ID!): Deployment!
+
+  """
+  Stop following a thread. Idempotent by design, unlike the communityFollow toggle, because it is reached from an unsubscribe link that mail clients may prefetch.
+  """
+  unfollowCommunityDiscussion(postId: ID!): Boolean!
+
+  """
+  Change a database's backup policy - retention window, the UTC time scheduled backups fire, point-in-time recovery and the backup region. Omitted arguments are left unchanged; pass backupRegion: null to reset it. Requires MEMBER on the owning team.
+  """
+  updateBackupPolicy(backupRegion: String, pitrEnabled: Boolean, retentionDays: Int, scheduleHour: Int, scheduleMinute: Int, serviceId: ID!): BackupSchedule!
+
+  """
+  Change the workspace's spending controls - budget, alert thresholds and auto-top-up. Requires ADMIN on the team.
+  """
+  updateBillingSettings(BillingSettingsInput: BillingSettingsInput!, teamId: ID!): BillingSettingsView!
+
+  """
+  Change a cron job's schedule and/or command and re-apply it to the scheduler. Returns the updated service. Requires MEMBER on the owning team.
+  """
+  updateCronJob(UpdateCronJobInput: UpdateCronJobInput!): Service!
+
+  """
+  Replace a customer-owned record's contents and republish the zone. Records we manage are not editable. Requires MEMBER on the owning team.
+  """
+  updateDnsRecord(DnsRecordInput: DnsRecordInput!, recordId: ID!): DnsRecord!
+
+  """
+  Enable or disable one or more optional notification categories for the signed-in user; writes to a mandatory category do nothing. Returns the full resolved set.
+  """
+  updateNotificationPreferences(UpdateNotificationPreferenceInput: [UpdateNotificationPreferenceInput!]!): [NotificationPreferenceItem!]!
+
+  """
+  Change a project's name, display name and/or description; omitted arguments are left alone. Requires MEMBER on the owning team.
+  """
+  updateProject(description: String, displayName: String, id: ID!, name: String): Project!
+
+  """
+  Update one row identified by its primary key and return the row as persisted, so the grid shows canonical values. Rejects tables without a primary key. Requires MEMBER on the owning team.
+  """
+  updateRow(changes: [ColumnValueInput!]!, pk: [ColumnValueInput!]!, schema: String, serviceId: ID!, table: String!): RowMutationResult!
+
+  """
+  Rename a service. The name is a label only — the subdomain, any custom domains and any injected connection URL are unchanged, and nothing is redeployed. Requires MEMBER on the owning team.
+  """
+  updateService(name: String!, serviceId: ID!): Service!
+
+  """
+  Edit a web service's build configuration - runtime version, build and start commands, port. Applies on the next deploy. Requires MEMBER on the owning team.
+  """
+  updateServiceBuild(UpdateServiceBuildInput: UpdateServiceBuildInput!, serviceId: ID!): Service!
+
+  """
+  Move a web service to another deploy region. Forces a full rebuild on the target node and repoints the service's DNS; the old node's containers are reclaimed afterwards, so expect a cutover. Requires ADMIN on the owning team.
+  """
+  updateServiceRegion(region: String!, serviceId: ID!): Service!
+
+  """
+  Set a service's resource caps: pass a tier, or explicit memoryMb and cpuMillicores. For a datastore, storageLimitMb overrides the disk quota, otherwise a tier change moves it to that tier's default. Takes effect on the next deploy. Requires ADMIN on the owning team.
+  """
+  updateServiceResources(cpuMillicores: Int, memoryMb: Int, serviceId: ID!, storageLimitMb: Int, tier: ServiceTier): Service!
+
+  """
+  Repoint a web or cron service at a different repository, branch, git URL or image. Partial: send only what changes, and the owning GitHub installation is re-resolved automatically. Build and start commands are edited separately. Applies on the next deploy unless input.redeploy is true. Requires ADMIN on the owning team.
+  """
+  updateServiceSource(UpdateServiceSourceInput: UpdateServiceSourceInput!, serviceId: ID!): Service!
+
+  """
+  Edit a workspace role. Requires ADMIN. `permissions` and `projectIds` replace wholesale rather than merging — they are sets. The Owner role cannot be edited.
+  """
+  updateTeamRole(UpdateTeamRoleInput: UpdateTeamRoleInput!, teamId: ID!): TeamRole!
+
+  """
+  Re-check a custom domain's DNS now and refresh its verification status. Requires MEMBER on the owning team.
+  """
+  verifyCustomDomain(id: ID!): CustomDomain!
+
+  """
+  Re-check a sending domain's DNS live and update its verification state; `propagating` marks records that are correct but not yet visible everywhere. Throttled to 60 per 10 minutes because the dashboard polls it.
+  """
+  verifyMailDomain(id: ID!, teamId: ID!): MailDomainDetail!
+}
+
+type MyService {
+  id: ID!
+  name: String!
+  projectName: String!
+  type: ServiceType!
+}
+
+"""A page of the caller's services with pagination metadata"""
+type MyServiceOffsetPaginated {
+  """The MyService rows on this page"""
+  items: [MyService!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type MyTeamAccess {
+  allProjects: Boolean!
+  permissions: [TeamPermission!]!
+  projectIds: [ID!]!
+  readOnly: Boolean!
+  role: TeamRole
+  teamId: ID!
+}
+
+enum NameserverMode {
+  CUSTOM
+  NC
+}
+
+type Node {
+  appDomain: String!
+  cordonReason: String
+  cordonedAt: DateTime
+  createdAt: DateTime!
+  id: ID!
+  ingressType: NodeIngressType
+  isDefaultRegion: Boolean!
+  kind: NodeKind!
+  name: String!
+  region: String
+  regionLabel: String
+  role: NodeRole!
+  schedulable: Boolean!
+  updatedAt: DateTime!
+  zone: String
+}
+
+type NodeBootstrap {
+  appDomain: String!
+  arch: String
+  completedPhases: [BootstrapPhase!]!
+  createdAt: DateTime!
+  distro: String
+  error: String
+  finishedAt: DateTime
+  hardenedSshPort: Float
+  host: String!
+  id: ID!
+  ingressType: NodeIngressType
+  log: String!
+  mode: BootstrapMode!
+  nodeId: String
+  nodeName: String!
+  phase: BootstrapPhase
+  region: String
+  regionLabel: String
+  sshPort: Float!
+  sshUser: String!
+  startedAt: DateTime
+  status: BootstrapStatus!
+  tailnetIp: String
+  updatedAt: DateTime!
+  zone: String
+}
+
+"""A page of node-bootstrap runs with pagination metadata"""
+type NodeBootstrapOffsetPaginated {
+  """The NodeBootstrap rows on this page"""
+  items: [NodeBootstrap!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum NodeIngressType {
+  PUBLIC_A
+  TUNNEL
+}
+
+enum NodeKind {
+  AGENT
+  LOCAL
+  SSH
+}
+
+type NodeRecovery {
+  completedPhases: [RecoveryPhase!]!
+  createdAt: DateTime!
+  error: String
+  finishedAt: DateTime
+  id: ID!
+  log: String!
+  mode: RecoveryMode!
+  nodeId: String!
+  nodeName: String!
+  phase: RecoveryPhase
+  plannedCount: Int!
+  recoveredCount: Int!
+  serviceResults: [RecoveryServiceResult!]!
+  startedAt: DateTime
+  status: RecoveryStatus!
+  targetNodeId: String
+  targetNodeName: String
+  updatedAt: DateTime!
+}
+
+"""A page of node-recovery runs with pagination metadata"""
+type NodeRecoveryOffsetPaginated {
+  """The NodeRecovery rows on this page"""
+  items: [NodeRecovery!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum NodeRole {
+  GENERAL
+  UTILITY
+}
+
+enum NodeSecretKind {
+  AGENT_TOKEN
+  CP_CLIENT_CERT
+  CP_CLIENT_KEY
+  FLEET_CA_CERT
+  ISSUING_CA_CERT
+  ISSUING_CA_KEY
+  SSH_PRIVATE_KEY
+  TLS_CERT
+  TLS_KEY
+  TUNNEL_CREDENTIAL
+}
+
+"""A kind of email the platform sends."""
+enum NotificationCategory {
+  ACCOUNT
+  DEPLOYS
+  HUB
+  INTERNAL
+  OBSERVABILITY
+  PRODUCT
+  SECURITY
+}
+
+type NotificationPreferenceItem {
+  category: NotificationCategory!
+  description: String!
+  enabled: Boolean!
+  label: String!
+}
+
+type ObjectStorageConnection {
+  accessKeyId: String!
+  endpoint: String!
+  region: String!
+  secretAccessKey: String!
+}
+
+type ObjectStore {
+  accessKeyId: String
+  createdAt: DateTime!
+  endpoint: String
+  id: ID!
+  nodeId: String
+  region: String
+  status: ServiceStatus!
+  teamId: String!
+  updatedAt: DateTime!
+}
+
+"""A page of object stores with pagination metadata"""
+type ObjectStoreOffsetPaginated {
+  """The ObjectStore rows on this page"""
+  items: [ObjectStore!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type ObsDeployMarker {
+  deploymentId: ID!
+  sha: String!
+  t: DateTime!
+}
+
+"""Which breakdown panel to read. Maps to a column server-side."""
+enum ObsDimension {
+  COUNTRY
+  DEVICE
+  PAGE
+  REFERRER
+  SLOWEST
+  STATUS
+}
+
+type ObsExcluded {
+  internal: Float!
+  longRunning: Float!
+  requests: Float!
+  timed: Float!
+  upgrades: Float!
+}
+
+type ObsHeadline {
+  bytes: Float!
+  bytesSpark: [Float!]!
+  failRateDeltaPct: Float
+  failRatePct: Float!
+  failed: Float!
+  failedSpark: [Float!]!
+  p95DeltaMs: Float
+  p95Ms: Float!
+  p95Spark: [Float!]!
+  requests: Float!
+  requestsDeltaPct: Float
+  requestsSpark: [Float!]!
+}
+
+type ObsPanel {
+  dimension: ObsDimension!
+  rows: [ObsPanelRow!]!
+  total: Int!
+}
+
+type ObsPanelRow {
+  label: String!
+  share: Float!
+  value: Float!
+}
+
+type ObsRequestSample {
+  browser: String
+  country: String
+  deploySha: String
+  device: String
+  durationMs: Float!
+  host: String
+  method: String!
+  node: String
+  os: String
+  path: String!
+  pathRaw: String!
+  resBytes: Float!
+  status: Int!
+  ts: DateTime!
+}
+
+type ObsSpeedPoint {
+  p50Ms: Float!
+  p95Ms: Float!
+  p99Ms: Float!
+  t: DateTime!
+}
+
+"""
+Response class for a filter chip: OK (2xx), REDIRECTED (3xx), NOT_FOUND (404) or FAILED (5xx).
+"""
+enum ObsStatusClass {
+  FAILED
+  NOT_FOUND
+  OK
+  REDIRECTED
+}
+
+type ObsTrafficPoint {
+  failed: Float!
+  notFound: Float!
+  ok: Float!
+  redirected: Float!
+  t: DateTime!
+}
+
+type ObsVerdict {
+  completeTo: DateTime
+  failRatePct: Float!
+  failed: Float!
+  level: ObsVerdictLevel!
+  p95Ms: Float!
+  requests: Float!
+  slowestPath: String
+  topFailingCount: Float
+  topFailingPath: String
+}
+
+"""
+Plain-language health verdict for the observability header. QUIET and NEVER are normal states, not faults.
+"""
+enum ObsVerdictLevel {
+  DELAYED
+  ERRORS
+  HEALTHY
+  NEVER
+  QUIET
+  SLOW
+}
+
+input ObservabilityFilterInput {
+  country: String
+  path: String
+  statusClass: ObsStatusClass
+}
+
+"""Pagination metadata for an offset-paginated list"""
+type OffsetPageInfo {
+  """Whether a page after this one exists"""
+  hasNextPage: Boolean!
+
+  """Whether a page before this one exists"""
+  hasPreviousPage: Boolean!
+
+  """Rows per page used for this response"""
+  limit: Int!
+
+  """The 1-based page number returned"""
+  page: Int!
+
+  """Total rows matching the query, ignoring paging"""
+  totalCount: Int!
+
+  """Total number of pages available"""
+  totalPages: Int!
+}
+
+"""Offset pagination, sorting and page size"""
+input OffsetPaginationArgs {
+  """Rows per page (default 25, maximum 100)"""
+  limit: Int = 25
+
+  """1-based page number (default 1)"""
+  page: Int = 1
+
+  """Free-text search term, interpreted per query"""
+  search: String
+
+  """
+  Column to sort by. Restricted to a per-query allowlist; an unknown value falls back to that query default.
+  """
+  sortBy: String
+
+  """
+  Sort direction. Defaults per query — newest-first for event lists, ascending for alphabetical and chronological ones.
+  """
+  sortOrder: SortOrder
+}
+
+type PhoneVerificationStarted {
+  channel: String!
+  expiresAt: DateTime!
+  phone: String!
+}
+
+type PlatformDrCounts {
+  nodes: Int!
+  objectStores: Int!
+  services: Int!
+  teams: Int!
+}
+
+type PlatformDrSnapshot {
+  counts: PlatformDrCounts!
+  cpVersion: String!
+  dumpKey: String!
+  manifestKey: String!
+  sha256: String!
+  sizeBytes: Float!
+  takenAt: String!
+}
+
+type PlatformDrStatus {
+  ageHours: Float
+  bucket: String!
+  dedicatedCredentials: Boolean!
+  enabled: Boolean!
+  lastVerify: PlatformDrVerify
+  latest: PlatformDrSnapshot
+  stale: Boolean!
+}
+
+type PlatformDrVerify {
+  dumpKey: String!
+  durationMs: Int!
+  error: String
+  ok: Boolean!
+  ranAt: String!
+  tables: [PlatformDrVerifyTable!]!
+}
+
+type PlatformDrVerifyTable {
+  live: Int
+  restored: Int
+  table: String!
+}
+
+type PlatformStatus {
+  components: [StatusComponent!]!
+  description: String!
+  edgeLocations: [String!]!
+  incidents: [StatusIncident!]!
+  indicator: SystemIndicator!
+  moreRegionsComingSoon: Boolean!
+  regions: [StatusRegion!]!
+  summary: StatusSummary!
+  updatedAt: String!
+}
+
+type PostgresProvisionResult {
+  dbName: String!
+  dbUser: String!
+  externalUrl: String
+  generatedName: Boolean!
+  generatedPassword: Boolean!
+  generatedUser: Boolean!
+  host: String!
+  password: String!
+  port: Int!
+  url: String!
+}
+
+type PrPreview {
+  authorLogin: String
+  baseRef: String
+  createdAt: DateTime!
+  environmentId: String
+  error: String
+  headRef: String!
+  headSha: String
+  id: ID!
+  installationId: String
+  lastDeploymentId: String
+  prNumber: Int!
+  previewPostgresName: String
+  previewPostgresServiceId: String
+  previewWebServiceId: String
+  projectId: String!
+  repoFullName: String!
+  sourceServiceId: String!
+  status: PrPreviewStatus!
+  title: String
+  updatedAt: DateTime!
+  url: String
+}
+
+"""A page of PR previews with pagination metadata"""
+type PrPreviewOffsetPaginated {
+  """The PrPreview rows on this page"""
+  items: [PrPreview!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum PrPreviewStatus {
+  ACTIVE
+  CLOSED
+  CREATING
+  FAILED
+  UPDATING
+}
+
+input PresignUploadInput {
+  bucket: String!
+  contentType: String
+  key: String!
+}
+
+type PresignedUrl {
+  expiresInSeconds: Int!
+  method: String!
+  url: String!
+}
+
+type PreviewCost {
+  dailyKobo: Float!
+  free: Boolean!
+  freeRemainingSeconds: Float!
+  prNumber: Int!
+  previewId: ID!
+  repoFullName: String!
+  runtimeSeconds: Float!
+  title: String
+  url: String
+  usedKobo: Float!
+}
+
+"""A page of PR-preview costs with pagination metadata"""
+type PreviewCostOffsetPaginated {
+  """The PreviewCost rows on this page"""
+  items: [PreviewCost!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type PricingCatalog {
+  currency: String!
+  freeAllowances: FreeAllowanceCard!
+  neverBilled: [String!]!
+  serviceTiers: [ServiceTierPrice!]!
+  unitRates: UnitRateCard!
+}
+
+type Project {
+  createdAt: DateTime!
+  description: String
+  displayName: String
+  environments: [Environment!]!
+  id: ID!
+  name: String!
+  region: String
+  regionKey: String
+  teamId: String!
+  updatedAt: DateTime!
+}
+
+enum ProjectHealth {
+  DEGRADED
+  HEALTHY
+}
+
+"""A page of projects with pagination metadata"""
+type ProjectOffsetPaginated {
+  """The Project rows on this page"""
+  items: [Project!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type ProjectUsage {
+  avgCpuPercent: Float!
+  projectId: ID!
+  serviceCount: Int!
+  services: [ServiceUsage!]!
+  totalMemoryBytes: Float!
+  totalStorageBytes: Float!
+}
+
+enum ProtectionPolicy {
+  PREVIEWS_FIRST
+  PREVIEWS_ONLY
+  STOP_ALL
+}
+
+"""Buy a domain and register it to a workspace"""
+input PurchaseDomainInput {
+  contact: DomainContactInput!
+  domain: String!
+
+  """Registration term in years"""
+  years: Int! = 1
+}
+
+type Query {
+  """
+  Admin-only. A page of abuse findings, filtered (default: those needing review) and capped by limit (default 50).
+  """
+  getAbuseFindings(filter: AbuseFindingFilter, limit: Int): AbuseFindingsPage!
+
+  """
+  Admin-only. How many senders are in each state, and nothing else — for the console's sidebar badge. Its own query rather than a narrow selection over getAdminEmailOverview, which would still run that screen's whole aggregation on every page of the console.
+  """
+  getAdminEmailCounts: AdminEmailCounts!
+
+  """
+  Admin-only. Every counter, chart and sender row the Email-sending screen renders. Rates are 0-1 fractions over a 30-day window and the thresholds they are judged against are returned with them. The filter and search narrow the sender rows only — the platform totals always describe every sender.
+  """
+  getAdminEmailOverview(filter: AdminEmailSenderFilter, search: String): AdminEmailOverview!
+
+  """
+  Admin-only. Everything the Nodes screen renders in one round trip: KPI header, node rows and region cards. The filter narrows `nodes` only - `summary` and `regions` always describe the whole fleet.
+  """
+  getAdminFleet(filter: FleetNodeFilter): AdminFleet!
+
+  """
+  Admin-only. One node's detail drawer: its row, its alerts and its workloads grouped by kind.
+  """
+  getAdminNode(nodeId: ID!): AdminNodeDetail!
+
+  """
+  Admin-only. Every counter and chart the platform-overview screen renders.
+  """
+  getAdminOverview: AdminOverview!
+
+  """
+  Admin-only. The paginated projects table across every team. Limit defaults to 50 and is clamped to 200.
+  """
+  getAdminProjects(limit: Int, offset: Int): AdminProjectsPage!
+
+  """
+  Admin-only. A page of per-project resource-usage rows for the console's usage cards, newest project first. Sorting and search are ignored: the rollup is computed per page rather than in SQL.
+  """
+  getAdminResourceUsage(OffsetPaginationArgs: OffsetPaginationArgs): AdminResourceUsageRowOffsetPaginated!
+
+  """
+  Admin-only. One ticket with its full conversation, for the console detail view.
+  """
+  getAdminTicket(id: ID!): SupportTicket!
+
+  """
+  Admin-only. Per-tab ticket counts plus the high-priority-open badge number.
+  """
+  getAdminTicketCounts: SupportTicketCounts!
+
+  """
+  Admin-only. A page of the tickets on one status tab, newest first; omit `status` for the All tab. Optional search matches the subject and the NC- reference.
+  """
+  getAdminTickets(OffsetPaginationArgs: OffsetPaginationArgs, status: TicketStatus): SupportTicketListItemOffsetPaginated!
+
+  """
+  Admin-only. The searchable, paginated users table. Limit defaults to 50 and is clamped to 200.
+  """
+  getAdminUsers(limit: Int, offset: Int, search: String): AdminUsersPage!
+
+  """
+  The metered units behind each billed line, for customers who want to check the arithmetic. Not paginated: one row per usage category, of which there is a fixed set. Requires MEMBER on the team.
+  """
+  getAdvancedUsage(teamId: ID!): [AdvancedUsageRow!]!
+
+  """
+  A page of the caller's own API tokens, newest first. Optional search matches the token name. Token secrets are never included.
+  """
+  getApiTokens(OffsetPaginationArgs: OffsetPaginationArgs): ApiTokenOffsetPaginated!
+
+  """
+  A short-lived presigned URL for downloading a completed backup archive. Requires MEMBER on the owning team.
+  """
+  getBackupDownloadUrl(backupId: ID!): String!
+
+  """
+  The regions a backup may be stored in, for the settings dropdown. Static list; reads no service.
+  """
+  getBackupRegions: [String!]!
+
+  """
+  A Postgres service's backup schedule and policy, or null if backups were never configured. Requires MEMBER on the owning team.
+  """
+  getBackupSchedule(serviceId: ID!): BackupSchedule
+
+  """
+  A page of a Postgres service's backups, newest first. A scheduled cadence adds rows whether or not anyone is looking, so this list is always paged. Search is not supported - a backup has no name to search on. Requires MEMBER on the owning team.
+  """
+  getBackups(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): BackupOffsetPaginated!
+
+  """
+  Wallet balance, projected runway and this cycle's spend for a workspace. Requires MEMBER on the team.
+  """
+  getBillingOverview(teamId: ID!): BillingOverview!
+
+  """
+  A page of per-resource estimated monthly cost for everything the workspace runs - the "Your resources" table, one row per live service. Optional search matches the resource name. Requires MEMBER on the team.
+  """
+  getBillingResources(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ResourceCostOffsetPaginated!
+
+  """
+  The workspace's spending controls: budget, alert thresholds and auto-top-up configuration. Requires MEMBER on the team.
+  """
+  getBillingSettings(teamId: ID!): BillingSettingsView!
+
+  """
+  The bucket's CORS rules, empty when none are set. Requires MEMBER on the team.
+  """
+  getBucketCors(bucket: String!, region: String, teamId: ID!): [CorsRule!]!
+
+  """
+  The bucket's lifecycle rules, empty when none are set. Requires MEMBER on the team.
+  """
+  getBucketLifecycle(bucket: String!, region: String, teamId: ID!): [LifecycleRule!]!
+
+  """
+  The bucket's raw policy JSON, or null when no policy is set. Requires MEMBER on the team.
+  """
+  getBucketPolicy(bucket: String!, region: String, teamId: ID!): String
+
+  """
+  Whether block-all-public-access is switched on for a bucket. Requires MEMBER on the team.
+  """
+  getBucketPublicAccessBlock(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Whether object versioning is enabled on a bucket. Requires MEMBER on the team.
+  """
+  getBucketVersioning(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  The studio-editable subset of a cache's configuration: maxmemory, eviction policy, persistence and client timeout. Requires MEMBER on the owning team.
+  """
+  getCacheConfig(serviceId: ID!): RedisConfig!
+
+  """
+  Redis/Valkey server statistics from INFO and DBSIZE - uptime, memory, hit/miss ratio, evictions and operation mix. Requires MEMBER on the owning team.
+  """
+  getCacheStats(serviceId: ID!): RedisStats!
+
+  """
+  A page of published announcements, pinned first and newest next. Unpublished ones are never returned. Optional search matches title and body.
+  """
+  getCommunityAnnouncements(OffsetPaginationArgs: OffsetPaginationArgs): AnnouncementViewOffsetPaginated!
+
+  """
+  One published knowledge-base article by slug, with its body. Counts the view.
+  """
+  getCommunityArticle(slug: String!): KbArticleView!
+
+  """
+  A page of published knowledge-base articles for the help-centre index. Bodies are not included. Optional search matches title, summary and category.
+  """
+  getCommunityArticles(OffsetPaginationArgs: OffsetPaginationArgs): KbArticleViewOffsetPaginated!
+
+  """
+  A page of published changelog entries, newest first. Drafts and scheduled entries are excluded by the query, so they count towards neither the rows nor the total. Optional search matches title and summary.
+  """
+  getCommunityChangelog(OffsetPaginationArgs: OffsetPaginationArgs): ChangelogEntryViewOffsetPaginated!
+
+  """
+  One published changelog entry by slug, with its body and comment thread.
+  """
+  getCommunityChangelogEntry(slug: String!): ChangelogEntryView!
+
+  """
+  A page of the customer hub's post list, with the caller's own vote/follow flags on each row. `kinds` selects the tab (discussions, bugs, feature requests); optional search matches the post title and body. Signed-in customers only; staff-only fields are never returned.
+  """
+  getCommunityFeed(CommunityFeedInput: CommunityFeedInput, OffsetPaginationArgs: OffsetPaginationArgs): CommunityItemOffsetPaginated!
+
+  """
+  One hub thread with its public replies, and counts the view. Internal staff notes are excluded at the query.
+  """
+  getCommunityItem(id: ID!): CommunityItemDetail!
+
+  """
+  A hub profile with its activity and reputation - the caller's own by default, or another user's when userId is given.
+  """
+  getCommunityProfile(userId: ID): CommunityProfile!
+
+  """
+  The public roadmap as ordered columns of cards, each carrying the caller's own follow state.
+  """
+  getCommunityRoadmap: [RoadmapColumn!]!
+
+  """
+  Full-text search across everything published on the hub - posts, changelog, announcements and articles. Same engine as the staff console, narrower scope.
+  """
+  getCommunitySearch(HubSearchInput: HubSearchInput!): HubSearchResults!
+
+  """
+  Live "you may be looking for" suggestions for a title as it is being typed, so duplicates get caught before they are posted. Returns at most five; not paginated.
+  """
+  getCommunitySimilar(text: String!): [CommunityRelated!]!
+
+  """
+  The hub's top contributors by reputation (default 5, capped at 50), for the leaderboard panel. A fixed top-N rail; not paginated.
+  """
+  getCommunityTopContributors(limit: Int): [CommunityContributor!]!
+
+  """
+  Whether the caller may create compute in this team, plus which gate requirements are required and still unmet. Requires MEMBER on the team.
+  """
+  getComputeGateStatus(teamId: String!): ComputeGateStatusView!
+
+  """
+  One cron run by id, with its exit status and timings. Requires MEMBER on the owning team.
+  """
+  getCronRun(id: ID!): CronRun!
+
+  """
+  A page of one cron run's stored output. Ordered oldest first, because job output only reads correctly in the order it was produced - pass sortOrder: ASC alongside any explicit sortBy to keep it that way. Optional search matches the line text. Requires MEMBER on the owning team.
+  """
+  getCronRunLogs(OffsetPaginationArgs: OffsetPaginationArgs, cronRunId: ID!): CronRunLogOffsetPaginated!
+
+  """
+  A page of one cron job's run history, newest first. Search is not supported - a run carries no free text to match; sort or filter by status or sequence instead. Requires MEMBER on the owning team.
+  """
+  getCronRuns(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): CronRunOffsetPaginated!
+
+  """
+  Lifetime run counts and success rate for one cron job, for the Runs tab summary. Requires MEMBER on the owning team.
+  """
+  getCronStats(serviceId: ID!): CronStats!
+
+  """
+  A page of the custom domains attached to one web service, oldest first, each with its verification status. Optional search matches the hostname. Requires MEMBER on the owning team.
+  """
+  getCustomDomains(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): CustomDomainOffsetPaginated!
+
+  """
+  Daily spend for a workspace over the last `days` days (default 30, capped at 90), for the spend chart. Not paginated: it is a fixed-length series with one entry per day. Requires MEMBER on the team.
+  """
+  getDailySpend(days: Int, teamId: ID!): [DailySpend!]!
+
+  """
+  A page of the tables and views (SQL) or collections (MongoDB) for the console's schema sidebar, alphabetically. Optional search matches the object name and its schema. Empty for key-value engines. Requires MEMBER on the owning team.
+  """
+  getDatabaseObjects(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): DbObjectOffsetPaginated!
+
+  """
+  Geographic locations a deploy can target: one per region-carrying node, with the platform default flagged. Not paginated - the fleet has a fixed handful of regions and the picker shows them all. Powers the create-service region picker.
+  """
+  getDeployLocations: [DeployLocation!]!
+
+  """
+  One deployment by id, with its status, commit and timings - poll this to follow a build. Requires MEMBER on the owning team.
+  """
+  getDeployment(id: ID!): Deployment!
+
+  """
+  A page of one deployment's stored build-log lines, readable once the build has finished. Ordered oldest first, because build output only reads correctly in the order it was produced - pass sortOrder: ASC alongside any explicit sortBy to keep it that way. Optional search matches the line text. Requires membership of the team that owns the service.
+  """
+  getDeploymentLogs(OffsetPaginationArgs: OffsetPaginationArgs, deploymentId: ID!): DeploymentLogOffsetPaginated!
+
+  """
+  A page of one service's deploy history, newest first. Optional search matches the commit sha, commit message and branch. Requires MEMBER on the owning team.
+  """
+  getDeployments(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): DeploymentOffsetPaginated!
+
+  """
+  Best-effort preview of the build and start commands detection would propose for a repo, so the create-service form can pre-fill them. Returns empty fields when the repo cannot be inspected; the same detection runs again on createService. A private repo requires membership of the installation's owning team.
+  """
+  getDetectBuild(DetectBuildInput: DetectBuildInput!): DetectedBuild!
+
+  """
+  A page of a zone's records, alphabetically, including the ones we manage for services and NC Mail. Use each row's `editable` flag to tell them apart. Optional search matches the record name and its content. Requires MEMBER on the owning team.
+  """
+  getDnsRecords(OffsetPaginationArgs: OffsetPaginationArgs, zoneId: ID!): DnsRecordOffsetPaginated!
+
+  """
+  The zone rendered as a BIND zone file, so a customer can take their records elsewhere. Requires MEMBER on the owning team.
+  """
+  getDnsZoneExport(zoneId: ID!): String!
+
+  """
+  A page of the DNS zones this team hosts on our nameservers, alphabetically. Optional search matches the zone name. Requires MEMBER on the team.
+  """
+  getDnsZones(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): DnsZoneOffsetPaginated!
+
+  """
+  Purchase history, including failed and refunded attempts, newest first. Requires MEMBER on the team.
+  """
+  getDomainOrders(teamId: ID!): [DomainOrder!]!
+
+  """
+  What renewing a domain would cost and what expiry it would buy, without starting anything. The same pricing the checkout is created from, so the figure shown is the figure charged. Requires MEMBER on the owning team.
+  """
+  getDomainRenewalQuote(domainId: ID!, years: Int = 1): DomainRenewalQuote!
+
+  """
+  Availability and price for whatever the customer typed — a bare name, a domain, or a pasted URL. Returns three groups: what they can have (cheapest first), name variants they could have instead, and what they cannot, each of those carrying its own reason. Never fails for an extension we do not sell. Requires MEMBER on the team.
+  """
+  getDomainSearch(query: String!, teamId: ID!): DomainSearchResults!
+
+  """
+  Whether the signed-in user's email address has been confirmed. Drives the "confirm your email" banner.
+  """
+  getEmailVerified: Boolean!
+
+  """
+  Public, unauthenticated monthly cost estimate for a resource before anything is created. Uses the same rate function as the meter, so an estimate and the eventual bill cannot disagree.
+  """
+  getEstimateResourceCost(EstimateResourceInput: EstimateResourceInput!): ResourceEstimate!
+
+  """
+  A page of the accounts and organisations the team's GitHub App is installed on, each with its repo count and a Configure-in-GitHub link, by login. Optional search matches the login. Richer than githubConnection, which returns logins only. Requires MEMBER on the team.
+  """
+  getGithubAccounts(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): GithubAccountOffsetPaginated!
+
+  """
+  The URL that starts installing our GitHub App for a team. Carries a signed teamId in `state` which claimGithubInstallation verifies on the way back. Requires MEMBER on the team.
+  """
+  getGithubAppInstallUrl(teamId: ID!): String!
+
+  """
+  Whether a team has connected GitHub and which account logins it is installed on. Drives the create-service form's Connect/Connected state. Requires MEMBER on the team.
+  """
+  getGithubConnection(teamId: ID!): GithubConnection!
+
+  """
+  Public. The GitHub authorize URL for the dashboard to redirect to, with an optional opaque `state` echoed back on the callback.
+  """
+  getGithubLoginUrl(state: String): String!
+
+  """
+  A page of the repositories the team's GitHub installations can access, deduplicated by full name and sorted by it. Optional search matches the full name. Fetched live from GitHub, so repos added moments ago appear immediately. Requires MEMBER on the team.
+  """
+  getGithubRepositories(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): InstallationRepoOffsetPaginated!
+
+  """
+  A page of branch names for one repository the team can access, for the branch dropdown. Optional search matches the branch name - a busy repository has thousands, and scrolling is not how anyone finds one. Throws when no installation in the team covers that repository's owner. Requires MEMBER on the team.
+  """
+  getGithubRepositoryBranches(OffsetPaginationArgs: OffsetPaginationArgs, repoFullName: String!, teamId: ID!): GithubBranchOffsetPaginated!
+
+  """
+  Admin-only. Ask the hub assistant a free-form question, optionally grounded in one conversation. Returns generated text; nothing is written.
+  """
+  getHubAiAsk(HubAiAskInput: HubAiAskInput!): HubAiAnswer!
+
+  """
+  Admin-only. Draft announcement copy of the given kind, optionally steered by extra context. Returns text; nothing is published.
+  """
+  getHubAiDraftAnnouncement(context: String, kind: HubAnnouncementKind!): HubAiAnswer!
+
+  """
+  Admin-only. Candidate duplicates of one post, found by the AI assistant. Suggestion only; merging is a separate moderation action.
+  """
+  getHubAiFindDuplicates(postId: ID!): HubAiAnswer!
+
+  """
+  Admin-only. Draft release notes generated from a changelog entry. Returns text; the entry is not modified.
+  """
+  getHubAiReleaseNotes(changelogEntryId: ID!): HubAiAnswer!
+
+  """
+  Admin-only. An AI summary of one hub conversation. Read-only - nothing is posted.
+  """
+  getHubAiSummarise(postId: ID!): HubAiAnswer!
+
+  """
+  Admin-only. A suggested product area, severity and priority for a bug report. A suggestion only - hubApplyTriage is what commits it.
+  """
+  getHubAiTriage(postId: ID!): HubTriageSuggestion!
+
+  """
+  Admin-only. The hub analytics page: volumes, response times and per-area breakdowns.
+  """
+  getHubAnalytics: HubAnalytics!
+
+  """
+  Admin-only. A page of announcements, drafts and scheduled ones included, pinned first. Optional search matches title and body.
+  """
+  getHubAnnouncements(OffsetPaginationArgs: OffsetPaginationArgs): AnnouncementViewOffsetPaginated!
+
+  """
+  Admin-only. The seven pipeline stages above the bug table, each with its current count.
+  """
+  getHubBugPipeline: [HubBugPipelineStage!]!
+
+  """
+  Admin-only. A page of bug reports, filtered by area, severity, priority or pipeline status.
+  """
+  getHubBugs(HubBugFilterInput: HubBugFilterInput): HubPostPage!
+
+  """
+  Admin-only. A page of changelog entries, drafts and scheduled ones included, for the CMS list. Optional search matches title and summary.
+  """
+  getHubChangelogEntries(OffsetPaginationArgs: OffsetPaginationArgs): ChangelogEntryViewOffsetPaginated!
+
+  """
+  Admin-only. One changelog entry by id with its body, links and publication state.
+  """
+  getHubChangelogEntry(id: ID!): ChangelogEntryView!
+
+  """
+  Admin-only. One conversation in full: the item, its customer context, the timeline and related items. Marks the thread read for staff.
+  """
+  getHubConversation(id: ID!): HubConversation!
+
+  """
+  Admin-only. The entire Community Hub dashboard - queues, counters and trends - in one query.
+  """
+  getHubDashboard: HubDashboard!
+
+  """Admin-only. A page of discussion threads for the discussions board."""
+  getHubDiscussions(HubPageInput: HubPageInput): HubPostPage!
+
+  """
+  Admin-only. A page of feature-request cards with their vote weight and status, for the feature board. Optional search matches the request title and body.
+  """
+  getHubFeatureRequests(HubFeatureFilterInput: HubFeatureFilterInput, OffsetPaginationArgs: OffsetPaginationArgs): HubFeatureCardOffsetPaginated!
+
+  """
+  Admin-only. A page of members whose community standing has been flagged, worst standing first, with their report history. Optional search matches name and email.
+  """
+  getHubFlaggedUsers(OffsetPaginationArgs: OffsetPaginationArgs): FlaggedUserViewOffsetPaginated!
+
+  """
+  Admin-only. The universal staff inbox, one page of items. Every filter is optional and they intersect. Reading the queue needs no hub permission - only the actions are role-gated.
+  """
+  getHubInbox(HubInboxInput: HubInboxInput): HubPostPage!
+
+  """
+  Admin-only. The number behind each inbox filter chip, computed over the whole queue rather than the current page.
+  """
+  getHubInboxCounts: HubInboxCounts!
+
+  """
+  Admin-only. A page of knowledge-base articles, drafts and archived ones included. Optional search matches title, summary and category.
+  """
+  getHubKbArticles(OffsetPaginationArgs: OffsetPaginationArgs): KbArticleViewOffsetPaginated!
+
+  """
+  Admin-only. A page of solved threads worth turning into articles, ranked by how much search pressure they are absorbing. Scored over the 40 most-viewed solved threads; search is not supported.
+  """
+  getHubKbCandidates(OffsetPaginationArgs: OffsetPaginationArgs): KbCandidateOffsetPaginated!
+
+  """
+  Admin-only. The calling staff member's hub role, permission list and whether the AI assistant is configured. The console's first call - it decides which buttons are live.
+  """
+  getHubMe: HubViewer!
+
+  """
+  Admin-only. A page of the moderation queue, pending items first; pass includeActioned to include items already dealt with. Optional search matches the reported excerpt, its location and the reporter.
+  """
+  getHubModerationQueue(OffsetPaginationArgs: OffsetPaginationArgs, includeActioned: Boolean): ModerationItemViewOffsetPaginated!
+
+  """Admin-only. A page of question threads for the questions board."""
+  getHubQuestions(HubPageInput: HubPageInput): HubPostPage!
+
+  """
+  Admin-only. The roadmap board as ordered columns, including cards not yet visible to customers.
+  """
+  getHubRoadmap: [RoadmapColumn!]!
+
+  """
+  Admin-only unified staff search across hub content plus customers and projects. Wider scope than communitySearch.
+  """
+  getHubSearch(HubSearchInput: HubSearchInput!): HubSearchResults!
+
+  """
+  Admin-only. A page of hub staff members for the assignee picker and staff table, deactivated colleagues last; pass includeInactive to show them at all. Optional search matches name and email.
+  """
+  getHubStaff(OffsetPaginationArgs: OffsetPaginationArgs, includeInactive: Boolean): HubStaffMemberOffsetPaginated!
+
+  """
+  A page of the repositories one specific GitHub App installation can access, sorted by full name. Optional search matches the full name. installationId is GitHub's numeric id passed as a string. Restricted to members of the team that owns the installation.
+  """
+  getInstallationRepos(OffsetPaginationArgs: OffsetPaginationArgs, installationId: String!): InstallationRepoOffsetPaginated!
+
+  """
+  One statement with its line items. Requires MEMBER on the workspace that owns it.
+  """
+  getInvoice(id: ID!): InvoiceView!
+
+  """
+  Admin-only. Metadata for the stored fleet issuing CA, or null when the control plane cannot mint node certificates yet. Never returns key material.
+  """
+  getIssuingCa: IssuingCaInfo
+
+  """
+  An on-demand usage snapshot collected from the node right now, bypassing the stored series. Slower than serviceUsage. Requires MEMBER on the owning team.
+  """
+  getLiveServiceStats(serviceId: ID!): ServiceUsage!
+
+  """
+  A page of a team's mail API keys with their scope and state, newest first. Optional search matches the key name. Secrets are never returned. Requires membership of the team.
+  """
+  getMailApiKeys(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): MailApiKeyOffsetPaginated!
+
+  """
+  One sending domain with the DNS records the customer must publish, plus an alignment warning when their DMARC policy would break signing. Requires membership of the team.
+  """
+  getMailDomain(id: ID!, teamId: ID!): MailDomainDetail!
+
+  """
+  A page of the sending domains registered to a team, newest first, with their verification and reputation state. Optional search matches the domain name. Requires membership of the team.
+  """
+  getMailDomains(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): MailDomainOffsetPaginated!
+
+  """
+  A page of the delivery timeline for one message - accepted, delivered, bounced, opened - oldest first, in the order the events occurred. Search is not supported. Requires membership of the team.
+  """
+  getMailMessageEvents(OffsetPaginationArgs: OffsetPaginationArgs, messageId: ID!, teamId: ID!): MailEventOffsetPaginated!
+
+  """
+  A page of a team's sent messages, newest first, optionally filtered by status. Search matches a substring of the recipient address or the subject. This table grows with every send and is never pruned, so it is only ever returned a page at a time. Requires membership of the team.
+  """
+  getMailMessages(OffsetPaginationArgs: OffsetPaginationArgs, status: MailMessageStatus, teamId: ID!): MailMessageOffsetPaginated!
+
+  """
+  Headline sending stats for a team over the last `days` days (default 30): sent, delivered, bounced, complained and opened, with the derived rates. Rejected messages are excluded from `sent`.
+  """
+  getMailStats(days: Int, teamId: ID!): MailStats!
+
+  """
+  A page of a team's suppression list: addresses that will not be sent to, and why. Optional search matches the address. Requires membership of the team.
+  """
+  getMailSuppressions(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): MailSuppressionOffsetPaginated!
+
+  """
+  A page of recent webhook delivery attempts for a team, newest first: one row per attempt, with the response status or the error. Filter by endpoint, or to only those never delivered, which is the dead-letter list. Requires membership of the team.
+  """
+  getMailWebhookDeliveries(OffsetPaginationArgs: OffsetPaginationArgs, endpointId: ID, teamId: ID!, undeliveredOnly: Boolean): MailWebhookDeliveryOffsetPaginated!
+
+  """
+  A page of a team's mail webhook endpoints, newest first, with their event mask and failure state. Signing secrets are never returned. Requires membership of the team.
+  """
+  getMailWebhookEndpoints(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): MailWebhookEndpointOffsetPaginated!
+
+  """
+  The currently signed-in user's own account record. Returns null if the token's user no longer exists.
+  """
+  getMe: User!
+
+  """
+  A page of the applied schema migrations read from the application's own migration table, most recent first. Optional search matches the migration name. Requires MEMBER on the owning team.
+  """
+  getMigrations(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): DbMigrationOffsetPaginated!
+
+  """
+  A page of the non-preview services across all of the caller's teams, flattened - the source for the support form's service dropdown. Ordered by project name. Optional search matches the service name and the project name.
+  """
+  getMyServices(OffsetPaginationArgs: OffsetPaginationArgs): MyServiceOffsetPaginated!
+
+  """
+  What the signed-in member may reach in this workspace: their role, the areas it covers, whether it is read-only, and which projects it includes. The server enforces the same answer, so a client should drive every disabled control from this rather than guessing from a role name.
+  """
+  getMyTeamAccess(teamId: ID!): MyTeamAccess!
+
+  """
+  A page of the workspaces the signed-in user belongs to - the data behind the workspace switcher. Optional search matches the workspace name.
+  """
+  getMyTeams(OffsetPaginationArgs: OffsetPaginationArgs): TeamOffsetPaginated!
+
+  """
+  One of the signed-in user's own tickets with its full message thread. Another user's ticket is not readable here.
+  """
+  getMyTicket(id: ID!): SupportTicket!
+
+  """
+  A page of the signed-in user's own support tickets, newest first, for the dashboard list. Never returns other people's tickets. Optional search matches the subject and the NC- reference.
+  """
+  getMyTickets(OffsetPaginationArgs: OffsetPaginationArgs): SupportTicketListItemOffsetPaginated!
+
+  """
+  Admin-only. One bootstrap run by id with its phase, completed phases and full log - the polled progress feed for the dashboard. Throws if it does not exist.
+  """
+  getNodeBootstrap(id: ID!): NodeBootstrap!
+
+  """
+  Admin-only. The ordered phases a bootstrap run would execute and which of them are implemented so far. Not paginated - it is a fixed plan of the same phases every time. Static; touches no node.
+  """
+  getNodeBootstrapPlan: [BootstrapPhasePlan!]!
+
+  """
+  Admin-only. A page of node-bootstrap runs, newest first. Optional search matches the node name.
+  """
+  getNodeBootstraps(OffsetPaginationArgs: OffsetPaginationArgs): NodeBootstrapOffsetPaginated!
+
+  """
+  Admin-only. A page of node-recovery runs, newest first. Optional search matches the node name.
+  """
+  getNodeRecoveries(OffsetPaginationArgs: OffsetPaginationArgs): NodeRecoveryOffsetPaginated!
+
+  """
+  Admin-only. One node-recovery run by id, with its progress and per-workload outcome. Throws if the run does not exist.
+  """
+  getNodeRecovery(id: ID!): NodeRecovery!
+
+  """
+  Admin-only. Which secret kinds are stored, for the fleet or for one node. Not paginated - the answer is a subset of a fixed enum. Names only: no stored secret is ever readable back through the API.
+  """
+  getNodeSecretKinds(nodeName: String): [NodeSecretKind!]!
+
+  """
+  The signed-in user's optional notification categories and whether each is enabled. Not paginated: the categories are a fixed set. Mandatory security and account mail is never listed, because it is not a preference.
+  """
+  getNotificationPreferences: [NotificationPreferenceItem!]!
+
+  """
+  The team's object store in one region, or null if it has not been provisioned. Omit `region` to resolve the sole store; that errors when the team has several. Requires MEMBER on the team.
+  """
+  getObjectStore(region: String, teamId: ID!): ObjectStore
+
+  """
+  Full S3 connection details for a region including the secret key, for the reveal-credentials action. Requires ADMIN on the team.
+  """
+  getObjectStoreConnection(region: String, teamId: ID!): ObjectStorageConnection!
+
+  """
+  A page of the object stores the team has, by region. Optional search matches the region name. Requires MEMBER on the team.
+  """
+  getObjectStores(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ObjectStoreOffsetPaginated!
+
+  """
+  Whether the signed-in account has a verified phone number, i.e. has cleared the compute gate. Drives the signup flow's next step.
+  """
+  getPhoneVerified: Boolean!
+
+  """
+  Admin-only. Control-plane DR health: the latest snapshot and its age, whether it is stale, and the result of the last restore verification.
+  """
+  getPlatformDrStatus: PlatformDrStatus!
+
+  """
+  Public, unauthenticated status snapshot: the banner, summary cards, the region-by-component health matrix and recent incidents.
+  """
+  getPlatformStatus: PlatformStatus!
+
+  """
+  One PR preview by id, including its status and preview URL. Requires MEMBER on the owning team.
+  """
+  getPrPreview(id: ID!): PrPreview!
+
+  """
+  A page of the cost of each live PR preview environment, with its free-window countdown, newest preview first. Search is ignored - the rows are identified by PR number and repository. Requires MEMBER on the team.
+  """
+  getPreviewCosts(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): PreviewCostOffsetPaginated!
+
+  """
+  Public, unauthenticated price list: every published size, the five unit rates and the free allowances. Reads no user, team or database state.
+  """
+  getPricingCatalog: PricingCatalog!
+
+  """
+  One project by id, with its environments. Requires MEMBER on the owning team.
+  """
+  getProject(id: ID!): Project!
+
+  """
+  Project-wide usage rollup: totals plus a per-service breakdown for the project overview. Requires MEMBER on the owning team.
+  """
+  getProjectUsage(projectId: ID!): ProjectUsage!
+
+  """
+  A page of the projects in a workspace, newest first. Optional search matches name and display name. Requires MEMBER on the team.
+  """
+  getProjects(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ProjectOffsetPaginated!
+
+  """
+  Admin-only, read-only blast radius of recovering a node: what would be recreated, and which datastores have no backup and would come back empty.
+  """
+  getRecoveryPreview(nodeName: String!): RecoveryPreview!
+
+  """
+  One SCAN page of a Redis/Valkey keyspace, optionally filtered by `match`. Pass the returned cursor for the next page. Requires MEMBER on the owning team.
+  """
+  getRedisKeys(count: Int, cursor: String, match: String, serviceId: ID!): RedisKeyPage!
+
+  """
+  One Redis/Valkey key's type, TTL, size and value. Requires MEMBER on the owning team.
+  """
+  getRedisValue(key: String!, serviceId: ID!): RedisValue!
+
+  """
+  The referral link, credit balance, tier and activity for a workspace. Requires MEMBER on the team.
+  """
+  getReferralOverview(teamId: String!): ReferralOverview!
+
+  """
+  Domains this workspace has bought through us, newest first. Requires MEMBER on the team.
+  """
+  getRegisteredDomains(teamId: ID!): [RegisteredDomain!]!
+
+  """
+  One restore by id - poll it for progress and final status. Requires MEMBER on the owning team.
+  """
+  getRestore(id: ID!): Restore!
+
+  """
+  The team's S3 credential including its secret key. Requires ADMIN on the team.
+  """
+  getRevealStorageCredentials(teamId: ID!): StorageCredentials!
+
+  """
+  A page of the service's saved queries, shared across the team, newest first. Optional search matches the query name. Requires MEMBER on the owning team.
+  """
+  getSavedQueries(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): SavedQueryOffsetPaginated!
+
+  """
+  Every table with its columns and the foreign-key edges between them, for the schema visualiser. Requires MEMBER on the owning team.
+  """
+  getSchemaGraph(serviceId: ID!): SchemaGraph!
+
+  """
+  One service by id with its configuration and current state. Requires MEMBER on the owning team.
+  """
+  getService(id: ID!): Service!
+
+  """
+  A page of a service's decrypted environment variables, including the read-only connection strings linked in from sibling datastores. Ordered by key. Optional search matches the key - never the value, which is as often as not a password. Requires MEMBER on the owning team.
+  """
+  getServiceEnvVars(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): ServiceEnvVarOffsetPaginated!
+
+  """
+  Datastore connection-card tiles for one service: live connections and storage against the engine's connection cap and per-database disk cap. uptimePct is not populated yet. Requires MEMBER on the owning team.
+  """
+  getServiceHeadline(serviceId: ID!): ServiceHeadline!
+
+  """
+  Downsampled CPU/memory/network time series for one service over the requested range (default: last 24h), read from stored samples. Requires MEMBER on the owning team.
+  """
+  getServiceMetrics(range: MetricRange, serviceId: ID!): MetricSeries!
+
+  """
+  Request-level observability for one web service over the given range: verdict, headline numbers, traffic and speed series, deploy markers, breakdown panels and recent failures. Requires membership of the owning team. Returns available:false when the telemetry store is not configured, which the dashboard renders as a designed state rather than an error.
+  """
+  getServiceObservability(filter: ObservabilityFilterInput, range: MetricRange, serviceId: ID!): ServiceObservability!
+
+  """
+  A page of one web service's PR preview environments, newest first. Optional search matches the pull request title, head branch, author's login and number. Requires MEMBER on the owning team.
+  """
+  getServicePreviews(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): PrPreviewOffsetPaginated!
+
+  """
+  A page of a service's decrypted secret files, contents included, ordered by path. Optional search matches the path - never the contents, which are the secret. Requires MEMBER on the owning team.
+  """
+  getServiceSecretFiles(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): ServiceSecretFileOffsetPaginated!
+
+  """
+  Why the caller's own service is not running: the abuse finding and suspension state behind it. Membership of the owning team is enforced as part of the read.
+  """
+  getServiceSuspension(serviceId: String!): ServiceSuspensionView!
+
+  """
+  Current headline usage for one service - the latest stored sample plus rates derived from the last two. Requires MEMBER on the owning team.
+  """
+  getServiceUsage(serviceId: ID!): ServiceUsage!
+
+  """
+  A page of the caller's static sites in their default team, most-recently-updated first. Optional search matches the site name and its subdomain.
+  """
+  getStaticSites(OffsetPaginationArgs: OffsetPaginationArgs): StaticSiteOffsetPaginated!
+
+  """
+  Public, paginated incident history, newest first. Pass the previous page's nextBefore value as `before` to page into older incidents.
+  """
+  getStatusIncidents(before: String, limit: Int): StatusIncidentsPage!
+
+  """
+  A page of the buckets in the team's store for a region, by name. Optional search matches the bucket name. Per-bucket counts and sizes are resolved lazily, only if selected. Requires MEMBER on the team.
+  """
+  getStorageBuckets(OffsetPaginationArgs: OffsetPaginationArgs, region: String, teamId: ID!): StorageBucketOffsetPaginated!
+
+  """
+  The team's S3 access key, which is the same for every region. Null until the team has a store. The secret is not included - use revealStorageCredentials for that. Requires MEMBER on the team.
+  """
+  getStorageCredentials(teamId: ID!): StorageCredentials
+
+  """
+  A short-lived presigned GET URL for downloading or viewing one object straight from the store. Requires MEMBER on the team.
+  """
+  getStorageDownloadUrl(bucket: String!, key: String!, region: String, teamId: ID!): PresignedUrl!
+
+  """
+  One folder level of a bucket - objects plus sub-prefixes - paginated. Pass the returned token for the next page. Requires MEMBER on the team.
+  """
+  getStorageObjects(bucket: String!, prefix: String, region: String, teamId: ID!, token: String): StorageObjectPage!
+
+  """
+  One table's columns with type, nullability, default and key flags, plus its primary key. Requires MEMBER on the owning team.
+  """
+  getTableColumns(schema: String, serviceId: ID!, table: String!): DbTableSchema!
+
+  """
+  A page of cheap per-table row estimates from the planner's statistics - never a live COUNT(*). Optional search matches the table name and its schema. Requires MEMBER on the owning team.
+  """
+  getTableStats(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): TableStatOffsetPaginated!
+
+  """
+  One workspace by id, including its plan and defaults. Requires MEMBER on the team.
+  """
+  getTeam(id: ID!): Team!
+
+  """
+  A page of the API keys pinned to one team, newest first, whoever in the team issued them. Requires membership. Optional search matches the key name. Key secrets are never included.
+  """
+  getTeamApiTokens(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ApiTokenOffsetPaginated!
+
+  """
+  A page of the workspace's memberships with each member's role, oldest first. Optional search matches the member's email and display name. Requires MEMBER on the team.
+  """
+  getTeamMembers(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): TeamMembershipOffsetPaginated!
+
+  """
+  A workspace's roles, with how many people hold each and the projects it reaches. The six default roles are created on the first call, so this never returns an empty list for a real workspace.
+  """
+  getTeamRoles(teamId: ID!): [TeamRoleRow!]!
+
+  """
+  The workspace's wallet balance in minor units (kobo), its low-balance threshold and whether it has fallen to that threshold. Requires MEMBER on the team.
+  """
+  getWalletBalance(teamId: ID!): WalletBalance!
+
+  """
+  A page of the raw wallet ledger, newest first. Optional search matches the entry description. Requires MEMBER on the team.
+  """
+  getWalletEntries(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): WalletEntryOffsetPaginated!
+
+  """
+  A page of the workspace's top-ups, settled and still pending, newest first. Optional search matches the top-up reference. Requires MEMBER on the team.
+  """
+  getWalletTopUps(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): WalletTopUpOffsetPaginated!
+
+  """
+  A page of the wallet ledger shaped for the billing screen: filtered by age and entry kind, newest first, each row carrying the balance it left behind. Optional search matches the description. Requires MEMBER on the team.
+  """
+  getWalletTransactions(OffsetPaginationArgs: OffsetPaginationArgs, days: Int, kinds: [WalletEntryKind!], teamId: ID!): WalletTransactionOffsetPaginated!
+
+  """
+  Traefik-derived headline HTTP metrics for one web service - requests per minute, p95 latency and error rate. Requires membership of the owning team.
+  """
+  getWebHeadlineMetrics(serviceId: ID!): WebHeadline!
+
+  """
+  Request-count time series for one web service over the given range (default: last 24h), bucketed for the requests chart. Requires membership of the owning team.
+  """
+  getWebRequestSeries(range: MetricRange, serviceId: ID!): WebRequestSeries!
+
+  """
+  Reverse-chronological workspace event feed for a team, optionally scoped to a single project. Pass the previous page's nextCursor to load older events. Requires membership of the team.
+  """
+  getWorkspaceActivity(cursor: String, limit: Int, projectId: ID, teamId: ID!): WorkspaceActivityPage!
+
+  """
+  A page of the workspace's monthly statements, newest first. Search is ignored - statements are read in date order. Requires MEMBER on the team.
+  """
+  getWorkspaceInvoices(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): InvoiceViewOffsetPaginated!
+
+  """
+  Raw per-dimension usage meters for the workspace, before they are turned into money. Requires MEMBER on the team.
+  """
+  getWorkspaceUsageMeters(teamId: ID!): WorkspaceUsageMeters!
+}
+
+enum RecoveryMode {
+  EVACUATE
+  REBUILD
+}
+
+enum RecoveryPhase {
+  CRON
+  DATASTORES
+  DB_RESTORE
+  DNS
+  EDGE_ROUTES
+  HEALTH
+  OBJECT_STORES
+  PLAN
+  WEB_SERVICES
+}
+
+type RecoveryPreview {
+  nodeName: String!
+  objectStores: Int!
+  services: [RecoveryServiceResult!]!
+  withoutBackup: [String!]!
+}
+
+type RecoveryServiceResult {
+  detail: String
+  name: String!
+  outcome: String!
+  restoredFrom: String
+  serviceId: String!
+  type: String!
+}
+
+enum RecoveryStatus {
+  COMPLETED
+  FAILED
+  PARTIAL
+  PENDING
+  RUNNING
+}
+
+input RedeployStaticSiteInput {
+  indexPath: String
+  serviceId: ID!
+  spaFallback: Boolean
+  uploadId: ID!
+}
+
+type RedisCommandStat {
+  calls: Float!
+  command: String!
+}
+
+type RedisConfig {
+  appendOnly: String
+  maxMemoryBytes: Float
+  maxMemoryPolicy: String
+  save: String
+  timeoutSeconds: Int
+}
+
+type RedisKeyInfo {
+  key: String!
+  ttlSeconds: Int
+  type: String!
+}
+
+type RedisKeyPage {
+  cursor: String!
+  dbSize: Int!
+  keys: [RedisKeyInfo!]!
+}
+
+type RedisMemoryEntry {
+  bytes: Float!
+  name: String!
+}
+
+type RedisStats {
+  commandStats: [RedisCommandStat!]!
+  connectedClients: Int
+  dbSize: Int
+  evictedKeys: Float
+  expiredKeys: Float
+  instantaneousOpsPerSec: Float
+  keyspaceHits: Float
+  keyspaceMisses: Float
+  maxMemoryBytes: Float
+  memory: [RedisMemoryEntry!]!
+  totalCommandsProcessed: Float
+  uptimeSeconds: Int
+  usedMemoryBytes: Float
+  version: String
+}
+
+type RedisValue {
+  json: String!
+  key: String!
+  size: Int
+  truncated: Boolean!
+  ttl: Int!
+  type: String!
+}
+
+type ReferralOverview {
+  balanceMinor: Float!
+  code: String!
+  creditsEnabled: Boolean!
+  earnedMinor: Float!
+  expiringAt: DateTime
+  expiringMinor: Float
+  invitedCount: Int!
+  joinedCount: Int!
+  link: String!
+  nextTierAt: Int
+  nextTierName: String
+  nextTierRateMinor: Float
+  progressPct: Int!
+  qualifiedCount: Int!
+  rows: [ReferralRowView!]!
+  spentMinor: Float!
+  tierName: String!
+  tierRateMinor: Float!
+  tiers: [ReferralTierView!]!
+}
+
+type ReferralRowView {
+  creditMinor: Float!
+  id: ID!
+  isTeam: Boolean!
+  status: ReferralStatus!
+  sub: String!
+  when: DateTime!
+  who: String!
+}
+
+enum ReferralStatus {
+  CREDITED
+  INVITED
+  JOINED
+  REJECTED
+}
+
+type ReferralTierView {
+  current: Boolean!
+  id: String!
+  name: String!
+  passed: Boolean!
+  range: String!
+  rateMinor: Float!
+}
+
+type RegionLoad {
+  computeLoadPct: Float!
+  label: String!
+  nodes: Int!
+  region: String!
+  services: Int!
+  status: RegionStatus!
+  zones: [String!]!
+}
+
+enum RegionStatus {
+  DEGRADED
+  OPERATIONAL
+}
+
+input RegisterInput {
+  email: String!
+  firstName: String!
+  lastName: String!
+  password: String!
+  referralCode: String
+  turnstileToken: String
+}
+
+type RegisteredDomain {
+  autoRenew: Boolean!
+  createdAt: DateTime!
+  customNameservers: [String!]
+  domain: String!
+  expiresAt: DateTime
+  id: ID!
+  lastError: String
+  nameserverMode: NameserverMode!
+  registeredAt: DateTime
+  registrantVerifiedAt: DateTime
+  status: RegisteredDomainStatus!
+  teamId: String!
+  tld: String!
+  transferLockUntil: DateTime
+  updatedAt: DateTime!
+}
+
+enum RegisteredDomainStatus {
+  ACTIVE
+  DELETED
+  EXPIRING
+  FAILED
+  GRACE
+  PENDING_PAYMENT
+  REDEMPTION
+  REGISTERING
+}
+
+type ResourceCost {
+  category: UsageCategory!
+  cycleKobo: Float!
+  monthlyKobo: Float!
+  name: String!
+  serviceId: ID
+  state: String!
+  type: ServiceType
+}
+
+"""A page of per-resource costs with pagination metadata"""
+type ResourceCostOffsetPaginated {
+  """The ResourceCost rows on this page"""
+  items: [ResourceCost!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type ResourceEstimate {
+  coveredByFreeCredit: Boolean!
+  cpuMillicores: Int!
+  currency: String!
+  dailyKobo: Float!
+  hourlyKobo: Float!
+  memoryMb: Int!
+  monthlyKobo: Float!
+  storageMb: Int
+  tierLabel: String!
+}
+
+type Restore {
+  backupId: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  error: String
+  id: ID!
+  safetyBackupId: String
+  serviceId: String!
+  startedAt: DateTime
+  status: RestoreStatus!
+  updatedAt: DateTime!
+}
+
+enum RestoreStatus {
+  COMPLETED
+  FAILED
+  PENDING
+  RUNNING
+}
+
+type RoadmapColumn {
+  count: Int!
+  items: [RoadmapItemView!]!
+  stage: HubRoadmapStage!
+}
+
+input RoadmapItemInput {
+  linkedPostId: ID
+  note: String
+  position: Int
+  stage: HubRoadmapStage
+  title: String!
+}
+
+type RoadmapItemView {
+  followerCount: Int!
+  id: ID!
+  linkedPostId: ID
+  linkedPostReference: String
+  note: String!
+  position: Int!
+  releasedAt: DateTime
+  stage: HubRoadmapStage!
+  title: String!
+  viewerIsFollowing: Boolean
+  voteCount: Int!
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+  OWNER
+}
+
+input RowDeleteInput {
+  pk: [ColumnValueInput!]!
+}
+
+type RowMutationResult {
+  columns: [String!]!
+  message: String
+  row: DbRow
+  rowCount: Int!
+}
+
+input RowUpdateInput {
+  changes: [ColumnValueInput!]!
+  pk: [ColumnValueInput!]!
+}
+
+input SaveQueryInput {
+  description: String
+  id: ID
+  name: String!
+  serviceId: ID!
+  statement: String!
+}
+
+type SavedQuery {
+  createdAt: DateTime!
+  createdById: String
+  description: String
+  id: ID!
+  name: String!
+  serviceId: String!
+  statement: String!
+  updatedAt: DateTime!
+}
+
+"""A page of saved queries with pagination metadata"""
+type SavedQueryOffsetPaginated {
+  """The SavedQuery rows on this page"""
+  items: [SavedQuery!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type SchemaGraph {
+  relationships: [SchemaRelationship!]!
+  tables: [SchemaGraphTable!]!
+}
+
+type SchemaGraphTable {
+  columns: [DbColumn!]!
+  estimatedRows: Float
+  kind: String!
+  name: String!
+  schema: String
+}
+
+type SchemaRelationship {
+  constraintName: String!
+  fromColumn: String!
+  fromSchema: String
+  fromTable: String!
+  toColumn: String!
+  toSchema: String
+  toTable: String!
+}
+
+input SecretFileInput {
+  content: String!
+  path: String!
+}
+
+type SecretFileMutationResult {
+  needsRedeploy: Boolean!
+  secretFiles: [ServiceSecretFile!]!
+}
+
+type SentTestEmail {
+  """Our message id — the one the log and API expose."""
+  id: ID!
+  status: String!
+}
+
+type Service {
+  abuseExemptAt: DateTime
+  abuseExemptReason: String
+  abuseExemptedBy: String
+  branch: String
+  buildCommand: String
+  connection: ServiceConnection
+  connectionEnvName: String
+  cpuMillicores: Int!
+  createdAt: DateTime!
+  cronNextRunAt: DateTime
+  cronSuspended: Boolean!
+  customDomains: [CustomDomain!]!
+  dataProvision: DataProvisionResult
+  deployments: [Deployment!]!
+  engineVersion: String
+  envVarKeys: [String!]!
+  environment: EnvironmentRef
+  environmentId: String!
+  framework: String
+  gitUrl: String
+  health: ServiceHealth!
+  healthCheckPath: String
+  healthCheckedAt: DateTime
+  healthDetail: String
+  healthRestartCount: Int
+  id: ID!
+  imageCommand: String
+  imageRef: String
+  injectConnectionUrl: Boolean!
+  installationId: String
+  isPreview: Boolean!
+  isStatic: Boolean!
+  lastDeployedAt: DateTime
+  memoryMb: Int!
+  monorepoStrategy: MonorepoStrategy
+  name: String!
+  node: Node
+  nodeId: String
+  port: Int
+  postgresProvision: PostgresProvisionResult
+  previewsEnabled: Boolean!
+  reachability: ServiceReachability
+  reachabilityAlertedAt: DateTime
+  reachabilityAlertedState: ServiceReachability
+  reachabilityCheckedAt: DateTime
+  reachabilityDetail: String
+  repoFullName: String
+  resumedAt: DateTime
+  rootDir: String
+  runtime: String
+  runtimeVersion: String
+  schedule: String
+  secretFilePaths: [String!]!
+  sleptAt: DateTime
+  sourceType: SourceType
+  startCommand: String
+  staticArtifactName: String
+  staticIndexPath: String
+  staticOutputDir: String
+  staticSpa: Boolean!
+  staticSpaFallback: Boolean!
+  status: ServiceStatus!
+  storageLimitMb: Int
+  subdomain: String
+  suspendedAt: DateTime
+  suspendedBy: String
+  suspendedForAbuseAt: DateTime
+  suspendedForBillingAt: DateTime
+  suspension: ServiceSuspension!
+  tier: ServiceTier
+  type: ServiceType!
+  unhealthySince: DateTime
+  unreachableSince: DateTime
+  updatedAt: DateTime!
+  url: String
+  watchPaths: [String!]
+}
+
+type ServiceConnection {
+  database: String!
+  externalUrl: String
+  host: String!
+  password: String!
+  port: Int!
+  scheme: String!
+  url: String!
+  username: String!
+}
+
+type ServiceEnvVar {
+  key: String!
+  linked: Boolean!
+  scope: EnvVarScope!
+  secret: Boolean!
+  value: String!
+}
+
+"""A page of a service's environment variables with pagination metadata"""
+type ServiceEnvVarOffsetPaginated {
+  """The ServiceEnvVar rows on this page"""
+  items: [ServiceEnvVar!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type ServiceHeadline {
+  connectionLimit: Int
+  connections: Int
+  storageBytes: Float
+  storageLimitBytes: Float
+  uptimePct: Float
+}
+
+enum ServiceHealth {
+  CRASH_LOOPING
+  HEALTHY
+  MISSING
+  STOPPED
+  UNKNOWN
+}
+
+type ServiceObservability {
+  available: Boolean!
+  deploys: [ObsDeployMarker!]!
+  domain: String!
+  excluded: ObsExcluded!
+  failures: [ObsRequestSample!]!
+  headline: ObsHeadline!
+  neverHadTraffic: Boolean!
+  panels: [ObsPanel!]!
+  range: MetricRange!
+  serviceId: ID!
+  speed: [ObsSpeedPoint!]!
+  traffic: [ObsTrafficPoint!]!
+  verdict: ObsVerdict!
+}
+
+enum ServiceReachability {
+  EDGE_ERROR
+  OK
+  UNKNOWN
+  UNREACHABLE
+}
+
+type ServiceSecretFile {
+  content: String!
+  path: String!
+}
+
+"""A page of a service's secret files with pagination metadata"""
+type ServiceSecretFileOffsetPaginated {
+  """The ServiceSecretFile rows on this page"""
+  items: [ServiceSecretFile!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+enum ServiceStatus {
+  ACTIVE
+  ERROR
+  PROVISIONING
+}
+
+enum ServiceSuspension {
+  ABUSE
+  BILLING
+  NONE
+  USER
+}
+
+type ServiceSuspensionView {
+  abuseReasons: [String!]!
+  abuseWindowEnd: DateTime
+  abuseWindowStart: DateTime
+  serviceId: String!
+  suspendedForAbuseAt: DateTime
+  suspendedForBillingAt: DateTime
+}
+
+enum ServiceTier {
+  FREE
+  PRO
+  STANDARD
+  STARTER
+}
+
+type ServiceTierPrice {
+  cpuMillicores: Int!
+  currency: String!
+  family: String!
+  label: String!
+  memoryMb: Int!
+  priceKobo: Float!
+  storageMb: Int
+  tier: ServiceTier!
+}
+
+enum ServiceType {
+  CRON
+  MARIADB
+  MONGODB
+  MYSQL
+  POSTGRES
+  REDIS
+  STATIC
+  VALKEY
+  WEB
+}
+
+type ServiceUsage {
+  cpuPercent: Float!
+  database: DatabaseStats
+  hasData: Boolean!
+  memoryBytes: Float!
+  memoryLimitBytes: Float!
+  memoryPercent: Float!
+  networkRxBytesPerSec: Float!
+  networkTxBytesPerSec: Float!
+  sampledAt: DateTime
+  serviceId: ID!
+  type: ServiceType!
+}
+
+input SetMemberRoleInput {
+  projectIds: [ID!]
+  roleId: ID
+  teamId: ID!
+  userId: ID!
+}
+
+type SignupPoint {
+  count: Int!
+  date: String!
+}
+
+"""Sort direction applied to a paginated list"""
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum SourceType {
+  DOCKER_IMAGE
+  GITHUB_APP
+  PUBLIC_GIT
+}
+
+"""A page of static sites with pagination metadata"""
+type StaticSiteOffsetPaginated {
+  """The StaticSite rows on this page"""
+  items: [Service!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+input StaticUploadInput {
+  contentType: String!
+  filename: String!
+  sizeBytes: Float!
+}
+
+type StaticUploadSlot {
+  expiresInSeconds: Int!
+  headers: [UploadHeader!]!
+  maxBytes: Float!
+  method: String!
+  uploadId: ID!
+  url: String!
+}
+
+type StatusComponent {
+  description: String!
+  key: String!
+  name: String!
+  regions: [StatusRegionCell!]!
+  scope: ComponentScope!
+  status: ComponentStatus!
+  statusLabel: String!
+  uptime90d: Float
+}
+
+type StatusIncident {
+  componentKey: String!
+  componentName: String!
+  durationMinutes: Int
+  id: String!
+  impact: IncidentImpact!
+  region: String
+  regionLabel: String
+  resolvedAt: String
+  startedAt: String!
+  status: IncidentStatus!
+  summary: String!
+  title: String!
+  updates: [StatusIncidentUpdate!]!
+}
+
+type StatusIncidentUpdate {
+  at: String!
+  body: String!
+  status: IncidentStatus!
+}
+
+type StatusIncidentsPage {
+  incidents: [StatusIncident!]!
+  nextBefore: String
+}
+
+type StatusRegion {
+  key: String!
+  label: String!
+}
+
+type StatusRegionCell {
+  label: String!
+  region: String!
+  status: ComponentStatus!
+}
+
+type StatusSummary {
+  responseMsP95: Float
+  uptime24h: Float
+  uptime90d: Float
+}
+
+type StorageBucket {
+  createdAt: String
+  endpoint: String!
+  name: String!
+  objectCount: Int
+  publicBaseUrl: String
+  region: String!
+  s3Name: String! @deprecated(reason: "Same value as name — bucket names are no longer namespaced.")
+  sizeBytes: Float
+  visibility: BucketVisibility
+}
+
+"""A page of storage buckets with pagination metadata"""
+type StorageBucketOffsetPaginated {
+  """The StorageBucket rows on this page"""
+  items: [StorageBucket!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type StorageCredentials {
+  accessKeyId: String!
+  regions: [String!]!
+  secretAccessKey: String
+}
+
+type StorageObject {
+  etag: String
+  key: String!
+  lastModified: String
+  size: Float!
+}
+
+type StorageObjectPage {
+  isTruncated: Boolean!
+  nextToken: String
+  objects: [StorageObject!]!
+  prefixDetails: [StoragePrefix!]!
+  prefixes: [String!]!
+}
+
+type StoragePrefix {
+  lastModified: String
+  objectCount: Int!
+  prefix: String!
+  sizeBytes: Float!
+}
+
+type SupportTicket {
+  assigneeName: String
+  assigneeUserId: ID
+  code: String!
+  createdAt: DateTime!
+  id: ID!
+  messages: [SupportTicketMessage!]!
+  number: Int!
+  priority: TicketPriority!
+  projectName: String
+  requesterEmail: String!
+  requesterName: String!
+  resolvedAt: DateTime
+  serviceName: String
+  status: TicketStatus!
+  subject: String!
+  updatedAt: DateTime!
+}
+
+type SupportTicketCounts {
+  all: Int!
+  highPriorityOpen: Int!
+  open: Int!
+  pending: Int!
+  resolved: Int!
+}
+
+type SupportTicketListItem {
+  assigneeName: String
+  assigneeUserId: ID
+  code: String!
+  createdAt: DateTime!
+  id: ID!
+  number: Int!
+  priority: TicketPriority!
+  projectName: String
+  requesterEmail: String!
+  requesterName: String!
+  resolvedAt: DateTime
+  serviceName: String
+  status: TicketStatus!
+  subject: String!
+  updatedAt: DateTime!
+}
+
+"""A page of support tickets with pagination metadata"""
+type SupportTicketListItemOffsetPaginated {
+  """The SupportTicketListItem rows on this page"""
+  items: [SupportTicketListItem!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type SupportTicketMessage {
+  authorKind: TicketAuthorKind!
+  authorName: String!
+  body: String!
+  createdAt: DateTime!
+  id: ID!
+}
+
+enum SystemIndicator {
+  DEGRADED
+  MAINTENANCE
+  MAJOR_OUTAGE
+  OPERATIONAL
+  PARTIAL_OUTAGE
+  UNKNOWN
+}
+
+enum TableExportFormat {
+  CSV
+  JSON
+  SQL
+}
+
+type TableStat {
+  estimatedRows: Float
+  name: String!
+  schema: String
+}
+
+"""A page of per-table row estimates with pagination metadata"""
+type TableStatOffsetPaginated {
+  """The TableStat rows on this page"""
+  items: [TableStat!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type Team {
+  createdAt: DateTime!
+  defaultRegion: String
+  deploymentPreviewsEnabled: Boolean!
+  id: ID!
+
+  """
+  The signed-in user's role in this workspace, or null if they are not a member. Ask for this rather than searching the member list — that list is paginated.
+  """
+  myRole: Role
+  name: String!
+  referralCode: String
+  updatedAt: DateTime!
+}
+
+type TeamMembership {
+  createdAt: DateTime!
+  id: ID!
+  projectIds: [String!]
+  role: Role!
+  teamId: String!
+  teamRole: TeamRole
+  teamRoleId: String
+  updatedAt: DateTime!
+  user: User!
+  userId: String!
+}
+
+"""A page of workspace memberships with pagination metadata"""
+type TeamMembershipOffsetPaginated {
+  """The TeamMembership rows on this page"""
+  items: [TeamMembership!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A page of workspaces with pagination metadata"""
+type TeamOffsetPaginated {
+  """The Team rows on this page"""
+  items: [Team!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+"""A part of the workspace a role can reach"""
+enum TeamPermission {
+  BILLING
+  DATABASES
+  DEPLOYS
+  EMAIL
+  STORAGE
+  TEAM
+}
+
+type TeamRole {
+  allProjects: Boolean!
+  builtin: Boolean!
+  createdAt: DateTime!
+  description: String!
+  editable: Boolean!
+  id: ID!
+  name: String!
+  permissions: [TeamPermission!]!
+  projectIds: [String!]!
+  readOnly: Boolean!
+  teamId: String!
+  updatedAt: DateTime!
+}
+
+type TeamRoleRow {
+  memberCount: Int!
+  role: TeamRole!
+  scopedProjectIds: [ID!]!
+}
+
+enum TicketAuthorKind {
+  SUPPORT
+  USER
+}
+
+enum TicketPriority {
+  HIGH
+  LOW
+  MEDIUM
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+}
+
+enum TopUpStatus {
+  EXPIRED
+  FAILED
+  PAID
+  PENDING
+}
+
+type UnitRateCard {
+  currency: String!
+  dbDiskKoboPerGbMonth: Float!
+  egressKoboPerGb: Float!
+  emailKoboPerMessage: Float!
+  memoryKoboPerGbMonth: Float!
+  objectStorageKoboPerGbMonth: Float!
+  vcpuKoboPerVcpuMonth: Float!
+}
+
+input UpdateChangelogInput {
+  heroImageUrl: String
+  id: ID!
+  links: [ChangelogLinkInput!]
+  sections: [ChangelogSectionInput!]
+  summary: String
+  tag: String
+  title: String
+}
+
+input UpdateCronJobInput {
+  command: String
+  schedule: String
+  serviceId: ID!
+}
+
+input UpdateNotificationPreferenceInput {
+  category: NotificationCategory!
+  enabled: Boolean!
+}
+
+input UpdateServiceBuildInput {
+  buildCommand: String
+  healthCheckPath: String
+  monorepoStrategy: MonorepoStrategy
+  port: Int
+  rootDir: String
+  runtimeVersion: String
+  startCommand: String
+  staticOutputDir: String
+  staticSpa: Boolean
+  watchPaths: [String!]
+}
+
+input UpdateServiceSourceInput {
+  branch: String
+  gitUrl: String
+  image: String
+  imageCommand: String
+  installationId: String
+  redeploy: Boolean
+  repoFullName: String
+  sourceType: SourceType
+}
+
+input UpdateTeamRoleInput {
+  allProjects: Boolean
+  description: String
+  id: ID!
+  name: String
+  permissions: [TeamPermission!]
+  projectIds: [ID!]
+  readOnly: Boolean
+}
+
+type UploadHeader {
+  name: String!
+  value: String!
+}
+
+enum UsageCategory {
+  ANALYTICS
+  BANDWIDTH
+  CACHE
+  COMPUTE
+  DATABASE
+  EMAIL
+  PREVIEW
+  STORAGE
+}
+
+type User {
+  createdAt: DateTime!
+  email: String!
+  emailVerifiedAt: DateTime
+  firstName: String
+  githubLogin: String
+  id: ID!
+  lastName: String
+  name: String
+  phoneVerifiedAt: DateTime
+  status: UserStatus!
+  updatedAt: DateTime!
+}
+
+input UserFlagInput {
+  note: String
+  state: HubUserFlagState!
+  userId: ID!
+}
+
+enum UserPlan {
+  HOBBY
+  PRO
+  SCALE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+type WalletBalance {
+  balanceMinor: Float!
+  currency: String!
+  low: Boolean!
+  lowBalanceThresholdMinor: Float!
+}
+
+type WalletEntry {
+  amountMinor: Float!
+  createdAt: DateTime!
+  description: String!
+  feeMinor: Float
+  id: ID!
+  kind: WalletEntryKind!
+  updatedAt: DateTime!
+  walletId: String!
+}
+
+enum WalletEntryKind {
+  ADJUSTMENT
+  DEBIT
+  REFERRAL
+  REFUND
+  TOPUP
+}
+
+"""A page of wallet ledger entries with pagination metadata"""
+type WalletEntryOffsetPaginated {
+  """The WalletEntry rows on this page"""
+  items: [WalletEntry!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type WalletTopUp {
+  amountMinor: Float!
+  checkoutUrl: String
+  createdAt: DateTime!
+  currency: String!
+  expiresAt: DateTime
+  id: ID!
+  paidAt: DateTime
+  reference: String!
+  status: TopUpStatus!
+  teamId: String!
+  updatedAt: DateTime!
+}
+
+"""A page of wallet top-ups with pagination metadata"""
+type WalletTopUpOffsetPaginated {
+  """The WalletTopUp rows on this page"""
+  items: [WalletTopUp!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type WalletTransaction {
+  amountMinor: Float!
+  balanceMinor: Float!
+  createdAt: DateTime!
+  currency: String!
+  description: String!
+  feeMinor: Float
+  id: ID!
+  kind: WalletEntryKind!
+  reference: String!
+}
+
+"""A page of wallet transactions with pagination metadata"""
+type WalletTransactionOffsetPaginated {
+  """The WalletTransaction rows on this page"""
+  items: [WalletTransaction!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
+}
+
+type WebHeadline {
+  errorRatePct: Float!
+  hasData: Boolean!
+  p95Ms: Float
+  requestsPerMin: Float!
+  sampledAt: DateTime
+}
+
+type WebRequestPoint {
+  requests: Float!
+  t: DateTime!
+}
+
+type WebRequestSeries {
+  bucketSeconds: Int!
+  points: [WebRequestPoint!]!
+  range: MetricRange!
+  serviceId: ID!
+}
+
+type WorkspaceActivityItem {
+  actorName: String
+  at: DateTime!
+  detail: String
+  id: ID!
+  kind: WorkspaceActivityKind!
+  projectName: String
+  serviceName: String
+  title: String!
+}
+
+enum WorkspaceActivityKind {
+  BACKUP
+  BILLING
+  CRON_RUN
+  DEPLOY
+  DOMAIN
+  MEMBER_JOINED
+  SERVICE_CREATED
+  SERVICE_ERROR
+  STORAGE
+  TICKET_OPENED
+  TICKET_RESOLVED
+}
+
+type WorkspaceActivityPage {
+  items: [WorkspaceActivityItem!]!
+  nextCursor: String
+}
+
+type WorkspaceUsageMeters {
+  bandwidthAllowanceBytes: Float
+  bandwidthBytes: Float
+  computeAllowanceHours: Float
+  computeHours: Float!
+  databaseAllowanceBytes: Float
+  databaseBytes: Float!
+  storageAllowanceBytes: Float
+  storageBytes: Float!
+}

@@ -3,7 +3,7 @@
  * operation hangs off.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import { PROJECT_FIELDS, SERVICE_FIELDS } from "./fields.js";
 import type {
   MyService,
@@ -17,41 +17,42 @@ import type {
 
 
 export async function listTeams(): Promise<Team[]> {
-  const data = await authed<{ myTeams: Team[] }>(`
-    query MyTeams { myTeams { id name defaultRegion } }
-  `);
-  return data.myTeams;
+  return await authedAllPages<Team, { getMyTeams: { items: Team[]; pageInfo: { hasNextPage: boolean } } }>(
+    `
+      query MyTeams($page: OffsetPaginationArgs) {
+        getMyTeams(OffsetPaginationArgs: $page) { ${pageSelection("id name defaultRegion")} }
+      }
+    `,
+    {},
+    (data) => data.getMyTeams,
+  );
 }
 
 /**
  * Every project the caller can see, tagged with its team.
  *
- * `projects` is team-scoped in the schema, so this resolves the caller's teams
- * first and then fetches all teams' projects in **one** aliased query —
- * `selection` is spliced into each alias, so asking for environments too costs
+ * `getProjects` is team-scoped and paginated in the schema, so this resolves
+ * the caller's teams first and then reads each team's projects, every page —
+ * `selection` is spliced into each item, so asking for environments too costs
  * nothing beyond a bigger response.
  */
 async function projectsAcrossTeams(selection: string): Promise<ProjectWithTeam[]> {
   const teams = await listTeams();
-  if (teams.length === 0) return [];
-
-  const aliases = teams
-    .map((_, index) => `t${index}: projects(teamId: $team${index}) { ${selection} }`)
-    .join("\n");
-  const params = teams.map((_, index) => `$team${index}: ID!`).join(", ");
-
-  const variables: Record<string, unknown> = {};
-  teams.forEach((team, index) => {
-    variables[`team${index}`] = team.id;
-  });
-
-  const data = await authed<Record<string, Project[]>>(
-    `query AllProjects(${params}) { ${aliases} }`,
-    variables,
+  const perTeam = await Promise.all(
+    teams.map((team) =>
+      authedAllPages<Project, { getProjects: { items: Project[]; pageInfo: { hasNextPage: boolean } } }>(
+        `
+          query TeamProjects($teamId: ID!, $page: OffsetPaginationArgs) {
+            getProjects(teamId: $teamId, OffsetPaginationArgs: $page) { ${pageSelection(selection)} }
+          }
+        `,
+        { teamId: team.id },
+        (data) => data.getProjects,
+      ),
+    ),
   );
-
   return teams.flatMap((team, index) =>
-    (data[`t${index}`] ?? []).map((project) => ({ ...project, teamName: team.name })),
+    (perTeam[index] ?? []).map((project) => ({ ...project, teamName: team.name })),
   );
 }
 
@@ -146,10 +147,10 @@ export async function listEnvironmentChoices(): Promise<EnvironmentChoice[]> {
 
 /** One project, including its environments and the services inside each. */
 export async function getProject(projectId: string): Promise<Project> {
-  const data = await authed<{ project: Project }>(
+  const data = await authed<{ getProject: Project }>(
     `
       query GetProject($id: ID!) {
-        project(id: $id) {
+        getProject(id: $id) {
           ${PROJECT_FIELDS}
           environments {
             id
@@ -162,7 +163,7 @@ export async function getProject(projectId: string): Promise<Project> {
     `,
     { id: projectId },
   );
-  return data.project;
+  return data.getProject;
 }
 
 /**
@@ -173,10 +174,15 @@ export async function getProject(projectId: string): Promise<Project> {
  * `getProject` is the richer but far chattier route.
  */
 export async function listMyServices(): Promise<MyService[]> {
-  const data = await authed<{ myServices: MyService[] }>(`
-    query MyServices { myServices { id name projectName type } }
-  `);
-  return data.myServices;
+  return await authedAllPages<MyService, { getMyServices: { items: MyService[]; pageInfo: { hasNextPage: boolean } } }>(
+    `
+      query MyServices($page: OffsetPaginationArgs) {
+        getMyServices(OffsetPaginationArgs: $page) { ${pageSelection("id name projectName type")} }
+      }
+    `,
+    {},
+    (data) => data.getMyServices,
+  );
 }
 
 /**
@@ -187,10 +193,10 @@ export async function listMyServices(): Promise<MyService[]> {
  * worth its cost when something is going to render it.
  */
 export async function getProjectTree(projectId: string): Promise<Project> {
-  const data = await authed<{ project: Project }>(
+  const data = await authed<{ getProject: Project }>(
     `
       query ProjectTree($id: ID!) {
-        project(id: $id) {
+        getProject(id: $id) {
           ${PROJECT_FIELDS}
           environments {
             id
@@ -204,7 +210,7 @@ export async function getProjectTree(projectId: string): Promise<Project> {
     `,
     { id: projectId },
   );
-  return data.project;
+  return data.getProject;
 }
 
 /**
@@ -217,17 +223,17 @@ export async function getProjectTree(projectId: string): Promise<Project> {
 export async function getServiceConnection(
   serviceId: string,
 ): Promise<ServiceConnection | null> {
-  const data = await authed<{ service: { connection: ServiceConnection | null } }>(
+  const data = await authed<{ getService: { connection: ServiceConnection | null } }>(
     `
       query ServiceConnection($id: ID!) {
-        service(id: $id) {
+        getService(id: $id) {
           connection { scheme host port username password database url externalUrl }
         }
       }
     `,
     { id: serviceId },
   );
-  return data.service.connection;
+  return data.getService.connection;
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -242,10 +248,10 @@ export interface ServiceDetail extends ServiceSummary {
 
 /** One service, used to report which environment a deploy will land in. */
 export async function getService(serviceId: string): Promise<ServiceDetail> {
-  const data = await authed<{ service: ServiceDetail }>(
+  const data = await authed<{ getService: ServiceDetail }>(
     `
       query GetService($id: ID!) {
-        service(id: $id) {
+        getService(id: $id) {
           ${SERVICE_FIELDS}
           isPreview
           environmentId
@@ -259,5 +265,5 @@ export async function getService(serviceId: string): Promise<ServiceDetail> {
     `,
     { id: serviceId },
   );
-  return data.service;
+  return data.getService;
 }

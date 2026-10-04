@@ -2,28 +2,28 @@
  * Custom domains, which attach to a service rather than to a project.
  */
 
-import { authed } from "./transport.js";
+import { authed, authedAllPages, pageSelection } from "./transport.js";
 import { DOMAIN_FIELDS } from "./fields.js";
 import type { CustomDomain, DomainWithService } from "./types.js";
 
 
 export async function listDomainsByService(serviceId: string): Promise<CustomDomain[]> {
-  const data = await authed<{ customDomains: CustomDomain[] }>(
-    `query CustomDomains($serviceId: ID!) { customDomains(serviceId: $serviceId) { ${DOMAIN_FIELDS} } }`,
+  return await authedAllPages<CustomDomain, { getCustomDomains: { items: CustomDomain[]; pageInfo: { hasNextPage: boolean } } }>(
+    `query CustomDomains($serviceId: ID!, $page: OffsetPaginationArgs) { getCustomDomains(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection(DOMAIN_FIELDS)} } }`,
     { serviceId },
+    (data) => data.getCustomDomains,
   );
-  return data.customDomains;
 }
 
 export async function listDomainsByProject(projectId: string): Promise<DomainWithService[]> {
   const data = await authed<{
-    project: {
+    getProject: {
       environments: { services: { id: string; name: string; customDomains: CustomDomain[] }[] }[];
     };
   }>(
     `
       query ProjectDomains($id: ID!) {
-        project(id: $id) {
+        getProject(id: $id) {
           environments {
             services {
               id
@@ -37,7 +37,7 @@ export async function listDomainsByProject(projectId: string): Promise<DomainWit
     { id: projectId },
   );
 
-  return data.project.environments.flatMap((environment) =>
+  return data.getProject.environments.flatMap((environment) =>
     environment.services.flatMap((service) =>
       service.customDomains.map((domain) => ({ ...domain, serviceName: service.name })),
     ),

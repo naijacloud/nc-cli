@@ -71,7 +71,7 @@ export async function createDatastore(input: {
   const data = await authed<{ createService: ServiceSummary }>(
     `
       mutation CreateDatastore($input: CreateServiceInput!) {
-        createService(input: $input) { ${SERVICE_FIELDS} }
+        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
       }
     `,
     { input },
@@ -98,7 +98,7 @@ export async function createStaticService(input: {
   const data = await authed<{ createService: ServiceSummary }>(
     `
       mutation CreateStaticService($input: CreateServiceInput!) {
-        createService(input: $input) { ${SERVICE_FIELDS} }
+        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
       }
     `,
     { input: { ...input, type: "STATIC" } },
@@ -152,7 +152,7 @@ export async function createRuntimeService(input: {
   const data = await authed<{ createService: ServiceSummary }>(
     `
       mutation CreateRuntimeService($input: CreateServiceInput!) {
-        createService(input: $input) { ${SERVICE_FIELDS} }
+        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
       }
     `,
     // Undefined keys are dropped by JSON.stringify, so an omitted option never
