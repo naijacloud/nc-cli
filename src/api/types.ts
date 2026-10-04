@@ -17,6 +17,18 @@ export type DeploymentStatus =
   | "REPLACED"
   | "SUPERSEDED";
 
+/**
+ * Deployment states a cancel can still act on. Cancelling anything else is a
+ * no-op the API answers with the deployment unchanged, so callers check first
+ * rather than report that as a success.
+ */
+export const CANCELLABLE_STATUSES: ReadonlySet<DeploymentStatus> = new Set<DeploymentStatus>([
+  "QUEUED",
+  "BUILDING",
+  "TESTING",
+  "DEPLOYING",
+]);
+
 export type ServiceType =
   | "WEB"
   | "STATIC"

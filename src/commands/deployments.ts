@@ -15,6 +15,7 @@
 import process from "node:process";
 
 import {
+  CANCELLABLE_STATUSES,
   cancelDeployment,
   getDeployment,
   getDeploymentLogs,
@@ -233,14 +234,6 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
 /* Cancel                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Deployment states a cancel can still act on. */
-const IN_FLIGHT: ReadonlySet<DeploymentStatus> = new Set<DeploymentStatus>([
-  "QUEUED",
-  "BUILDING",
-  "TESTING",
-  "DEPLOYING",
-]);
-
 /**
  * Stops an in-flight deployment.
  *
@@ -254,7 +247,7 @@ export async function deploymentsCancel(
 ): Promise<void> {
   const current = await getDeployment(deploymentId);
 
-  if (!IN_FLIGHT.has(current.status)) {
+  if (!CANCELLABLE_STATUSES.has(current.status)) {
     throw new Error(
       `Deployment ${deploymentId} is ${current.status}, which cancelling cannot change — ` +
         "it only stops a build that is still QUEUED, BUILDING, TESTING or DEPLOYING. " +
@@ -276,7 +269,7 @@ export async function deploymentsCancel(
   const cancelled = await cancelDeployment(deploymentId);
 
   if (options.json) {
-    printJson({ cancelled: true, deployment: cancelled });
+    printJson({ cancelled: cancelled.status === "CANCELLED", deployment: cancelled });
     return;
   }
 
