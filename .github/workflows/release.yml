@@ -5,9 +5,15 @@
 #   tag ──> binaries (1 runner, 5 targets) ──> smoke ──> release ──> npm publish
 #                                                          │
 #                                                          ├─> .deb / .rpm
-#                                                          └─> rendered manifests
-#                                                              for Homebrew /
-#                                                              Scoop / WinGet
+#                                                          ├─> rendered manifests
+#                                                          │   for Homebrew /
+#                                                          │   Scoop / WinGet
+#                                                          └─> package-managers:
+#                                                              push the tap and
+#                                                              the bucket (needs
+#                                                              TAP_TOKEN; fails on
+#                                                              its own, after npm
+#                                                              and the release)
 #
 # `bun build --compile` cross-compiles, so every platform's binary is produced
 # on one Linux runner in seconds. Because nothing can execute a cross-compiled
@@ -129,11 +135,13 @@ jobs:
     runs-on: ubuntu-latest
 
     # Hoisted to the job because a step's own `env:` block is not reliably
-    # visible to that same step's `if:`. Declared here, the guards below are
+    # visible to that same step's `if:`. Declared here, the guard below is
     # unambiguous — otherwise a configured token could still silently skip.
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -232,14 +240,74 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
-      # Downstream repositories are updated only when their tokens exist, so a
-      # fork or a first release without them still completes.
-      - name: Update the Homebrew tap
-        if: ${{ env.TAP_TOKEN != '' }}
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+      # Handed to the `package-managers` job below, which runs after this one
+      # has already published, so a bad tap token can no longer hold up npm or
+      # the GitHub release.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packaging
+          path: dist-packaging
+          if-no-files-found: error
+          retention-days: 7
+
+  # The Homebrew tap and the Scoop bucket live in other repositories, so pushing
+  # to them needs TAP_TOKEN. They used to be the last steps of `release`, guarded
+  # by "skip if the secret is empty": an expired token failed the tap push, the
+  # bucket step never ran, and a missing token skipped both with a green tick —
+  # in every case `brew install` and `scoop install` were left with nothing to
+  # install (TGL-724).
+  #
+  # Now they are a job of their own that runs only after npm and the GitHub
+  # release are out. Each channel is attempted on its own, and the job then fails
+  # with one message naming what did not happen and how to fix it. Once the
+  # token is fixed, "Re-run failed jobs" on the same run finishes the release;
+  # nothing has to be re-tagged.
+  package-managers:
+    name: homebrew + scoop
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+      VERSION: ${{ needs.release.outputs.version }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packaging
+          path: dist-packaging
+
+      # Checks the token can at least read both repositories, so a missing or
+      # expired secret is reported as that, not as a git error halfway through
+      # a push. It cannot prove write access; the push steps report that.
+      - name: Check TAP_TOKEN
+        id: token
         run: |
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/naijacloud/homebrew-tap.git" tap
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::error title=TAP_TOKEN is not set::The Homebrew tap and Scoop bucket were not updated. Add a fine-grained token with Contents: read and write on naijacloud/homebrew-tap and naijacloud/scoop-bucket as the TAP_TOKEN secret, then re-run this job."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ok=true
+          for repo in homebrew-tap scoop-bucket; do
+            if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 -w0)" \
+                ls-remote --heads "https://github.com/naijacloud/${repo}.git" > /dev/null 2>&1; then
+              echo "::error title=TAP_TOKEN cannot read naijacloud/${repo}::The token is expired, revoked, or not granted this repository. Replace the TAP_TOKEN secret, then re-run this job."
+              ok=false
+            fi
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+
+      # The token goes in an extra header for this one command rather than in
+      # the clone URL, so it is never written into the clone's .git/config.
+      - name: Update the Homebrew tap
+        id: tap
+        if: steps.token.outputs.ok == 'true'
+        continue-on-error: true
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$auth" clone https://github.com/naijacloud/homebrew-tap.git tap
           mkdir -p tap/Formula
           cp dist-packaging/homebrew/naijacloud.rb tap/Formula/naijacloud.rb
           cd tap
@@ -250,14 +318,16 @@ jobs:
           git add Formula/naijacloud.rb
           # Re-running the same version is a no-op, not a failure.
           git diff --cached --quiet || git commit -m "naijacloud ${VERSION}"
-          git push
+          git -c "http.https://github.com/.extraheader=$auth" push origin HEAD
 
+      # Runs whether or not the tap push worked: the two are independent.
       - name: Update the Scoop bucket
-        if: ${{ env.TAP_TOKEN != '' }}
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+        id: bucket
+        if: steps.token.outputs.ok == 'true'
+        continue-on-error: true
         run: |
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/naijacloud/scoop-bucket.git" bucket
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$auth" clone https://github.com/naijacloud/scoop-bucket.git bucket
           mkdir -p bucket/bucket
           cp dist-packaging/scoop/naijacloud.json bucket/bucket/naijacloud.json
           cd bucket
@@ -266,7 +336,39 @@ jobs:
           # See the tap step above: a new manifest is untracked on a fresh bucket.
           git add bucket/naijacloud.json
           git diff --cached --quiet || git commit -m "naijacloud ${VERSION}"
-          git push
+          git -c "http.https://github.com/.extraheader=$auth" push origin HEAD
+
+      - name: Report
+        if: always()
+        env:
+          TOKEN_OK: ${{ steps.token.outputs.ok }}
+          TAP: ${{ steps.tap.outcome }}
+          BUCKET: ${{ steps.bucket.outcome }}
+        run: |
+          {
+            echo "### Homebrew and Scoop for v${VERSION}"
+            echo
+            echo "| Channel | Result |"
+            echo "| --- | --- |"
+            echo "| Homebrew tap (naijacloud/homebrew-tap) | ${TAP} |"
+            echo "| Scoop bucket (naijacloud/scoop-bucket) | ${BUCKET} |"
+            echo
+            echo "npm and the GitHub release were published by the \`publish\` job before this one ran."
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=""
+          [ "$TAP" = "success" ] || failed="the Homebrew tap"
+          if [ "$BUCKET" != "success" ]; then
+            failed="${failed:+$failed and }the Scoop bucket"
+          fi
+          if [ -n "$failed" ]; then
+            if [ "$TOKEN_OK" != "true" ]; then
+              why="TAP_TOKEN is missing or cannot read the repositories (see the error above)."
+            else
+              why="the push failed; usually TAP_TOKEN lacks Contents: write on that repository."
+            fi
+            echo "::error title=v${VERSION} did not reach ${failed}::npm and the GitHub release are out, but ${failed} did not get v${VERSION}: ${why} Fix the TAP_TOKEN secret, then use Re-run failed jobs on this run."
+            exit 1
+          fi
 
   # WinGet is disabled for now. It is a pull request into microsoft/winget-pkgs,
   # so it needs a fork of that repository and a classic PAT (`public_repo`) in
