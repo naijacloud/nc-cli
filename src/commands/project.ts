@@ -54,6 +54,7 @@ import { programName } from "../program-name.js";
 import { promptLine, promptYesNo, write } from "../terminal.js";
 import { resolveProjectId, serviceIdFromManifest } from "./resolve.js";
 import { dbShell, dbTables } from "./db.js";
+import { dnsTargetValue } from "./domains.js";
 import { waitForDeployment } from "./wait.js";
 
 /**
@@ -637,10 +638,10 @@ async function showDomains(summary: ServiceSummary): Promise<void> {
     [
       { header: "DOMAIN", value: (domain) => domain.domain },
       { header: "STATUS", value: (domain) => domain.status },
-      { header: "TARGET", value: (domain) => domain.dnsTarget.aRecord ?? domain.dnsTarget.cname },
+      { header: "TARGET", value: (domain) => dnsTargetValue(domain) },
       { header: "VERIFIED", value: (domain) => formatWhen(domain.verifiedAt) },
     ],
-    "No custom domains. The service serves on its *.naijacloud.com URL.",
+    "No custom domains. The service serves on its own NaijaCloud URL.",
   );
 
   write(`\nTo attach one: ${programName()} domains add <domain> --service ${summary.name}\n`);

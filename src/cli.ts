@@ -432,9 +432,11 @@ async function main(): Promise<void> {
       logout();
       return;
 
-    case "whoami":
-      await whoami();
+    case "whoami": {
+      const { flags } = parseArgs(rest, new Set(["json"]));
+      await whoami({ json: flags.has("json") });
       return;
+    }
 
     case "init": {
       const { flags, positionals } = parseArgs(rest, INIT_BOOLEANS);

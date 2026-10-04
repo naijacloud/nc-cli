@@ -17,6 +17,7 @@ import {
   resolveToken,
   writeStoredCredentials,
 } from "../auth/credentials.js";
+import { printJson } from "../output.js";
 import { programName } from "../program-name.js";
 import { promptLine, requireTty, write } from "../terminal.js";
 
@@ -109,9 +110,14 @@ export function logout(): void {
   }
 }
 
-export async function whoami(): Promise<void> {
+export async function whoami(options: { json?: boolean } = {}): Promise<void> {
   const resolved = resolveToken();
   if (!resolved) {
+    if (options.json) {
+      printJson({ loggedIn: false });
+      process.exitCode = 1;
+      return;
+    }
     // The CLI's own `whoami`, so it can name the invoked command. The
     // equivalent in src/api/transport.ts stays canonical: the MCP server shares
     // it, and there is no invoked name behind a tool call.
@@ -124,6 +130,18 @@ export async function whoami(): Promise<void> {
   const origin = resolved.source === "env" ? `${TOKEN_ENV_VAR} env var` : CONFIG_FILE;
 
   const name = displayName(user);
+  if (options.json) {
+    printJson({
+      loggedIn: true,
+      id: user.id,
+      email: user.email,
+      name,
+      status: user.status,
+      apiBaseUrl: apiBaseUrl(),
+      tokenSource: resolved.source,
+    });
+    return;
+  }
   process.stdout.write(
     [
       `${user.email}${name ? ` (${name})` : ""}`,

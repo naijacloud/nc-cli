@@ -36,6 +36,18 @@ function dnsInstruction(domain: CustomDomain): string {
     : `CNAME  ${domain.domain}  →  ${domain.dnsTarget.cname}`;
 }
 
+/**
+ * The record target, by the same rule as `dnsInstruction`: an A record only for
+ * an apex domain. The table used to prefer the A record whenever the API sent
+ * one, so `domains ls` showed an IP for a subdomain that `domains add` had just
+ * told the user to CNAME.
+ */
+export function dnsTargetValue(domain: CustomDomain): string {
+  return domain.dnsTarget.isApex && domain.dnsTarget.aRecord
+    ? domain.dnsTarget.aRecord
+    : domain.dnsTarget.cname;
+}
+
 /* -------------------------------------------------------------------------- */
 /* List                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -77,7 +89,7 @@ export async function domainsList(options: DomainsListOptions): Promise<void> {
     { header: "DOMAIN", value: (domain) => domain.domain },
     { header: "STATUS", value: (domain) => domain.status },
     ...scope,
-    { header: "TARGET", value: (domain) => domain.dnsTarget.aRecord ?? domain.dnsTarget.cname },
+    { header: "TARGET", value: (domain) => dnsTargetValue(domain) },
     { header: "VERIFIED", value: (domain) => formatWhen(domain.verifiedAt) },
     { header: "ID", value: (domain) => domain.id },
   ];
@@ -85,7 +97,7 @@ export async function domainsList(options: DomainsListOptions): Promise<void> {
   printTable(
     domains,
     columns,
-    "No custom domains. The service still serves on its *.naijacloud.com URL.",
+    "No custom domains. The service still serves on its own NaijaCloud URL.",
   );
 }
 
@@ -235,5 +247,5 @@ export async function domainsRemove(
     throw new Error(`NaijaCloud declined to remove ${label}.`);
   }
   process.stdout.write(`${label} removed\n`);
-  write("The service keeps serving on its *.naijacloud.com URL.\n");
+  write("The service keeps serving on its own NaijaCloud URL.\n");
 }
