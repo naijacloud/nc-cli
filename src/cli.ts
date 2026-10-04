@@ -199,7 +199,7 @@ Db options
 Login options
   --email <email>              Email, instead of being prompted
   --password <password>        Password, instead of being prompted
-  --token <token>              Store an access token you already have (CI)
+  --token <token>              Store a token or an nc_live_ API key (CI)
 
 Init options
   --name/--output/--index      Manifest values, instead of being prompted

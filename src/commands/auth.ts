@@ -35,10 +35,10 @@ export interface LoginOptions {
 /**
  * Authenticates and stores the resulting access token.
  *
- * NaijaCloud's control plane has no personal-access-token concept: the
- * documented way in is the `login(email, password)` mutation, which returns a
- * bearer token. So this prompts for email + password by default, and accepts
- * `--token` for CI where a token has already been obtained.
+ * Prompts for email + password by default, which the `login` mutation exchanges
+ * for a short-lived session token. `--token` stores a credential already in
+ * hand — in CI that is a workspace API key (`nc_live_…`, from Settings → API
+ * keys), which the API accepts as a bearer token like a session.
  */
 export async function login(options: LoginOptions = {}): Promise<void> {
   const base = apiBaseUrl();

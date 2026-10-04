@@ -67,15 +67,18 @@ or yum repository to add — install the package directly.
 **Debian, Ubuntu:**
 
 ```bash
-curl -fLO https://github.com/naijacloud/nc-cli/releases/download/v1.0.0/naijacloud_1.0.0_amd64.deb
-sudo dpkg -i naijacloud_1.0.0_amd64.deb        # or _arm64.deb
+# the latest release's version, e.g. 1.1.0
+v=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/naijacloud/nc-cli/releases/latest | sed 's|.*/v||')
+curl -fLO "https://github.com/naijacloud/nc-cli/releases/download/v$v/naijacloud_${v}_amd64.deb"
+sudo dpkg -i "naijacloud_${v}_amd64.deb"        # or _arm64.deb
 ```
 
 **RedHat, Fedora, CentOS:**
 
 ```bash
-curl -fLO https://github.com/naijacloud/nc-cli/releases/download/v1.0.0/naijacloud-1.0.0-1.x86_64.rpm
-sudo rpm -i naijacloud-1.0.0-1.x86_64.rpm      # or .aarch64.rpm
+v=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/naijacloud/nc-cli/releases/latest | sed 's|.*/v||')
+curl -fLO "https://github.com/naijacloud/nc-cli/releases/download/v$v/naijacloud-${v}-1.x86_64.rpm"
+sudo rpm -i "naijacloud-${v}-1.x86_64.rpm"      # or .aarch64.rpm
 ```
 
 Both declare **no dependency on nodejs** — the binary embeds its own runtime, so
@@ -181,16 +184,25 @@ node build/cli.js --help
 naijacloud login
 ```
 
-You are prompted for your NaijaCloud email and password (the password is not echoed). NaijaCloud's control plane has **no personal-access-token feature** — its `login` mutation exchanges email + password for a bearer token — so that is what this does. Your password is never written to disk; only the returned token is.
+You are prompted for your NaijaCloud email and password (the password is not echoed). The `login` mutation exchanges them for a session token, which expires after a few days. Your password is never written to disk; only the returned token is.
 
 The token is validated immediately against the API, and **nothing is saved if validation fails**. On success it is written to `~/.naijacloud/config.json` with mode `0600` (owner read/write only), inside a `0700` directory.
 
-Non-interactive alternatives, for CI or scripting:
+For CI and scripts, use a **workspace API key** instead of a password. Create one
+in the dashboard under **Settings → API keys** (it starts `nc_live_`) and give it
+the **Platform API** scope, which every command works with. A key scoped to
+**Deploys** alone is enough for `redeploy <service-id>`, `deployments` and
+`cancel`, but not for a static-site `deploy` or for finding a service by name.
+Then either store it or pass it per run:
 
 ```bash
-naijacloud login --email you@example.com --password "$NC_PASSWORD"
-naijacloud login --token "$NC_ACCESS_TOKEN"     # store a token you already hold
+naijacloud login --token "$NAIJACLOUD_API_KEY"     # validate and store it
+HOSTING_API_TOKEN="$NAIJACLOUD_API_KEY" naijacloud deploy --yes   # or per command
 ```
+
+An API key does not expire after a few days the way a session does, and it can
+be revoked on its own. `login --email you@example.com --password "$NC_PASSWORD"`
+also works, but it puts the password in your shell history and the process table.
 
 Check and clear:
 
@@ -442,7 +454,7 @@ Created site acme-marketing
   QUEUED
   BUILDING
   RUNNING
-https://acme-marketing.naijacloud.com
+https://acme-marketing.naijacloud.app
 Wrote naijacloud.json
 ```
 
@@ -470,7 +482,7 @@ The pipeline is: run the build, archive the output, request a presigned upload s
 
 | Field           | Purpose                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`          | Site name, used for the `*.naijacloud.com` subdomain. First deploy only.                                                                         |
+| `name`          | Site name, used for the `*.naijacloud.app` subdomain. First deploy only.                                                                         |
 | `serviceId`     | Written by the first successful deploy. **Its presence is what makes the next deploy a redeploy.**                                               |
 | `environmentId` | The environment the site was created in, written when `--env` or the setup question picked one. Absent when the platform placed the site itself. |
 | `build`         | Run locally before archiving. A non-zero exit aborts before anything is uploaded.                                                                |
