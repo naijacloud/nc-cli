@@ -365,9 +365,19 @@ const ALWAYS_EXCLUDED = new Set([".git", "node_modules", STATE_DIR, MANIFEST_FIL
  * Secrets must never reach a public CDN, and a static bundle is world-readable
  * by definition, so `.env` files are dropped unconditionally rather than warned
  * about.
+ *
+ * That means every naming in use, not only the dotfile: `.env` and `.env.local`,
+ * but also `production.env` / `db.env` (Docker's `env_file` convention) and
+ * direnv's `.envrc`. A site has no reason to serve any of them.
  */
-function isEnvFile(name: string): boolean {
-  return name === ".env" || name.startsWith(".env.");
+export function isEnvFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower === ".env" ||
+    lower.startsWith(".env.") ||
+    lower.endsWith(".env") ||
+    lower === ".envrc"
+  );
 }
 
 /** One file selected for the archive. */
