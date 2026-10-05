@@ -7,6 +7,8 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-05
+
 ### Fixed
 
 - `launch` and `services create` no longer create paid services by default.
@@ -67,5 +69,6 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/naijacloud/nc-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/naijacloud/nc-cli/compare/v1.1.0...v1.2.0
