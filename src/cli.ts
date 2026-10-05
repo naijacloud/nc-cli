@@ -21,6 +21,7 @@ import { CLIENT_VERSION, DEFAULT_API_BASE_URL } from "./api/index.js";
 import { TOKEN_ENV_VAR } from "./auth/credentials.js";
 import { login, logout, whoami } from "./commands/auth.js";
 import { ALIAS, PROGRAM, programName } from "./program-name.js";
+import { isCancelled } from "./terminal.js";
 
 /** Column where every description starts, matching the option lists below. */
 const DESCRIPTION_COLUMN = 28;
@@ -114,6 +115,8 @@ Launch options
   --dotenv <path>              Seed the new service from this .env
   --no-env-file                Do not look for or ask about a .env
   --no-wait                    Return once the first build is queued
+  --tier <free|starter|pro|pro-max>
+                               Size of a web service or cron job (default free)
 
   Walks team → project → environment → service, creating each level that does
   not exist yet. A web service or cron job is built from a connected GitHub
@@ -121,6 +124,10 @@ Launch options
   needs configuration it offers the .env it finds, shows what is in it with the
   values masked, and passes it to \`createService\` — so the first build already
   has it, instead of failing and being fixed afterwards.
+
+  A web service or cron job is created Free unless --tier names a size. Each
+  account gets one free app; once it is in use, launch asks which paid size to
+  use and shows its monthly price. It never picks a paid size for you.
 
 Projects create options
   --team <name|id>             Team to own it; required if you have several
@@ -147,7 +154,8 @@ Services create options
   --runtime-version <version>  Runtime version, when not the default
   --health-check <path>        HTTP path polled for health
   --region <key>               Region, when not the team's default
-  --tier <starter|standard|pro>  Resource size
+  --tier <free|starter|pro|pro-max>
+                               Size (default free). Prices: naijacloud.com/pricing
   --dotenv <path>              Seed the service with this .env
   --no-env-file                Do not look for a .env
   --no-wait                    Return once the first build is queued
@@ -156,24 +164,36 @@ Services create options
   reach, and there is no upload-and-build path for a web service. Local code is
   either a static site (\`deploy\`) or it is in a repo.
 
+  Without --tier the service is created Free. Each account gets one free app;
+  once it is in use, create fails without creating anything and lists the paid
+  sizes with their prices — pass one with --tier.
+
 Env options
   --reveal                     Print values, which are masked by default
-  --scope <all|prod|uat|dev>   Scope to write (default prod; uat = preview)
+  --scope <all|prod|uat|dev>   Scope to write (default: the service's
+                               environment's; uat = preview)
   --secret                     Mark the variable as a secret on the platform
+
+  Without --scope the variable is written at the scope the service's
+  environment reads: DEV in an environment called dev, UAT in uat or a preview,
+  PROD in prod. A dev environment never receives PROD-scoped variables, so
+  defaulting to PROD there would write a variable the app never sees.
 
   \`env set KEY\` with no value reads it from a hidden prompt, or from stdin
   when piped — so a credential need not land in your shell history.
 
 Env import options  (\`env import [file]\`)
   --env <project/environment>  Derive the scope from this environment
+                               (default: the service's own)
   --scope <all|prod|uat|dev>   Scope to write, instead of deriving it
   --secret                     Mark every imported variable secret
   --yes                        Skip the preview and the confirmation
 
   Upserts: keys in the file are written, keys only on the service are left
-  alone. Without --scope the scope follows the environment — UAT for a preview
-  one, PROD otherwise — because a variable written to a scope the environment
-  never reads looks like a success and behaves like a missing variable.
+  alone. Without --scope the scope follows the environment — DEV, UAT or PROD
+  for an environment of that name, UAT for a preview, PROD otherwise — because
+  a variable written to a scope the environment never reads looks like a
+  success and behaves like a missing variable.
   Secrets are guessed from the key name and shown before anything is written.
 
   With no path it reads the .env in this directory. \`launch\` and
@@ -465,6 +485,7 @@ async function main(): Promise<void> {
         envFile: dotenvFlag(flags),
         noEnvFile: flags.has("no-env-file"),
         wait: tristate(flags, "wait") ?? true,
+        tier: value(flags, "tier"),
       });
       return;
     }
@@ -854,6 +875,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
+  // Backing out of a prompt is an answer, not a failure: nothing to report.
+  // Still non-zero (130, as for an interrupted command) so a wrapper script can
+  // tell a finished run from an abandoned one.
+  if (isCancelled(error)) {
+    process.exitCode = 130;
+    return;
+  }
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`Error: ${message}\n`);
   process.exitCode = 1;

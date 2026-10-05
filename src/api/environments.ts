@@ -63,7 +63,8 @@ export async function createDatastore(input: {
   name: string;
   type: ServiceType;
   region?: string;
-  tier?: string;
+  /** Always pass one: omitted, the API creates a paid size. See src/tiers.ts. */
+  tier?: ServiceTier;
   dbName?: string;
   dbUser?: string;
   dbPassword?: string;

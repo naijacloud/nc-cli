@@ -29,7 +29,7 @@ import {
 import type { Manifest } from "../deploy-static/manifest.js";
 import { programName } from "../program-name.js";
 import { resolveEnvironmentId } from "./resolve.js";
-import { isInteractive, requireTty, write } from "../terminal.js";
+import { CancelledError, isInteractive, requireTty, write } from "../terminal.js";
 import { refreshLinkedLocalSchema, remoteSchemaUrl } from "./schema.js";
 
 export interface InitOptions {
@@ -111,7 +111,7 @@ export async function init(options: InitOptions): Promise<void> {
       ? await resolveEnvironmentId(options.env)
       : previous.environmentId;
   const target = await askEnvironment({ interactive, settled });
-  if (target.cancelled) throw new Error("Cancelled.");
+  if (target.cancelled) throw new CancelledError();
 
   const manifest: Manifest = { ...previous };
   manifest.$schema = previous.$schema ?? remoteSchemaUrl();

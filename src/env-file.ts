@@ -299,14 +299,22 @@ export function readEnvFile(path: string): ParsedEnvFile {
 /**
  * The scope variables should be written at for a service in a given environment.
  *
- * A preview environment reads UAT — NaijaCloud has no PREVIEW scope — and
- * everything else reads PROD. Deriving it rather than defaulting to PROD is what
- * keeps an import into a preview environment from landing in a scope that
- * environment never consults, which would look like a successful write and
- * behave like a missing variable.
+ * Mirrors how the platform injects them at deploy time: an environment named
+ * `prod`, `uat` or `dev` (any case) receives only variables of that scope plus
+ * ALL, and an environment with any other name receives every variable. So the
+ * name decides first — writing PROD into an environment called `dev` is a
+ * variable the app never sees, which is exactly what `env set` used to do.
+ *
+ * For any other name every scope reaches the app, and the historical choice is
+ * kept: UAT for a preview environment, PROD otherwise. `name` is null when the
+ * environment could not be looked up, which falls back the same way.
  */
-export function scopeForEnvironment(isPreview: boolean): EnvVarScope {
-  return isPreview ? "UAT" : "PROD";
+export function scopeForEnvironment(
+  environment: { name: string | null; isPreview: boolean },
+): EnvVarScope {
+  const named = (environment.name ?? "").trim().toUpperCase();
+  if (named === "PROD" || named === "UAT" || named === "DEV") return named;
+  return environment.isPreview ? "UAT" : "PROD";
 }
 
 /** Turns parsed entries into the input `createService` and `setEnvVars` take. */

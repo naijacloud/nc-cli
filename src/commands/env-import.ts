@@ -31,7 +31,7 @@ import type { ParsedEnvFile } from "../env-file.js";
 import { printJson, renderTable } from "../output.js";
 import { programName } from "../program-name.js";
 import { isInteractive, promptLine, promptYesNo, write } from "../terminal.js";
-import { parseScope } from "./env.js";
+import { parseScope, scopeForService } from "./env.js";
 import { requireService, resolveEnvironment } from "./resolve.js";
 
 /* -------------------------------------------------------------------------- */
@@ -90,8 +90,8 @@ export interface CollectOptions {
   cwd: string;
   /** Ask about a file that was found, and offer to name one that was not. */
   interactive: boolean;
-  /** Whether the target environment is a preview one; decides the scope. */
-  isPreview: boolean;
+  /** The target environment; its name (and preview flag) decide the scope. */
+  environment: { name: string | null; isPreview: boolean };
   /** Overrides the scope derived from the environment. */
   scope: string | undefined;
   /** Mark every imported variable secret, whatever the name suggests. */
@@ -116,7 +116,7 @@ export interface CollectedEnv {
 export async function collectEnvVars(options: CollectOptions): Promise<CollectedEnv> {
   const scope = options.scope !== undefined
     ? parseScope(options.scope)
-    : scopeForEnvironment(options.isPreview);
+    : scopeForEnvironment(options.environment);
 
   if (options.skip) return { vars: [], source: null };
 
@@ -222,14 +222,13 @@ export async function envImport(
   }
 
   // Only consulted to derive the scope, and only when one was not given — so a
-  // scripted import with --scope costs no extra request.
-  let isPreview = false;
-  if (options.scope === undefined && options.env !== undefined) {
-    isPreview = (await resolveEnvironment(options.env)).isPreview;
-  }
+  // scripted import with --scope costs no extra request. Without --env the
+  // service's own environment decides, the same as `env set`.
   const scope = options.scope !== undefined
     ? parseScope(options.scope)
-    : scopeForEnvironment(isPreview);
+    : options.env !== undefined
+      ? scopeForEnvironment(await resolveEnvironment(options.env))
+      : (await scopeForService(serviceId)).scope;
 
   const parsed = readEnvFile(path);
   if (parsed.entries.length === 0) {

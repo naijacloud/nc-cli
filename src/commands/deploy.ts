@@ -49,7 +49,7 @@ import { askManifestBasics } from "../deploy-static/configure.js";
 import { askEnvironment } from "../deploy-static/target.js";
 import { programName } from "../program-name.js";
 import { resolveEnvironmentId } from "./resolve.js";
-import { isInteractive, requireTty, write } from "../terminal.js";
+import { CancelledError, isInteractive, requireTty, write } from "../terminal.js";
 import { refreshLinkedLocalSchema, remoteSchemaUrl } from "./schema.js";
 import { waitForDeployment } from "./wait.js";
 import { createZip } from "../deploy-static/zip.js";
@@ -201,7 +201,7 @@ async function resolveConfig(options: DeployOptions): Promise<ResolvedConfig> {
       interactive,
       settled: environmentId,
     });
-    if (target.cancelled) throw new Error("Cancelled.");
+    if (target.cancelled) throw new CancelledError();
     environmentId = target.environmentId;
   }
 

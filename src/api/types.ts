@@ -53,8 +53,31 @@ export type EnvVarScope = "ALL" | "PROD" | "UAT" | "DEV";
  */
 export type SourceType = "GITHUB_APP" | "DOCKER_IMAGE";
 
-/** Resource sizes a service can be created at. */
-export type ServiceTier = "STARTER" | "STANDARD" | "PRO";
+/**
+ * Resource sizes a service can be created at, as the API spells them.
+ *
+ * **These are storage values, not product names.** The pricing page calls
+ * STANDARD "Pro" and PRO "Pro Max" (and a database's STARTER "Dev"); the
+ * mapping lives in `src/tiers.ts` and nothing shown to a user may print these
+ * raw. Omitting the tier makes the API create a paid STARTER, so every create
+ * path sends one.
+ */
+export type ServiceTier = "FREE" | "STARTER" | "STANDARD" | "PRO";
+
+/** One published size and its monthly price, from `getPricingCatalog`. */
+export interface ServiceTierPrice {
+  /** `compute` (web, cron), `sql` (databases) or `keyvalue` (Redis, Valkey). */
+  family: string;
+  tier: ServiceTier;
+  /** The product name: Free, Starter/Dev, Pro, Pro Max. */
+  label: string;
+  memoryMb: number;
+  cpuMillicores: number;
+  storageMb: number | null;
+  /** Monthly price in kobo. */
+  priceKobo: number;
+  currency: string;
+}
 
 /** How a service inside a monorepo is built. */
 export type MonorepoStrategy = "WORKSPACE" | "ISOLATED";
@@ -69,6 +92,14 @@ export const SCOPE_BY_TARGET: Record<EnvTarget, EnvVarScope> = {
   preview: "UAT",
   development: "DEV",
   all: "ALL",
+};
+
+/** The reverse of SCOPE_BY_TARGET, for reporting a scope that was derived. */
+export const TARGET_BY_SCOPE: Record<EnvVarScope, EnvTarget> = {
+  PROD: "production",
+  UAT: "preview",
+  DEV: "development",
+  ALL: "all",
 };
 
 export interface User {

@@ -8,7 +8,7 @@
  *
  * It is a front door, not a second implementation. Each step calls exactly what
  * the flag-driven commands call — `createProject`, `createEnvironment`,
- * `createAndReport`, `deploy` — so a service made here is indistinguishable from
+ * `createPreferringFree`, `deploy` — so a service made here is indistinguishable from
  * one made by a script, and a fix to either path fixes both.
  *
  * The shape of the last step is dictated by the API rather than chosen: a
@@ -41,9 +41,11 @@ import { MANIFEST_FILENAME, sanitizeName } from "../deploy-static/manifest.js";
 import { heading, requireInteractive, select } from "../interactive.js";
 import type { Choice } from "../interactive.js";
 import { programName } from "../program-name.js";
-import { promptLine, promptWithDefault, promptYesNo, write } from "../terminal.js";
+import { CancelledError, promptLine, promptWithDefault, promptYesNo, write } from "../terminal.js";
+import { appTierOrFree, parseTier } from "../tiers.js";
 import { collectEnvVars } from "./env-import.js";
-import { createAndReport } from "./services.js";
+import { createPreferringFree } from "./services.js";
+import { describeSize, loadPrices, pickSize } from "./size.js";
 import { serviceIdFromManifest } from "./resolve.js";
 import type { RuntimeServiceSpec } from "./services.js";
 
@@ -55,13 +57,12 @@ export interface LaunchOptions {
   /** `.env` to seed the service with, instead of the one that gets found. */
   envFile: string | undefined;
   wait: boolean;
-}
-
-/** Backing out of any prompt aborts the whole flow rather than half-creating. */
-class Cancelled extends Error {
-  constructor() {
-    super("Cancelled.");
-  }
+  /**
+   * `--tier`: the size for a web service or cron job. Without it the service is
+   * created Free, and if the account's free app is already in use the size is
+   * asked for — never chosen silently, because every other size is paid.
+   */
+  tier: string | undefined;
 }
 
 /** An answer that is allowed to be empty, so the field is simply not sent. */
@@ -99,7 +100,7 @@ async function chooseTeam(): Promise<Team> {
     teams.map((team) => row(team.name, team, team.defaultRegion)),
     { footer: "↑↓ move · ↵ select · q cancel" },
   );
-  if (picked === null) throw new Cancelled();
+  if (picked === null) throw new CancelledError();
 
   write(`  Team             ${picked.name}\n`);
   return picked;
@@ -126,7 +127,7 @@ async function chooseProject(team: Team): Promise<Project> {
   const picked = await select("Project", choices, {
     footer: "↑↓ move · ↵ select · q cancel",
   });
-  if (picked === null) throw new Cancelled();
+  if (picked === null) throw new CancelledError();
 
   if (picked.kind === "existing") {
     const tree = await getProjectTree(picked.id);
@@ -180,7 +181,7 @@ async function chooseEnvironment(project: Project): Promise<EnvironmentSummary> 
   const picked = await select(`Environment in ${project.name}`, choices, {
     footer: "↑↓ move · ↵ select · q cancel",
   });
-  if (picked === null) throw new Cancelled();
+  if (picked === null) throw new CancelledError();
 
   if (picked.kind === "existing") {
     write(`  Environment      ${picked.environment.name}\n`);
@@ -226,7 +227,7 @@ async function chooseKind(): Promise<Kind> {
     ],
     { footer: "↑↓ move · ↵ select · q cancel" },
   );
-  if (picked === null) throw new Cancelled();
+  if (picked === null) throw new CancelledError();
   return picked;
 }
 
@@ -271,9 +272,11 @@ async function chooseRepo(teamId: string, teamName: string): Promise<Installatio
           .join(" · "),
       ),
     ),
-    { footer: "↑↓ move · ↵ select · q cancel" },
+    // Accounts with dozens of repositories are the norm, so the list narrows
+    // as you type rather than making someone arrow through all of them.
+    { footer: "type to filter · ↑↓ move · ↵ select · esc cancel", filter: true },
   );
-  if (picked === null) throw new Cancelled();
+  if (picked === null) throw new CancelledError();
 
   write(`  Repository       ${picked.fullName}\n`);
   return picked;
@@ -358,16 +361,20 @@ async function launchFromRepo(
     file: options.envFile,
     cwd: process.cwd(),
     interactive: true,
-    isPreview: environment.isPreview,
+    environment,
     scope: undefined,
     forceSecret: false,
     skip: options.noEnvFile,
   });
 
+  const type: ServiceType = kind === "web" ? "WEB" : "CRON";
   const spec: RuntimeServiceSpec = {
     environmentId: environment.id,
     name,
-    type: (kind === "web" ? "WEB" : "CRON") satisfies ServiceType,
+    type,
+    // Free unless --tier says otherwise. The API's default is a paid Starter,
+    // so the field is always sent.
+    tier: appTierOrFree(options.tier),
     sourceType: "GITHUB_APP",
     repoFullName: repo.fullName,
     branch,
@@ -381,13 +388,25 @@ async function launchFromRepo(
   if (detected?.monorepoStrategy != null) spec.monorepoStrategy = detected.monorepoStrategy;
   if (collected.vars.length > 0) spec.envVars = collected.vars;
 
+  const prices = await loadPrices(type);
+  write(`  Size             ${describeSize(spec.tier ?? "FREE", type, prices)}\n`);
   write(`\nCreating ${name} in ${project.name} / ${environment.name}…\n`);
 
-  await createAndReport(spec, {
+  const report = {
     wait: options.wait,
     json: false,
     envSource: collected.source,
     envCount: collected.vars.length,
+  };
+
+  // The account's free app is already in use. Nothing was created, and a paid
+  // size is the user's call — so ask, with prices, rather than pick one.
+  await createPreferringFree(spec, report, async (refusal) => {
+    write(`\n${refusal.message}\nNothing was created. Pick a paid size, or q to stop here.\n\n`);
+    const tier = await pickSize(type, prices, { includeFree: false, title: "Paid size" });
+    write(`  Size             ${describeSize(tier, type, prices)}\n`);
+    write(`\nCreating ${name} in ${project.name} / ${environment.name}…\n`);
+    return tier;
   });
 }
 
@@ -422,7 +441,7 @@ async function launchStatic(
     const confirmed = await promptYesNo("  Create a second site?", false);
     if (!confirmed) {
       write(`To update the existing one instead: ${programName()} deploy\n`);
-      throw new Cancelled();
+      throw new CancelledError();
     }
   }
 
@@ -486,6 +505,7 @@ export const NAVIGATOR_LAUNCH: LaunchOptions = {
   noEnvFile: false,
   envFile: undefined,
   wait: true,
+  tier: undefined,
 };
 
 export async function launch(options: LaunchOptions): Promise<void> {
@@ -493,6 +513,8 @@ export async function launch(options: LaunchOptions): Promise<void> {
     "launch",
     `${programName()} projects create · environments create · services create    (the same steps, with flags)`,
   );
+  // Checked before the first question, so a typo does not cost the whole flow.
+  if (options.tier !== undefined) parseTier(options.tier, "compute");
 
   heading("launch", "project → environment → service");
 
