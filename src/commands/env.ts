@@ -12,11 +12,13 @@ import process from "node:process";
 
 import {
   deleteEnvVar,
+  getService,
   listEnvVarKeysByProject,
   listEnvVarsByService,
   setEnvVar,
 } from "../api/index.js";
 import type { EnvVarMutationResult, EnvVarScope, ServiceEnvVar } from "../api/index.js";
+import { scopeForEnvironment } from "../env-file.js";
 import { printJson, printTable } from "../output.js";
 import { programName } from "../program-name.js";
 import { isInteractive, promptLine, promptYesNo, write } from "../terminal.js";
@@ -40,8 +42,7 @@ const SCOPES: Record<string, EnvVarScope> = {
   development: "DEV",
 };
 
-export function parseScope(raw: string | undefined): EnvVarScope {
-  if (raw === undefined) return "PROD";
+export function parseScope(raw: string): EnvVarScope {
   const scope = SCOPES[raw.trim().toLowerCase()];
   if (!scope) {
     throw new Error(
@@ -49,6 +50,31 @@ export function parseScope(raw: string | undefined): EnvVarScope {
     );
   }
   return scope;
+}
+
+/**
+ * The scope a service's own environment reads, for a write that named none.
+ *
+ * Read from the service rather than assumed: new projects start in `dev`, and a
+ * `dev` environment never receives PROD-scoped variables, so the old PROD
+ * default wrote variables that looked set and never reached the app.
+ *
+ * `environment` is null when the service could not be read (a key without
+ * access to it, say); the scope then falls back to PROD, as before.
+ */
+export async function scopeForService(
+  serviceId: string,
+): Promise<{ scope: EnvVarScope; environment: string | null }> {
+  try {
+    const service = await getService(serviceId);
+    const name = service.environment?.name ?? null;
+    return {
+      scope: scopeForEnvironment({ name, isPreview: service.isPreview }),
+      environment: name,
+    };
+  } catch {
+    return { scope: "PROD", environment: null };
+  }
 }
 
 /** `********` plus the true length, which confirms a write landed without showing it. */
@@ -199,11 +225,28 @@ export async function envSet(
     "Setting a variable",
     `env set ${key} VALUE --service <name|id>`,
   );
-  const scope = parseScope(options.scope);
+  let scope: EnvVarScope;
+  let scopeSource: string | null = null;
+  if (options.scope !== undefined) {
+    scope = parseScope(options.scope);
+  } else {
+    const derived = await scopeForService(serviceId);
+    scope = derived.scope;
+    if (derived.environment !== null) scopeSource = `from environment ${derived.environment}`;
+  }
   const value = rawValue ?? (await readValue(key));
 
   const result = await setEnvVar(serviceId, key, value, scope, options.secret || undefined);
-  report(result, { serviceId, key, scope, json: options.json, verb: "set" });
+  report(result, {
+    serviceId,
+    key,
+    scope,
+    // Says where the scope came from, so `(DEV)` is not a surprise to someone
+    // who expected the old PROD default.
+    scopeSource,
+    json: options.json,
+    verb: "set",
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -243,7 +286,14 @@ export async function envRemove(key: string, options: EnvRemoveOptions): Promise
   }
 
   const result = await deleteEnvVar(serviceId, key);
-  report(result, { serviceId, key, scope: null, json: options.json, verb: "removed" });
+  report(result, {
+    serviceId,
+    key,
+    scope: null,
+    scopeSource: null,
+    json: options.json,
+    verb: "removed",
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -261,6 +311,8 @@ function report(
     serviceId: string;
     key: string;
     scope: EnvVarScope | null;
+    /** Why this scope, when it was derived rather than passed. */
+    scopeSource: string | null;
     json: boolean;
     verb: string;
   },
@@ -280,9 +332,10 @@ function report(
     return;
   }
 
-  process.stdout.write(
-    `${context.key} ${context.verb}${context.scope ? ` (${context.scope})` : ""}\n`,
-  );
+  const scopeNote = context.scope
+    ? ` (${context.scope}${context.scopeSource ? `, ${context.scopeSource}` : ""})`
+    : "";
+  process.stdout.write(`${context.key} ${context.verb}${scopeNote}\n`);
   for (const warning of result.warnings) write(`Warning: ${warning}\n`);
   if (result.needsRedeploy) {
     write(

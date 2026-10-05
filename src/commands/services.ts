@@ -27,8 +27,10 @@ import type {
 import { printDetail, printJson, printTable } from "../output.js";
 import { programName } from "../program-name.js";
 import { write } from "../terminal.js";
+import { appTierOrFree, isFreeSlotTaken } from "../tiers.js";
 import { collectEnvVars } from "./env-import.js";
 import { resolveEnvironment, resolveProjectId, resolveServiceId } from "./resolve.js";
+import { describeSize, loadPrices, paidSizeLines } from "./size.js";
 import { waitForDeployment } from "./wait.js";
 
 export interface ServicesOptions {
@@ -222,6 +224,30 @@ export async function createAndReport(
   );
 }
 
+/**
+ * Creates the service at `spec.tier`, and when that is Free and the account's
+ * free app is already in use, asks `onFreeTaken` for the size to use instead.
+ *
+ * The API refuses a second free app before creating anything, so retrying the
+ * same spec at another size is safe. What happens on refusal is the caller's:
+ * `launch` asks with a menu, `services create` fails and names the flag. Neither
+ * may quietly pick a paid size, which is why this takes a callback instead of a
+ * fallback tier.
+ */
+export async function createPreferringFree(
+  spec: RuntimeServiceSpec,
+  report: CreateReportOptions,
+  onFreeTaken: (refusal: Error) => Promise<ServiceTier>,
+): Promise<void> {
+  try {
+    await createAndReport(spec, report);
+  } catch (error) {
+    if (spec.tier !== "FREE" || !isFreeSlotTaken(error)) throw error;
+    spec.tier = await onFreeTaken(error as Error);
+    await createAndReport(spec, report);
+  }
+}
+
 export interface ServicesCreateOptions {
   /** Environment to create it in, as an id or `project/environment`. Required. */
   env: string | undefined;
@@ -249,11 +275,6 @@ export interface ServicesCreateOptions {
 }
 
 const SERVICE_TYPES: Record<string, ServiceType> = { web: "WEB", cron: "CRON" };
-const TIERS: Record<string, ServiceTier> = {
-  starter: "STARTER",
-  standard: "STANDARD",
-  pro: "PRO",
-};
 
 function parsePort(raw: string | undefined): number | undefined {
   if (raw === undefined || raw === "") return undefined;
@@ -301,10 +322,7 @@ export async function servicesCreate(
     throw new Error("A cron job needs --schedule, e.g. --schedule '0 3 * * *'.");
   }
 
-  const tier = options.tier === undefined ? undefined : TIERS[options.tier.toLowerCase()];
-  if (options.tier !== undefined && tier === undefined) {
-    throw new Error(`--tier must be starter, standard or pro, not '${options.tier}'.`);
-  }
+  const tier = appTierOrFree(options.tier);
 
   const environment = await resolveEnvironment(options.env);
 
@@ -314,7 +332,7 @@ export async function servicesCreate(
     // Flag-driven creation stays non-interactive even in a terminal: a command
     // with every answer already on it should not stop to ask a question.
     interactive: false,
-    isPreview: environment.isPreview,
+    environment,
     scope: options.scope,
     forceSecret: options.secret,
     skip: options.noEnvFile,
@@ -335,7 +353,7 @@ export async function servicesCreate(
   if (options.schedule !== undefined) spec.schedule = options.schedule;
   if (options.healthCheck !== undefined) spec.healthCheckPath = options.healthCheck;
   if (options.region !== undefined) spec.region = options.region;
-  if (tier !== undefined) spec.tier = tier;
+  spec.tier = tier;
 
   const port = parsePort(options.port);
   if (port !== undefined) spec.port = port;
@@ -343,10 +361,25 @@ export async function servicesCreate(
   const envVars: EnvVarInput[] = collected.vars;
   if (envVars.length > 0) spec.envVars = envVars;
 
-  await createAndReport(spec, {
-    wait: options.wait,
-    json: options.json,
-    envSource: collected.source,
-    envCount: envVars.length,
-  });
+  const prices = tier === "FREE" ? [] : await loadPrices(type);
+  if (!options.json) write(`Size: ${describeSize(tier, type, prices)}\n`);
+
+  await createPreferringFree(
+    spec,
+    {
+      wait: options.wait,
+      json: options.json,
+      envSource: collected.source,
+      envCount: envVars.length,
+    },
+    // The account's one free app is already in use. A paid size is a decision
+    // for the caller to make explicitly, so this fails and names the flag.
+    async (refusal) => {
+      throw new Error(
+        `${refusal.message}\nNothing was created. Name a paid size to create it anyway:\n` +
+          `${paidSizeLines(type, await loadPrices(type))}\n` +
+          `  ${programName()} services create ${name} --env ${options.env} --repo ${options.repo} --tier starter`,
+      );
+    },
+  );
 }

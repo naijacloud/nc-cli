@@ -13,7 +13,7 @@
 
 import process from "node:process";
 
-import { isInteractive, write } from "./terminal.js";
+import { CancelledError, isInteractive, write } from "./terminal.js";
 
 /** ANSI: hide/show the cursor, so the caret does not sit on a moving row. */
 const HIDE_CURSOR = "\u001b[?25l";
@@ -54,6 +54,26 @@ export interface Choice<T> {
 /** How many rows to show at once before the list scrolls. */
 const WINDOW = 12;
 
+/** Does `choice` match a filter typed into the menu? Case-insensitive, label or hint. */
+export function matchesFilter<T>(choice: Choice<T>, query: string): boolean {
+  if (query === "") return true;
+  const needle = query.toLowerCase();
+  return (
+    choice.label.toLowerCase().includes(needle) ||
+    (choice.hint?.toLowerCase().includes(needle) ?? false)
+  );
+}
+
+export interface SelectOptions {
+  footer?: string;
+  /**
+   * Typing narrows the list instead of being read as a command. For long lists
+   * (a GitHub account's repositories). Letters are then text, so q and j/k stop
+   * being shortcuts: Escape cancels and the arrow keys move.
+   */
+  filter?: boolean;
+}
+
 /**
  * Presents `choices` and returns the picked value, or `null` if the user backed
  * out with q or Escape.
@@ -65,20 +85,28 @@ const WINDOW = 12;
 export async function select<T>(
   title: string,
   choices: readonly Choice<T>[],
-  options: { footer?: string } = {},
+  options: SelectOptions = {},
 ): Promise<T | null> {
   if (choices.length === 0) return null;
 
   const stdin = process.stdin;
-  const firstEnabled = choices.findIndex((choice) => !choice.disabled);
-  // An all-disabled list still renders, so the user can read *why* there is
-  // nothing to pick, then back out.
-  let cursor = firstEnabled === -1 ? 0 : firstEnabled;
+  const filtering = options.filter === true;
+  let query = "";
+  // The rows on screen: every choice, or the ones matching the filter.
+  let shown: readonly Choice<T>[] = choices;
+
+  const firstEnabled = (): number => {
+    const index = shown.findIndex((choice) => !choice.disabled);
+    // An all-disabled list still renders, so the user can read *why* there is
+    // nothing to pick, then back out.
+    return index === -1 ? 0 : index;
+  };
+  let cursor = firstEnabled();
   let offset = 0;
   let drawn = 0;
 
   // Padded against every label, not just the visible ones, so the hint column
-  // does not jump sideways as the list scrolls.
+  // does not jump sideways as the list scrolls or narrows.
   const labelWidth = Math.max(...choices.map((choice) => choice.label.length));
 
   const frame = (): string => {
@@ -86,8 +114,9 @@ export async function select<T>(
     if (cursor < offset) offset = cursor;
     if (cursor >= offset + WINDOW) offset = cursor - WINDOW + 1;
 
-    const visible = choices.slice(offset, offset + WINDOW);
+    const visible = shown.slice(offset, offset + WINDOW);
     const lines = [paint(title, BOLD)];
+    if (filtering) lines.push(`  ${paint("Filter:", DIM)} ${query}`);
 
     for (const [index, choice] of visible.entries()) {
       const absolute = offset + index;
@@ -102,12 +131,15 @@ export async function select<T>(
       else if (active) label = paint(padded, CYAN);
 
       const hint = choice.hint ? `  ${paint(choice.hint, DIM)}` : "";
-      if (choice.separated) lines.push("");
+      // Separators mark groups in the full list; in a filtered one they would
+      // fall between unrelated rows.
+      if (choice.separated && query === "") lines.push("");
       lines.push(`${marker} ${label}${hint}`);
     }
 
-    if (choices.length > WINDOW) {
-      lines.push(paint(`  ${cursor + 1}/${choices.length}`, DIM));
+    if (shown.length === 0) lines.push(paint(`  No match for '${query}'.`, DIM));
+    if (shown.length > WINDOW) {
+      lines.push(paint(`  ${cursor + 1}/${shown.length}`, DIM));
     }
     lines.push(paint(options.footer ?? "↑↓ move · ↵ select · q back", DIM));
 
@@ -122,10 +154,17 @@ export async function select<T>(
 
   /** Advances the cursor past disabled rows, wrapping at both ends. */
   const move = (step: number): void => {
-    for (let attempt = 0; attempt < choices.length; attempt += 1) {
-      cursor = (cursor + step + choices.length) % choices.length;
-      if (!choices[cursor]!.disabled) return;
+    if (shown.length === 0) return;
+    for (let attempt = 0; attempt < shown.length; attempt += 1) {
+      cursor = (cursor + step + shown.length) % shown.length;
+      if (!shown[cursor]!.disabled) return;
     }
+  };
+
+  const refilter = (): void => {
+    shown = choices.filter((choice) => matchesFilter(choice, query));
+    cursor = firstEnabled();
+    offset = 0;
   };
 
   const previousRaw = stdin.isRaw ?? false;
@@ -148,31 +187,61 @@ export async function select<T>(
     const onData = (chunk: string): void => {
       switch (chunk) {
         case "\u001b[A": // Up
-        case "k":
           move(-1);
           render();
           return;
         case "\u001b[B": // Down
-        case "j":
           move(1);
           render();
           return;
         case "\r":
         case "\n": {
-          const choice = choices[cursor];
+          const choice = shown[cursor];
           if (!choice || choice.disabled) return;
           cleanup();
           resolve(choice.value);
           return;
         }
-        case "q":
         case "\u001b": // Escape
           cleanup();
           resolve(null);
           return;
         case "\u0003": // Ctrl-C
           cleanup();
-          reject(new Error("Cancelled."));
+          reject(new CancelledError());
+          return;
+        default:
+          break;
+      }
+
+      if (filtering) {
+        if (chunk === "\u007f" || chunk === "\b") {
+          if (query === "") return;
+          query = query.slice(0, -1);
+        } else if (!chunk.startsWith("\u001b") && [...chunk].every((char) => char >= " ")) {
+          // Typed or pasted text. Other escape sequences (left/right, function
+          // keys) are ignored rather than landing in the filter as garbage.
+          query += chunk;
+        } else {
+          return;
+        }
+        refilter();
+        render();
+        return;
+      }
+
+      switch (chunk) {
+        case "k":
+          move(-1);
+          render();
+          return;
+        case "j":
+          move(1);
+          render();
+          return;
+        case "q":
+          cleanup();
+          resolve(null);
           return;
         default:
           return;
@@ -215,7 +284,7 @@ export async function pause(message = "↵ continue"): Promise<void> {
       stdin.pause();
       stdin.removeListener("data", onData);
       write(`\r\u001b[0J`);
-      if (chunk === "\u0003") reject(new Error("Cancelled."));
+      if (chunk === "\u0003") reject(new CancelledError());
       else resolve();
     };
     stdin.on("data", onData);

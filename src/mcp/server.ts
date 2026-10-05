@@ -33,10 +33,12 @@ import {
   NaijaCloudError,
   NotLoggedInError,
   SCOPE_BY_TARGET,
+  TARGET_BY_SCOPE,
   setEnvVar,
   triggerDeploy,
 } from "../api/index.js";
 import type { EnvTarget, ServiceEnvVar } from "../api/index.js";
+import { scopeForService } from "../commands/env.js";
 
 const SERVER_NAME = "naijacloud";
 const SERVER_VERSION = CLIENT_VERSION;
@@ -537,8 +539,10 @@ export function createServer(): McpServer {
       description:
         "Create or update one environment variable on a service, upserting by key and " +
         "leaving the service's other variables untouched. The target parameter selects " +
-        "the scope and defaults to 'production' (NaijaCloud scope PROD); 'development' " +
-        "maps to DEV and 'preview' maps to UAT, NaijaCloud's pre-production scope. " +
+        "the scope; when omitted it is the scope the service's environment reads (DEV in " +
+        "an environment named dev, UAT in uat or a preview, PROD in prod), because a " +
+        "dev environment never receives PROD-scoped variables. 'production' maps to PROD, " +
+        "'development' to DEV and 'preview' to UAT, NaijaCloud's pre-production scope. " +
         "Sensitive and side-effecting: it writes a value that may be a credential, and " +
         "the response reports needsRedeploy when the service must redeploy to pick the " +
         "change up. Requires confirm=true and returns an error without writing " +
@@ -556,10 +560,10 @@ export function createServer(): McpServer {
         value: z.string().describe("Value to store. Never echoed back in the response."),
         target: z
           .enum(["production", "preview", "development", "all"])
-          .default("production")
+          .optional()
           .describe(
-            "Scope to write. Defaults to 'production' (PROD). 'preview' means UAT; " +
-              "'all' applies the variable to every scope.",
+            "Scope to write. Omit it to use the scope the service's environment reads. " +
+              "'preview' means UAT; 'all' applies the variable to every scope.",
           ),
         secret: z
           .boolean()
@@ -584,8 +588,9 @@ export function createServer(): McpServer {
           );
         }
 
-        const chosen: EnvTarget = target ?? "production";
-        const scope = SCOPE_BY_TARGET[chosen];
+        const scope =
+          target !== undefined ? SCOPE_BY_TARGET[target] : (await scopeForService(serviceId)).scope;
+        const chosen: EnvTarget = target ?? TARGET_BY_SCOPE[scope];
         const result = await setEnvVar(serviceId, key, value, scope, secret);
 
         return ok({

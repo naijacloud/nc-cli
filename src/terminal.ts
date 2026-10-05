@@ -17,6 +17,28 @@ export function write(text: string): void {
   process.stderr.write(text);
 }
 
+/**
+ * The user backed out of a prompt (q, Escape or Ctrl-C).
+ *
+ * Its own class so the entrypoint can exit quietly: backing out is an answer,
+ * not a failure, and printing "Error: Cancelled." for it reads like something
+ * broke. The message is kept as "Cancelled." for callers that still compare it.
+ */
+export class CancelledError extends Error {
+  constructor() {
+    super("Cancelled.");
+    this.name = "CancelledError";
+  }
+}
+
+/** Whether `error` is the user backing out rather than something failing. */
+export function isCancelled(error: unknown): boolean {
+  return (
+    error instanceof CancelledError ||
+    (error instanceof Error && error.message === "Cancelled.")
+  );
+}
+
 export function isInteractive(): boolean {
   return process.stdin.isTTY === true && process.stderr.isTTY === true;
 }
@@ -67,7 +89,7 @@ export async function promptLine(question: string, { hidden = false } = {}): Pro
           case "\u0003": // Ctrl-C
             write("\n");
             cleanup();
-            reject(new Error("Cancelled."));
+            reject(new CancelledError());
             return;
           case "\u007f": // Backspace
           case "\b":

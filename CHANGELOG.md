@@ -7,6 +7,32 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- `launch` and `services create` no longer create paid services by default.
+  Neither sent a size, so the API created a paid Starter every time. Both now
+  create **Free** unless `--tier` names a size. Once the account's one free app
+  is in use, `launch` asks which paid size to use and shows its monthly price
+  from the pricing catalog. `services create` fails without creating anything
+  and lists the paid sizes. Neither picks a paid size on its own (TGL-782).
+- *New database* in `naijacloud project` asks for a size (Free first) instead
+  of creating a paid Dev database without saying so.
+- `env set` writes the scope the service's environment reads, instead of always
+  PROD. In an environment called `dev` (the default for new projects), a PROD
+  variable never reached the app even though the command reported success.
+  `env import`, `launch`/`services create` `.env` seeding and the MCP
+  `set_env_var` tool derive the scope the same way. `--scope` (and MCP `target`)
+  still override it.
+- Backing out of a prompt with `q`, Escape or Ctrl-C exits quietly instead of
+  printing `Error: Cancelled.`.
+
+### Changed
+
+- `--tier` takes the product's size names: `free`, `starter`, `pro`, `pro-max`.
+  `standard` was the API's internal name for Pro and is no longer accepted.
+  Like the dashboard, `pro` is the 1 GB size and `pro-max` the 2 GB one.
+- The repository list in `launch` narrows as you type.
+
 ## [1.2.0] - 2026-10-04
 
 ### Fixed

@@ -248,6 +248,7 @@ What are you deploying?
   Static site   from this directory · built locally and uploaded
 
 Repository
+  Filter: store
 ❯ acme/storefront    private · main
 
   Branch           [main]:
@@ -256,11 +257,41 @@ Repository
   Build command    (blank for none): npm run build
   Start command    (blank to use the platform default): npm start
   Port             (blank to let the platform decide): 3000
+  Size             Free · ₦0 (one free app per account)
 ```
 
 Each level you pick is remembered for the next one, so the ids never leave the
 process. A single team is not offered as a question, and neither is a project or
-environment you have already chosen.
+environment you have already chosen. The repository list narrows as you type;
+Escape (or `q` in the other menus) backs out without creating anything.
+
+### It starts Free, and never picks a paid size for you
+
+A web service or cron job is created at the **Free** size unless `--tier` names
+another. Each account gets one free app (and one free database); once it is in
+use, the API refuses the second one before creating anything, and `launch` asks
+which paid size to use, with the monthly price from the live pricing catalog:
+
+```
+You already have a free app. Each account gets one free web service or cron job — …
+Nothing was created. Pick a paid size, or q to stop here.
+
+Paid size
+❯ Starter  ₦…/month · 512 MB · 0.5 vCPU
+  Pro      ₦…/month · 1 GB · 1 vCPU
+  Pro Max  ₦…/month · 2 GB · 2 vCPU
+```
+
+The CLI fills in each price from the live pricing catalog. Paid sizes are
+billed hourly from your prepaid balance. The sizes are:
+
+| `--tier`  | Apps and cron jobs | Databases and caches |
+| --------- | ------------------ | -------------------- |
+| `free`    | Free               | Free                 |
+| `starter` | Starter            | —                    |
+| `dev`     | —                  | Dev                  |
+| `pro`     | Pro                | Pro                  |
+| `pro-max` | Pro Max            | Pro Max              |
 
 ### It asks for your `.env`
 
@@ -280,7 +311,7 @@ means **the first build already has them**:
   NODE_ENV             no      ******** (10)
   PORT                 no      ******** (4)
 
-  Scope  PROD
+  Scope  DEV
   Import these 6 into the new service? [Y/n]
 ```
 
@@ -296,9 +327,11 @@ Four things about that screen are deliberate:
   `EXPO_PUBLIC_`, `NUXT_PUBLIC_`, `GATSBY_`, `STORYBOOK_`) are never marked,
   because those are compiled into the client bundle and served to every visitor.
   `--secret` marks everything instead.
-- **The scope follows the environment.** UAT for a preview environment, PROD
-  otherwise. A variable written to a scope the environment never reads looks
-  like a successful write and behaves like a missing variable.
+- **The scope follows the environment.** An environment called `dev`, `uat` or
+  `prod` only receives variables of that scope (and `ALL`), so that is the scope
+  written; any other environment receives every scope, and gets UAT for a
+  preview or PROD otherwise. A variable written to a scope the environment never
+  reads looks like a successful write and behaves like a missing variable.
 - **Lines it cannot parse are reported, never guessed at.** Duplicate keys,
   invalid names, unterminated quotes and junk lines are all listed with their
   line numbers before you confirm.
@@ -337,8 +370,20 @@ naijacloud services create api \
 ```
 
 `services create` also takes `--type cron --schedule "0 3 * * *"`, `--root-dir`
-for a monorepo, `--runtime-version`, `--health-check`, `--region`, `--tier` and
-`--no-wait`.
+for a monorepo, `--runtime-version`, `--health-check`, `--region`,
+`--tier free|starter|pro|pro-max` and `--no-wait`.
+
+Without `--tier` it creates a **Free** service. If the account's free app is
+already in use it fails without creating anything and lists the paid sizes with
+their prices — it never falls back to a paid size on its own:
+
+```
+Error: You already have a free app. Each account gets one free web service or cron job — …
+Nothing was created. Name a paid size to create it anyway:
+  --tier starter  Starter  ₦…/month · 512 MB · 0.5 vCPU
+  --tier pro      Pro      ₦…/month · 1 GB · 1 vCPU
+  --tier pro-max  Pro Max  ₦…/month · 2 GB · 2 vCPU
+```
 
 ### A web service comes from a repository
 
@@ -715,7 +760,14 @@ NODE_ENV      ALL    no      ******** (5)
 printf '%s' "$SECRET" | naijacloud env set DATABASE_URL --service api --secret
 ```
 
-`--scope` selects which scope to write: `all`, `prod` (default), `uat` (what preview environments read) or `dev`. A write that needs a redeploy to take effect says so.
+Without `--scope` the variable is written at the scope the service's environment reads — `DEV` in an environment called `dev`, `UAT` in `uat` or a preview, `PROD` in `prod` — and the output says which:
+
+```
+$ naijacloud env set FEATURE_FLAG on --service api
+FEATURE_FLAG set (DEV, from environment dev)
+```
+
+`--scope all|prod|uat|dev` overrides it. A write that needs a redeploy to take effect says so.
 
 `env import` puts a whole `.env` on an existing service in one request, with the
 same preview, masking and secret-guessing [`launch` uses](#it-asks-for-your-env):
@@ -729,7 +781,8 @@ naijacloud env import .env --service api --env shop/preview   # scope follows it
 It **upserts**: keys in the file are written, keys only on the service are left
 alone — so a re-import is safe, and removing a variable is still `env rm`. With
 no path it reads the `.env` in the current directory. Without `--scope` the scope
-is derived from `--env`, defaulting to `PROD`.
+is derived from `--env`, or from the service's own environment, the same way as
+`env set`.
 
 ---
 
@@ -816,11 +869,11 @@ Three places where the requested tool shape and the platform genuinely disagree,
 - **`create_deployment` cannot pick a branch or commit.** `triggerDeploy(serviceId)` takes no source override; it builds the tip of the branch configured on the service. The `branch` parameter is therefore treated as an **assertion** — it is checked against the service's configured branch and the call is rejected on a mismatch — and `commit` is rejected outright. Both fail loudly rather than silently deploying something other than what was asked for.
 - **Preview vs production is a property of the service, not a flag.** Services live inside a project environment, so `create_deployment` deploys into whichever environment the service belongs to; deploying a service in `prod` **is** a production deploy. The response reports the environment name and whether it is a preview environment.
 
-**Environment variable scopes.** NaijaCloud's scopes are `PROD`, `UAT`, `DEV` and `ALL`. The tool's `target` parameter maps onto them:
+**Environment variable scopes.** NaijaCloud's scopes are `PROD`, `UAT`, `DEV` and `ALL`. The tool's `target` parameter maps onto them; when it is omitted, `set_env_var` writes the scope the service's environment reads (`DEV` in an environment called `dev`, and so on), the same as `env set`:
 
 | `target`                 | NaijaCloud scope                                                 |
 | ------------------------ | ---------------------------------------------------------------- |
-| `production` _(default)_ | `PROD`                                                           |
+| `production`             | `PROD`                                                           |
 | `preview`                | `UAT` — NaijaCloud's pre-production scope; there is no `PREVIEW` |
 | `development`            | `DEV`                                                            |
 | `all`                    | `ALL`                                                            |
