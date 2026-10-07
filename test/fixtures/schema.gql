@@ -1,3 +1,9 @@
+input AbortMultipartUploadInput {
+  bucket: String!
+  key: String!
+  uploadId: String!
+}
+
 enum AbuseAction {
   FLAGGED
   OBSERVED
@@ -83,8 +89,14 @@ enum ActivityKind {
 }
 
 type AdminAuthPayload {
+  """
+  The admin JWT, for scripts that send it as a bearer token. Browsers should not store it: the HttpOnly nc.admin cookie set by this call already carries the session.
+  """
   accessToken: String!
   email: String!
+
+  """When this admin session ends (2 hours after sign-in)."""
+  expiresAt: DateTime!
 }
 
 type AdminDrainResult {
@@ -257,10 +269,17 @@ type AdminNodeRow {
   liveMemoryBytes: Float
   memoryPct: Float
   memoryTotalBytes: Float
+
+  """
+  Whether the node agent enforces mTLS (requires a client certificate). False is a security finding; null when unknown (SSH node, unreachable, or agent older than v0.1.14).
+  """
+  mtlsEnforced: Boolean
   name: String!
   objectStores: Int!
+  privateIp: String
   probeError: String
   probedAt: DateTime!
+  publicIp: String
   reachable: Boolean!
   region: String
   regionLabel: String
@@ -316,6 +335,12 @@ type AdminProjectsPage {
   total: Int!
 }
 
+input AdminResetUserTwoFactorInput {
+  """Why, for the audit record. Required."""
+  reason: String!
+  userId: ID!
+}
+
 type AdminResourceUsageRow {
   bandwidthPct: Float!
   computePct: Float!
@@ -337,6 +362,67 @@ type AdminResourceUsageRowOffsetPaginated {
   pageInfo: OffsetPageInfo!
 }
 
+"""Admin header search results, grouped by kind"""
+type AdminSearchGroup {
+  hits: [AdminSearchHit!]!
+  kind: AdminSearchKind!
+}
+
+"""One record matched by the admin header search"""
+type AdminSearchHit {
+  id: ID!
+  kind: AdminSearchKind!
+  label: String!
+  status: String
+  sub: String!
+}
+
+"""A console-wide search from the admin header"""
+input AdminSearchInput {
+  kinds: [AdminSearchKind!]
+  limitPerKind: Int
+  query: String!
+}
+
+"""A kind of record the admin console header search can find"""
+enum AdminSearchKind {
+  DISCUSSION
+  NODE
+  PROJECT
+  TICKET
+  USER
+}
+
+"""Admin header search results"""
+type AdminSearchResults {
+  groups: [AdminSearchGroup!]!
+  query: String!
+  total: Int!
+}
+
+"""The admin console session the caller is using."""
+type AdminSessionInfo {
+  """When the session was opened."""
+  createdAt: DateTime!
+
+  """The operator the session was opened for."""
+  email: String!
+
+  """When the session ends unless signed out sooner."""
+  expiresAt: DateTime!
+}
+
+"""A two-factor reset made by support"""
+type AdminTwoFactorReset {
+  at: DateTime!
+
+  """The admin who made the reset"""
+  by: String!
+
+  """Why, as the admin wrote it"""
+  reason: String!
+}
+
 type AdminUserRow {
   email: String!
   id: ID!
@@ -345,6 +431,36 @@ type AdminUserRow {
   plan: UserPlan!
   projects: Int!
   status: UserStatus!
+
+  """
+  Who suspended the account and why. Set only while the account is suspended, and null for a suspension made before this was recorded.
+  """
+  suspension: AdminUserSuspension
+}
+
+"""The admin action that suspended an account"""
+type AdminUserSuspension {
+  """When the account was suspended"""
+  at: DateTime!
+
+  """The admin who suspended it"""
+  by: String!
+
+  """
+  Why, as the admin wrote it. Null for suspensions recorded before reasons were required.
+  """
+  reason: String
+}
+
+"""A user's two-factor state, for support"""
+type AdminUserTwoFactor {
+  enabled: Boolean!
+  enabledAt: DateTime
+  lastReset: AdminTwoFactorReset
+
+  """The code check is locked after too many wrong codes"""
+  locked: Boolean!
+  recoveryCodesRemaining: Int!
 }
 
 type AdminUsersPage {
@@ -388,6 +504,7 @@ input AnnouncementInput {
   audience: HubAudience
   audienceValue: String
   body: String
+  imageUrl: String
   impact: String
   kind: HubAnnouncementKind!
   pinned: Boolean
@@ -406,6 +523,7 @@ type AnnouncementView {
   body: String!
   commentCount: Int!
   id: ID!
+  imageUrl: String
   impact: String
   kind: HubAnnouncementKind!
   pinned: Boolean!
@@ -471,8 +589,22 @@ enum ApiTokenScope {
 }
 
 type AuthPayload {
-  accessToken: String!
-  user: User!
+  """The session token. Null while a two-factor code is pending."""
+  accessToken: String
+
+  """
+  Set when the account has two-factor on: answer it with verifyTwoFactorSignIn to get the session.
+  """
+  twoFactor: TwoFactorChallenge
+
+  """The signed-in user. Null while a two-factor code is pending."""
+  user: User
+}
+
+"""An outside account that can be used to sign in"""
+enum AuthProvider {
+  GITHUB
+  GOOGLE
 }
 
 type Backup {
@@ -480,6 +612,9 @@ type Backup {
   completedAt: DateTime
   createdAt: DateTime!
   error: String
+
+  """Why the backup failed, when it did"""
+  errorCode: BackupFailureReason
   expiresAt: DateTime
   id: ID!
   objectKey: String
@@ -490,6 +625,29 @@ type Backup {
   status: BackupStatus!
   trigger: BackupTrigger!
   updatedAt: DateTime!
+}
+
+"""Why a backup or restore failed"""
+enum BackupFailureReason {
+  ALREADY_RUNNING
+  BACKUP_FILE_MISSING
+  DATABASE_NOT_FOUND
+  DATABASE_NOT_RUNNING
+  DISK_FULL
+  DOWNLOAD_FAILED
+  DUMP_FAILED
+  NOT_PROVISIONED
+  NOT_SUPPORTED
+  NO_LONGER_EXISTS
+  OUT_OF_MEMORY
+  RESTORE_FAILED
+  SAFETY_BACKUP_FAILED
+  SERVER_NEEDS_UPDATE
+  SERVER_UNREACHABLE
+  STORAGE_NOT_CONFIGURED
+  TIMEOUT
+  UNKNOWN
+  UPLOAD_FAILED
 }
 
 enum BackupFrequency {
@@ -583,26 +741,52 @@ type BillingOverview {
 input BillingSettingsInput {
   autoTopUpAmountKobo: Float
   autoTopUpEnabled: Boolean
-  autoTopUpThresholdKobo: Float
+  autoTopUpThresholdKobo: Float @deprecated(reason: "The top-up prompt goes out at the low-balance amount (TGL-815); this is no longer read.")
+  lowBalanceAlertEnabled: Boolean
   lowBalanceThresholdKobo: Float
   protectionPolicy: ProtectionPolicy
   spendingLimitEnabled: Boolean
   spendingLimitKobo: Float
-  usageAlertPercents: [Int!]
+  usageAlertEnabled: Boolean
+  usageAlertKobo: Float
+  usageAlertPercents: [Int!] @deprecated(reason: "Replaced by usageAlertEnabled + usageAlertKobo (TGL-815). Stored, but no longer sends email.")
 }
 
 type BillingSettingsView {
   autoTopUpAmountKobo: Float
   autoTopUpCharges: Boolean!
   autoTopUpEnabled: Boolean!
-  autoTopUpThresholdKobo: Float
+  autoTopUpThresholdKobo: Float @deprecated(reason: "The top-up prompt goes out at the low-balance amount (TGL-815); this is no longer read.")
+
+  """
+  Whether the low-balance email is sent. The empty-balance email is always sent.
+  """
+  lowBalanceAlertEnabled: Boolean!
   lowBalanceThresholdKobo: Float!
   protectionPolicy: ProtectionPolicy!
   spendingLimitEnabled: Boolean!
   spendingLimitKobo: Float
   suspendedAt: DateTime
   teamId: ID!
-  usageAlertPercents: [Int!]!
+
+  """
+  Whether to email the owners and billing managers when this month's spend passes usageAlertKobo.
+  """
+  usageAlertEnabled: Boolean!
+  usageAlertKobo: Float
+  usageAlertPercents: [Int!]! @deprecated(reason: "Replaced by usageAlertEnabled + usageAlertKobo (TGL-815). Stored, but no longer sends email.")
+}
+
+"""A monthly statement rendered as a PDF."""
+type BillingStatementPdf {
+  """The PDF bytes, base64-encoded."""
+  contentBase64: String!
+
+  """Always application/pdf."""
+  contentType: String!
+
+  """Suggested file name, e.g. naijacloud-statement-2026-09.pdf."""
+  filename: String!
 }
 
 enum BootstrapMode {
@@ -669,6 +853,13 @@ type CategorySpend {
   amountKobo: Float!
   category: UsageCategory!
   label: String!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+
+  """At least 8 characters."""
+  newPassword: String!
 }
 
 type ChangelogEntryView {
@@ -749,6 +940,10 @@ type CommunityContributor {
 }
 
 input CommunityFeedInput {
+  """
+  Bug reports only: keep reports in any of these pipeline states (e.g. RESOLVED + CLOSED for the Fixed tab).
+  """
+  bugStatuses: [HubBugStatus!]
   kinds: [HubPostKind!]
   sort: HubSort
   status: HubThreadStatus
@@ -759,6 +954,12 @@ type CommunityItem {
   author: HubActor!
   confirmCount: Int!
   createdAt: DateTime!
+
+  """
+  True when the author deleted this post after others had replied. The title is kept for the replies; the body and author are masked.
+  """
+  deleted: Boolean!
+  editedAt: DateTime
   excerpt: String!
   id: ID!
   kind: HubPostKind!
@@ -767,14 +968,30 @@ type CommunityItem {
   pinned: Boolean!
   reference: String!
   replyCount: Int!
+
+  """Bug reports only: the severity staff assigned (S1 is worst)."""
+  severity: HubSeverity
+
+  """
+  Bug reports only: the severity as a customer-facing label (Critical, High or Medium).
+  """
+  severityLabel: String
   solved: Boolean!
   status: HubThreadStatus
   statusLabel: String
   tags: [String!]!
   title: String!
   viewCount: Int!
+
+  """
+  Whether the caller may edit this post now: it is theirs, and the thread is neither locked nor answered.
+  """
+  viewerCanEdit: Boolean!
   viewerHasConfirmed: Boolean!
   viewerHasVoted: Boolean!
+
+  """Whether the signed-in caller wrote this post."""
+  viewerIsAuthor: Boolean!
   viewerIsFollowing: Boolean!
   voteCount: Int!
 }
@@ -820,11 +1037,29 @@ type CommunityRelated {
 
 type CommunityReply {
   accepted: Boolean!
+  acceptedAt: DateTime
+
+  """
+  Who marked this reply as the accepted answer: the asker or a staff member. Null when it is not accepted, or was accepted before this was recorded.
+  """
+  acceptedBy: HubActor
   author: HubActor!
   body: String!
   createdAt: DateTime!
+  editedAt: DateTime
   id: ID!
   pinned: Boolean!
+
+  """
+  Whether the caller may edit this reply now: it is theirs, the thread is not locked, and it is not the accepted answer.
+  """
+  viewerCanEdit: Boolean!
+
+  """Whether the signed-in caller upvoted this reply."""
+  viewerHasVoted: Boolean!
+
+  """Whether the signed-in caller wrote this reply."""
+  viewerIsAuthor: Boolean!
   voteCount: Int!
 }
 
@@ -838,6 +1073,29 @@ input CommunityReportInput {
   detail: String
   postId: ID
   reason: HubModerationReason!
+}
+
+input CommunityUpdatePostInput {
+  body: String
+  postId: ID!
+  title: String
+}
+
+input CommunityUpdateReplyInput {
+  body: String!
+  commentId: ID!
+}
+
+input CompleteMultipartUploadInput {
+  bucket: String!
+  key: String!
+  parts: [CompletedUploadPartInput!]!
+  uploadId: String!
+}
+
+input CompletedUploadPartInput {
+  etag: String!
+  partNumber: Int!
 }
 
 enum ComponentScope {
@@ -864,6 +1122,11 @@ enum ComputeRequirement {
   EMAIL
   PAYMENT
   PHONE
+}
+
+input ConfirmTwoFactorInput {
+  """The 6-digit code the authenticator app shows"""
+  code: String!
 }
 
 type CorsRule {
@@ -955,6 +1218,15 @@ input CreateServiceInput {
   watchPaths: [String!]
 }
 
+"""Create a named S3 access key for the workspace."""
+input CreateStorageAccessKeyInput {
+  """
+  What the key is for, e.g. "storefront uploads". 1–64 characters, unique among the workspace’s keys.
+  """
+  name: String!
+  teamId: ID!
+}
+
 input CreateTeamRoleInput {
   allProjects: Boolean
   description: String
@@ -995,6 +1267,20 @@ type CreatedMailWebhookEndpoint {
   Shown once, here. Store it before closing this dialog — it is never returned again.
   """
   secret: String!
+}
+
+"""
+A key that was just created. The secret is in this response and nowhere else — it can’t be fetched again.
+"""
+type CreatedStorageAccessKey {
+  """
+  The endpoints the key works against now: one per region the workspace stores data in. Empty until the workspace has a bucket.
+  """
+  endpoints: [StorageEndpoint!]!
+  key: StorageAccessKey!
+
+  """The secret access key. Shown once."""
+  secretAccessKey: String!
 }
 
 enum CronLogStream {
@@ -1343,6 +1629,14 @@ type DetectedBuild {
   workspaceName: String
 }
 
+input DisableTwoFactorInput {
+  """A current 6-digit code, or one of the recovery codes"""
+  code: String!
+
+  """Required when the account has a password"""
+  password: String
+}
+
 type DnsRecord {
   content: String!
   createdAt: DateTime!
@@ -1595,15 +1889,41 @@ type Environment {
   id: ID!
   isPreview: Boolean!
   name: String!
+
+  """
+  True while this environment is paused on its own. A paused project stops it too without setting this; read the project as well.
+  """
+  paused: Boolean!
+
+  """
+  When the environment was paused on its own, or null while it runs. While set, no service in it runs and compute is not billed.
+  """
+  pausedAt: DateTime
+  pausedBy: String
   projectId: String!
   services: [Service!]!
   summary: EnvironmentSummary!
   updatedAt: DateTime!
 }
 
+"""The outcome of pausing or resuming an environment"""
+type EnvironmentPauseResult {
+  """Services stopped (pause) or started (resume) by this call."""
+  changed: Int!
+  environment: Environment!
+
+  """
+  Services this call could not stop or start. Empty when everything finished. Running the same action again retries them.
+  """
+  failed: [ProjectPauseFailure!]!
+}
+
 type EnvironmentRef {
   id: ID!
   name: String!
+
+  """The project this environment belongs to."""
+  projectId: ID!
 }
 
 type EnvironmentSummary {
@@ -1620,6 +1940,22 @@ input EstimateResourceInput {
   storageLimitMb: Int
   tier: ServiceTier
   type: ServiceType!
+}
+
+"""
+The email of a GitHub or Google sign-in already has a Naijacloud account
+"""
+type ExistingAccount {
+  email: String!
+
+  """The account can sign in with GitHub"""
+  hasGithub: Boolean!
+
+  """The account can sign in with Google"""
+  hasGoogle: Boolean!
+
+  """The account can sign in with email and password"""
+  hasPassword: Boolean!
 }
 
 type ExportResult {
@@ -1684,6 +2020,56 @@ type FreeAllowanceCard {
   storageBytes: Float!
 }
 
+"""How much of one free-tier allowance is used"""
+type FreeTierSlot {
+  """The oldest service holding the slot; null while it is open"""
+  holder: FreeTierSlotHolder
+
+  """How many free services the slot allows"""
+  limit: Int!
+
+  """Free services counted against the slot"""
+  used: Int!
+}
+
+"""The service that holds a free-tier slot"""
+type FreeTierSlotHolder {
+  """The environment the service runs in"""
+  environmentName: String!
+
+  """The project the service belongs to"""
+  projectName: String!
+  serviceId: ID!
+
+  """The service name"""
+  serviceName: String!
+  teamId: ID!
+
+  """The workspace the service belongs to"""
+  teamName: String!
+}
+
+"""
+The free app and free database slots, counted as the API counts them on create: this workspace's free services plus every free service the caller created in any workspace.
+"""
+type FreeTierSlots {
+  """One free app: a web service or a cron job"""
+  app: FreeTierSlot!
+
+  """One free database: any engine, caches included"""
+  database: FreeTierSlot!
+}
+
+input GetBillingStatementPdfInput {
+  """The statement (invoice) id."""
+  invoiceId: ID!
+}
+
+input GetProjectServiceLinksInput {
+  """The environment whose services are matched against each other"""
+  environmentId: ID!
+}
+
 type GithubAccount {
   accountType: String!
   configureUrl: String!
@@ -1723,6 +2109,25 @@ type GithubInstallation {
   id: ID!
   teamId: ID
   updatedAt: DateTime!
+}
+
+"""The outcome of a GitHub sign-in"""
+type GithubSignInResult {
+  existingAccount: ExistingAccount
+  payload: AuthPayload
+}
+
+input GoogleCodeInput {
+  code: String!
+
+  """The PKCE code verifier (43–128 characters)"""
+  codeVerifier: String!
+}
+
+"""The outcome of a Google sign-in"""
+type GoogleSignInResult {
+  existingAccount: ExistingAccount
+  payload: AuthPayload
 }
 
 type HubActivityItem {
@@ -2159,6 +2564,13 @@ type HubRelatedItem {
   title: String!
 }
 
+input HubRemoveContentInput {
+  commentId: ID
+  note: String!
+  postId: ID
+  reason: HubModerationReason!
+}
+
 input HubReplyInput {
   aiGenerated: Boolean
   body: String!
@@ -2364,14 +2776,36 @@ type Invite {
   acceptedAt: DateTime
   createdAt: DateTime!
   email: String!
+
+  """True once the link has lapsed; it can still be resent."""
+  expired: Boolean!
   expiresAt: DateTime!
   id: ID!
+
+  """
+  Who sent (or last resent) the invite, by name or email. Null once that person has left the workspace.
+  """
+  invitedByName: String
   link: String!
   projectIds: [String!]
   role: Role!
+
+  """
+  The named workspace role the invite grants, or null when it grants only its rank.
+  """
+  roleName: String
   teamId: String!
   teamRoleId: String
   updatedAt: DateTime!
+}
+
+"""A page of unaccepted workspace invites with pagination metadata"""
+type InviteOffsetPaginated {
+  """The Invite rows on this page"""
+  items: [Invite!]!
+
+  """Pagination metadata"""
+  pageInfo: OffsetPageInfo!
 }
 
 type InvoiceLineItemView {
@@ -2496,6 +2930,20 @@ input LifecycleRuleInput {
   transitionDays: Int
 }
 
+"""An outside account connected to this user"""
+type LinkedIdentity {
+  connectedAt: DateTime!
+
+  """
+  The outside account's own email, which can differ from the Naijacloud email
+  """
+  email: String
+
+  """The GitHub username; null for Google"""
+  login: String
+  provider: AuthProvider!
+}
+
 enum LogLevel {
   ERROR
   INFO
@@ -2536,7 +2984,37 @@ type MailApiKeyOffsetPaginated {
   pageInfo: OffsetPageInfo!
 }
 
+type MailDnsPublishResult {
+  """Records that were already there and already correct."""
+  alreadyPresent: [String!]!
+
+  """Records added or refreshed."""
+  published: [String!]!
+
+  """
+  Records left for the customer, because writing ours would break one of theirs.
+  """
+  skipped: [MailDnsPublishSkip!]!
+
+  """The Naijacloud DNS zone that was written to."""
+  zone: String!
+}
+
+type MailDnsPublishSkip {
+  """Why it was left alone, written for the customer."""
+  reason: String!
+
+  """SPF, DKIM, DMARC or MX."""
+  record: String!
+}
+
 type MailDnsRecord {
+  """
+  The full DNS name this record must exist at, e.g. nm._domainkey.send.acme.com.
+  """
+  fqdn: String!
+
+  """Host relative to the sending domain; "@" is the sending domain itself."""
   host: String!
   name: String!
   priority: Float
@@ -2545,6 +3023,26 @@ type MailDnsRecord {
   type: String!
   value: String!
   verified: Boolean!
+
+  """
+  Host relative to the DNS zone the customer edits (MailDomainDetail.zone); "@" is the zone root.
+  """
+  zoneHost: String
+}
+
+type MailDnsZone {
+  """The Naijacloud DNS zone id, when hostedOnNaijacloud."""
+  dnsZoneId: ID
+
+  """
+  True when this zone is on Naijacloud DNS in the same workspace, so publishMailDomainRecords can add the records in one step.
+  """
+  hostedOnNaijacloud: Boolean!
+
+  """
+  The zone the records are added to, e.g. acme.com for send.acme.com. zoneHost on each record is relative to it.
+  """
+  name: String!
 }
 
 type MailDomain {
@@ -2573,6 +3071,11 @@ type MailDomainDetail {
   """Set when DNS is right but not yet propagated."""
   propagating: Boolean
   records: [MailDnsRecord!]!
+
+  """
+  The DNS zone the records go into; each record carries zoneHost relative to it.
+  """
+  zone: MailDnsZone
 }
 
 """A page of sending domains with pagination metadata"""
@@ -2636,6 +3139,11 @@ type MailMessage {
   fromAddress: String!
   id: ID!
   opened: Boolean!
+
+  """
+  True for a send made with a test key: nothing left Naijacloud, and status is the simulated outcome.
+  """
+  sandbox: Boolean!
   status: MailMessageStatus!
   subject: String!
   toAddress: String!
@@ -2832,6 +3340,11 @@ enum MonorepoStrategy {
 
 type Mutation {
   """
+  Cancel a multipart upload and free the parts already stored. Requires MEMBER on the team.
+  """
+  abortStorageMultipartUpload(AbortMultipartUploadInput: AbortMultipartUploadInput!, region: String, teamId: ID!): Boolean!
+
+  """
   Redeem an invite token as the signed-in user and join the workspace. The invite must have been addressed to their own email address.
   """
   acceptInvite(token: String!): Team!
@@ -2847,6 +3360,11 @@ type Mutation {
   addDnsRecord(DnsRecordInput: DnsRecordInput!, zoneId: ID!): DnsRecord!
 
   """
+  Admin-only. Add an internal note to a ticket. Notes are visible to operators only: the customer never sees them, nobody is emailed, the status does not change and the first-response SLA keeps running.
+  """
+  adminAddTicketNote(body: String!, ticketId: ID!): SupportTicket!
+
+  """
   Admin-only. Assign a ticket to an admin, or hand it back by passing userId: null. Safe to repeat - assigning to the current holder is a no-op.
   """
   adminAssignTicket(ticketId: ID!, userId: ID): SupportTicket!
@@ -2857,9 +3375,19 @@ type Mutation {
   adminDrainNode(nodeId: ID!, targetNodeName: String): AdminDrainResult!
 
   """
-  Public. Exchange the env-configured operator credentials (ADMIN_EMAIL / ADMIN_PASSWORD) for an admin JWT; every other admin operation requires that token.
+  Public. Exchange the env-configured operator credentials (ADMIN_EMAIL / ADMIN_PASSWORD) for a 2-hour admin session. Sets the HttpOnly nc.admin cookie that every other admin operation reads; the returned accessToken is for scripts that send a bearer header instead.
   """
   adminLogin(email: String!, password: String!): AdminAuthPayload!
+
+  """
+  Public and idempotent. Ends the current admin session server-side, so the token stops working everywhere a copy of it exists, and clears the HttpOnly nc.admin cookie. Always returns true.
+  """
+  adminLogout: Boolean!
+
+  """
+  Ends EVERY open admin session on every device, including this one, and clears the nc.admin cookie. Use it when an admin token may have leaked.
+  """
+  adminLogoutAll: Boolean!
 
   """
   Admin-only. Mark a ticket resolved; the shorthand behind the console's Mark resolved button.
@@ -2868,6 +3396,11 @@ type Mutation {
 
   """Admin-only. Post a support reply on a ticket and move it to PENDING."""
   adminReplyToTicket(body: String!, ticketId: ID!): SupportTicket!
+
+  """
+  Admin-only. Turn off a user's two-factor for somebody locked out of it. Requires a reason, writes an audit record naming the admin, and emails the account holder.
+  """
+  adminResetUserTwoFactor(AdminResetUserTwoFactorInput: AdminResetUserTwoFactorInput!): AdminUserTwoFactor!
 
   """
   Admin-only. Let a suspended sending domain send again. A reason is mandatory: it is recorded in the audit log and emailed to the workspace owner, though the account itself no longer carries a suspension once it is lifted. Attributed to the calling admin.
@@ -2880,6 +3413,11 @@ type Mutation {
   adminSetNodeSchedulable(nodeId: ID!, reason: String, schedulable: Boolean!): AdminNodeRow!
 
   """
+  Admin-only. Change a ticket's priority. The first-response SLA deadline is derived from the current priority, so it moves with it.
+  """
+  adminSetTicketPriority(priority: TicketPriority!, ticketId: ID!): SupportTicket!
+
+  """
   Admin-only. Set a ticket's status explicitly - resolve, reopen or mark pending.
   """
   adminSetTicketStatus(status: TicketStatus!, ticketId: ID!): SupportTicket!
@@ -2890,9 +3428,9 @@ type Mutation {
   adminSetUserPlan(plan: UserPlan!, userId: ID!): AdminUserRow!
 
   """
-  Admin-only. Set a user's account status (Active/Trial/Suspended). Suspending locks the account out.
+  Admin-only. Set a user's account status (Active/Trial/Suspended). Suspending requires a `reason`. It is a console flag today: it does not block sign-in or stop services. Every change is recorded with the admin who made it; the row returns the current suspension, if any.
   """
-  adminSetUserStatus(status: UserStatus!, userId: ID!): AdminUserRow!
+  adminSetUserStatus(reason: String, status: UserStatus!, userId: ID!): AdminUserRow!
 
   """
   Admin-only. Stop a sending domain's outbound mail. Queued messages are held rather than dropped and the customer keeps console access. A reason is mandatory: it is stored on the account and emailed verbatim to the workspace owner. Attributed to the calling admin. A mail failure never fails the suspension — it is already written by then.
@@ -2913,6 +3451,14 @@ type Mutation {
   Stop a queued or in-progress deploy and mark it CANCELLED. The currently-live version is left running, because the build always bails before the zero-downtime swap. Idempotent on an already-finished deploy.
   """
   cancelDeployment(deploymentId: ID!): Deployment!
+
+  """Cancel a pending email change. Its link stops working. Idempotent."""
+  cancelEmailChange: Boolean!
+
+  """
+  Change the password of an account that has one, given the current password. Signs out every other session and returns a fresh token (also set as the auth cookie) for this one. Throttled to 10 per 10 minutes and subject to the sign-in lockout.
+  """
+  changePassword(ChangePasswordInput: ChangePasswordInput!): AuthPayload!
 
   """
   Finish connecting GitHub after the install round-trip: verifies the signed `state`, confirms the caller controls the installation via the OAuth code, and attaches it to the team. Afterwards githubRepositories lists that team's repos.
@@ -2941,6 +3487,16 @@ type Mutation {
   communityCreatePost(CreateCommunityPostInput: CreateCommunityPostInput!): CommunityItemDetail!
 
   """
+  Delete your own post (a soft delete). Returns true when the thread stays because others replied (it then reads "[deleted]"), false when it is gone. Undo with communityRestorePost.
+  """
+  communityDeletePost(postId: ID!): Boolean!
+
+  """
+  Delete your own reply (a soft delete) and return the thread without it. Undo with communityRestoreReply.
+  """
+  communityDeleteReply(commentId: ID!): CommunityItemDetail!
+
+  """
   Toggle whether the caller follows an item and is notified when it moves. Use unfollowCommunityDiscussion for an idempotent unfollow.
   """
   communityFollow(postId: ID!): CommunityItem!
@@ -2961,9 +3517,39 @@ type Mutation {
   communityReport(CommunityReportInput: CommunityReportInput!): Boolean!
 
   """
+  Undo deleting your own post, within a day. A post our team removed cannot be restored this way.
+  """
+  communityRestorePost(postId: ID!): CommunityItemDetail!
+
+  """
+  Undo deleting your own reply, within a day. A reply our team removed cannot be restored this way.
+  """
+  communityRestoreReply(commentId: ID!): CommunityItemDetail!
+
+  """
+  Edit the title and/or body of your own post. Refused once staff lock the thread or it is answered. Marks the post edited.
+  """
+  communityUpdatePost(CommunityUpdatePostInput: CommunityUpdatePostInput!): CommunityItemDetail!
+
+  """
+  Edit the body of your own reply. Refused on a locked thread, and on the accepted answer of an answered one. Marks the reply edited.
+  """
+  communityUpdateReply(CommunityUpdateReplyInput: CommunityUpdateReplyInput!): CommunityItemDetail!
+
+  """
   Toggle the caller's vote on a feature request. Votes are weighted by the account's spend.
   """
   communityVote(postId: ID!): CommunityItem!
+
+  """
+  Toggle the caller's upvote on a reply and return it with the new count. You cannot vote for your own reply.
+  """
+  communityVoteReply(commentId: ID!): CommunityReply!
+
+  """
+  Finish a multipart upload by assembling its parts, in part-number order, into the object. Also records the upload in the activity feed. Requires MEMBER on the team.
+  """
+  completeStorageMultipartUpload(CompleteMultipartUploadInput: CompleteMultipartUploadInput!, region: String, teamId: ID!): Boolean!
 
   """
   Consume a verification token and mark that address confirmed. Deliberately unauthenticated - the token is the credential - and throttled to 10 per minute.
@@ -2971,9 +3557,29 @@ type Mutation {
   confirmEmail(token: String!): Boolean!
 
   """
+  Open an email-change link: switches the account to the new address, marks it verified and notifies the old address. Unauthenticated - the token is the credential - and throttled to 10 per minute.
+  """
+  confirmEmailChange(token: String!): Boolean!
+
+  """
   Check a verification code against the signed-in account's open challenge and mark the number verified on success. Throttled to 10 per 10 minutes.
   """
   confirmPhoneVerification(code: String!): Boolean!
+
+  """
+  Turn two-factor on with the first code from the app. Returns ten one-time recovery codes, which are shown only this once, and sends a security email. Session only.
+  """
+  confirmTwoFactorEnrollment(ConfirmTwoFactorInput: ConfirmTwoFactorInput!): TwoFactorRecoveryCodes!
+
+  """
+  Connect a GitHub account to the signed-in user, from the code GitHub sent to /auth/callback. Refused, without saying whose, when it already signs in to another account. Throttled.
+  """
+  connectGithub(code: String!): User!
+
+  """
+  Connect a Google account to the signed-in user. Refused, without saying whose, when it already signs in to another account. Throttled.
+  """
+  connectGoogle(GoogleCodeInput: GoogleCodeInput!): User!
 
   """
   Mint a new API token for the caller. The secret is returned once in this response and is never recoverable afterwards. Throttled to 10 per hour.
@@ -3011,7 +3617,17 @@ type Mutation {
   createMailWebhookEndpoint(description: String, eventKinds: [MailEventKind!], teamId: ID!, url: String!): CreatedMailWebhookEndpoint!
 
   """Create a project inside a workspace. Requires MEMBER on the team."""
-  createProject(description: String, displayName: String, name: String!, teamId: ID!): Project!
+  createProject(
+    description: String
+    displayName: String
+    name: String!
+
+    """
+    Region key from getDeployLocations, e.g. "af-west". New services in the project are placed there unless they name another region.
+    """
+    region: String
+    teamId: ID!
+  ): Project!
 
   """
   Provision a web service, cron job or datastore in an environment and queue its first deploy. Subject to the compute gate, so it can be refused until the account is verified. Requires MEMBER on the owning team.
@@ -3022,6 +3638,11 @@ type Mutation {
   Reserve a presigned slot for uploading a .zip or .html artifact straight to object storage, ahead of a static-site deploy.
   """
   createStaticUpload(StaticUploadInput: StaticUploadInput!): StaticUploadSlot!
+
+  """
+  Create a named S3 access key. It works in every region the workspace stores data in, and in any region added later. The secret is in this response only. Requires ADMIN on the team.
+  """
+  createStorageAccessKey(CreateStorageAccessKeyInput: CreateStorageAccessKeyInput!): CreatedStorageAccessKey!
 
   """
   Open a support ticket as the signed-in user and notify support. Requires a signed-in user.
@@ -3063,6 +3684,11 @@ type Mutation {
   Remove a bucket's policy entirely, which drops any public read access it granted. Requires ADMIN on the team.
   """
   deleteBucketPolicy(bucket: String!, region: String, teamId: ID!): Boolean!
+
+  """
+  Delete one key from a Redis/Valkey cache. Returns true when a key was removed, false when it no longer existed. Requires MEMBER on the owning team.
+  """
+  deleteCacheKey(key: String!, serviceId: ID!): Boolean!
 
   """
   Destructive. Delete a record from a zone and republish, so it stops resolving. Requires MEMBER on the owning team.
@@ -3160,9 +3786,19 @@ type Mutation {
   disableMailWebhookEndpoint(id: ID!, teamId: ID!): MailWebhookEndpoint!
 
   """
+  Turn two-factor off. Needs a current code (or a recovery code) and, for an account with a password, the password. Sends a security email. Session only.
+  """
+  disableTwoFactor(DisableTwoFactorInput: DisableTwoFactorInput!): TwoFactorStatus!
+
+  """
   Unlink a web or cron service from its GitHub repository, stopping push-to-deploy and turning PR previews off. The service keeps running its current deploy. Requires ADMIN on the owning team.
   """
   disconnectServiceRepo(serviceId: ID!): Service!
+
+  """
+  Disconnect GitHub or Google from the signed-in user. Refused when it is the last way to sign in. Idempotent.
+  """
+  disconnectSignInMethod(provider: AuthProvider!): Boolean!
 
   """
   Resume delivering events to an endpoint and clear its failure count. The URL is re-checked first, so an endpoint that now resolves to a private address stays off. Requires membership of the team.
@@ -3336,6 +3972,11 @@ type Mutation {
   hubPublishChangelogEntry(id: ID!): ChangelogEntryView!
 
   """
+  Remove (soft-delete) any hub post or reply, whether or not it was reported. Pass exactly one of postId or commentId. The removal is logged in the moderation queue with the reason, the note and the acting staff member. Requires the MODERATE hub permission.
+  """
+  hubRemoveContent(HubRemoveContentInput: HubRemoveContentInput!): ModerationItemView!
+
+  """
   Post a public reply or an internal note on an item and return the refreshed conversation. Which permission actually applies depends on the visibility and is re-checked in the service; the guard requires the weaker REPLY.
   """
   hubReply(HubReplyInput: HubReplyInput!): HubConversation!
@@ -3422,14 +4063,19 @@ type Mutation {
   inviteToTeam(email: String!, projectIds: [ID!], role: Role!, teamId: ID!, teamRoleId: ID): Invite!
 
   """
-  Public. Exchange email and password for a signed JWT and set the HttpOnly auth cookie. Throttled to 10 per minute; failures also count towards the per-account and per-IP lockout.
+  Public. Exchange email and password for a signed JWT and set the HttpOnly auth cookie. When the account has two-factor on, returns `twoFactor` instead (no token, no cookie) — answer it with verifyTwoFactorSignIn. Throttled to 10 per minute; failures also count towards the per-account and per-IP lockout.
   """
   login(LoginInput: LoginInput!): AuthPayload!
 
   """
-  Public. Exchange a GitHub OAuth code for our own signed JWT, creating the account on first use, and set the auth cookie.
+  Public. Exchange a GitHub OAuth code for our own signed JWT, creating the account on first use, and set the auth cookie. Refused when the GitHub email already has an account that cannot be linked automatically; prefer `signInWithGithub`, which says so.
   """
-  loginWithGithub(code: String!): AuthPayload!
+  loginWithGithub(code: String!): AuthPayload! @deprecated(reason: "Use signInWithGithub, which can answer existingAccount")
+
+  """
+  Public. Exchange a Google code (with its PKCE verifier) for a session, creating the account on first use and setting the auth cookie. When the email already has an account that cannot be linked automatically, returns `existingAccount` instead and creates nothing. Throttled to 10 per minute.
+  """
+  loginWithGoogle(GoogleCodeInput: GoogleCodeInput!): GoogleSignInResult!
 
   """
   Public and idempotent. Ends the session: clears the HttpOnly auth cookie, which JavaScript cannot do itself, and invalidates the tokens already issued to that account so they stop working immediately. Signs the account out everywhere, not just on this device.
@@ -3437,12 +4083,27 @@ type Mutation {
   logout: Boolean!
 
   """
+  Pause one environment: stop every service in it - web services, static sites, cron jobs, databases and caches - keeping their data, volumes, variables, domains and deploy history. Other environments keep running. Compute is not billed while paused; database storage still is. Its URLs and custom domains show a "This environment is paused" page. Deploys, cron runs and new services in it are refused until it is resumed. Resuming the project does not resume an environment paused on its own. Idempotent: running it again retries any service it could not stop. Requires ADMIN on the owning team.
+  """
+  pauseEnvironment(PauseEnvironmentInput: PauseEnvironmentInput!): EnvironmentPauseResult!
+
+  """
+  Pause a whole project: stop every service in every environment - web services, static sites, cron jobs, databases and caches - keeping their data, volumes, variables, domains and deploy history. Compute is not billed while paused; database and bucket storage still is. Its URLs and custom domains show a "This project is paused" page. Deploys, cron runs and new services are refused until it is resumed. Idempotent: running it again retries any service it could not stop. Requires ADMIN on the owning team.
+  """
+  pauseProject(PauseProjectInput: PauseProjectInput!): ProjectPauseResult!
+
+  """
   Create the team's object store in a region. The returned credentials are shown once and cannot be retrieved again this way. Requires ADMIN on the team.
   """
   provisionObjectStore(region: String!, teamId: ID!): ObjectStorageConnection!
 
   """
-  Start buying a domain: reserves the order and returns a payment page to send the customer to. The domain is registered when the payment lands, not here, so a customer who never pays costs nothing. Priced in the registrar currency; the payment page converts it. Requires ADMIN on the team.
+  Add a sending domain's DNS records to the workspace's Naijacloud DNS zone that holds it, as managed records. Records the customer already has at those names are kept and reported in `skipped`. Requires membership of the team; throttled to 20 per 10 minutes.
+  """
+  publishMailDomainRecords(id: ID!, teamId: ID!): MailDnsPublishResult!
+
+  """
+  Start buying a domain: reserves the order and returns a payment page to send the customer to. The domain is registered when the payment lands, not here, so a customer who never pays costs nothing. Priced and charged in naira: the checkout is created for exactly the `priceKobo` the search returned. Requires ADMIN on the team.
   """
   purchaseDomain(PurchaseDomainInput: PurchaseDomainInput!, teamId: ID!): DomainCheckout!
 
@@ -3465,6 +4126,11 @@ type Mutation {
   Replace an existing static site's content from a fresh upload, in place and on the same URL. Returns the new deployment.
   """
   redeployStaticSite(RedeployStaticSiteInput: RedeployStaticSiteInput!): Deployment!
+
+  """
+  Replace every recovery code with ten new ones, proven with a current app code. The old codes stop working at once. Session only.
+  """
+  regenerateTwoFactorRecoveryCodes(RegenerateTwoFactorRecoveryCodesInput: RegenerateTwoFactorRecoveryCodesInput!): TwoFactorRecoveryCodes!
 
   """
   Admin-only operator tool. Creates a user account directly, with no signup flow, verification email or auth cookie. Returns the new user.
@@ -3515,9 +4181,19 @@ type Mutation {
   republishDnsZone(zoneId: ID!): DnsZone!
 
   """
+  Start changing the sign-in email. Needs the current password, or the code from sendEmailChangeCode for an account without one. Emails a link to the new address that works for 1 hour; nothing changes until it is opened. Refuses an address that already has an account.
+  """
+  requestEmailChange(RequestEmailChangeInput: RequestEmailChangeInput!): PendingEmailChange!
+
+  """
   Public. Emails a password-reset link and invalidates any previous one. Always returns true, whether or not the address maps to an account, so it cannot be used to enumerate users. Throttled to 5 per 5 minutes.
   """
   requestPasswordReset(email: String!): Boolean!
+
+  """
+  Send a pending invite again with a fresh link valid for seven more days. The earlier link stops working. Requires ADMIN on the team.
+  """
+  resendInvite(inviteId: ID!): Invite!
 
   """
   Send the signed-in user a fresh verification link. Throttled to 5 per 10 minutes on top of the service's own per-account limits.
@@ -3535,14 +4211,29 @@ type Mutation {
   restoreBackup(backupId: ID!): Restore!
 
   """
+  Undo `revokeInvite`: reinstate a cancelled invite with its original link and expiry, without emailing it again. Works for ten minutes after the cancel, and not if the address has been invited again since. Requires ADMIN on the team.
+  """
+  restoreInvite(inviteId: ID!): Invite!
+
+  """
   Admin-only. Lift an abuse suspension and bring the customer's service back up. Attributed to the calling admin.
   """
   resumeAbuseSuspendedService(serviceId: String!): AbuseFindingRow!
 
   """
+  Resume a paused environment: restart every service its pause stopped from its current deploy (no rebuild), and databases and caches against their existing volumes. Refused while the whole project is paused - resume the project first. Idempotent: running it again retries any service it could not start. Requires ADMIN on the owning team.
+  """
+  resumeEnvironment(ResumeEnvironmentInput: ResumeEnvironmentInput!): EnvironmentPauseResult!
+
+  """
   Lift a reputation pause and let a domain send again. Deliberately manual, with no automatic counterpart: a domain that un-pauses itself after a bounce storm just produces another one.
   """
   resumeMailDomain(id: ID!, teamId: ID!): MailDomain!
+
+  """
+  Resume a paused project: restart every service the pause stopped from its current deploy (no rebuild), and databases and caches against their existing volumes. A service switched off on its own before the pause stays off. Idempotent: running it again retries any service it could not start. Requires ADMIN on the owning team.
+  """
+  resumeProject(ResumeProjectInput: ResumeProjectInput!): ProjectPauseResult!
 
   """
   Bring a suspended service back on the same URL, by redeploying its current configuration. Requires MEMBER on the owning team.
@@ -3555,7 +4246,7 @@ type Mutation {
   revokeApiToken(id: ID!): Boolean!
 
   """
-  Cancel a pending invite so its link stops working. Requires ADMIN on the team.
+  Cancel a pending invite so its link stops working. It can be brought back with `restoreInvite` for ten minutes. Requires ADMIN on the team.
   """
   revokeInvite(inviteId: ID!): Boolean!
 
@@ -3563,6 +4254,11 @@ type Mutation {
   Permanently revoke a mail API key. Irreversible - anything sending with it starts failing immediately. Requires membership of the team.
   """
   revokeMailApiKey(id: ID!, teamId: ID!): MailApiKey!
+
+  """
+  Revoke an S3 access key in every region. Anything using it loses access to the workspace’s buckets straight away; the buckets are not affected. Cannot be undone. Requires ADMIN on the team.
+  """
+  revokeStorageAccessKey(RevokeStorageAccessKeyInput: RevokeStorageAccessKeyInput!): Boolean!
 
   """
   Redeploy the exact image a previous deployment ran, rather than rebuilding its commit. Only offered for a successful deployment that carries an image digest. Requires MEMBER on the owning team.
@@ -3608,6 +4304,11 @@ type Mutation {
   Create a saved query, or update one when `id` is supplied. Saved queries are shared with the whole team. Requires MEMBER on the owning team.
   """
   saveQuery(SaveQueryInput: SaveQueryInput!): SavedQuery!
+
+  """
+  For an account with no password: email a 6-digit code to the current address, to confirm an email change with. Rate limited per account.
+  """
+  sendEmailChangeCode: Boolean!
 
   """
   Send a real test email from the dashboard, used to confirm a freshly verified domain delivers. Runs the same checks as an API send - verified domain, not paused, recipient not suppressed, within quota - and is throttled to 20 per hour.
@@ -3660,9 +4361,19 @@ type Mutation {
   setCronJobSuspended(serviceId: ID!, suspended: Boolean!): Service!
 
   """
+  Open, close or narrow a database's public TLS endpoint. Turning it off or listing allowed IP addresses takes effect within seconds and never touches the private network apps in the project use. Postgres only. Requires ADMIN on the owning team.
+  """
+  setDatabaseExternalAccess(SetDatabaseExternalAccessInput: SetDatabaseExternalAccessInput!): Service!
+
+  """
   Turn renewal reminders on or off for a domain. This does NOT renew anything and never touches the registrar's own autorenew: a renewal is a payment link the customer follows, so letting the registry renew would bill us for a customer who has not paid. What this controls is whether we email them before it expires. Requires ADMIN on the owning team.
   """
   setDomainAutoRenew(autoRenew: Boolean!, domainId: ID!): RegisteredDomain!
+
+  """
+  Change which nameservers a domain bought here uses. CUSTOM sets 2 to 13 nameservers at the registry, e.g. another DNS provider's; NC puts it back on Naijacloud DNS. Our zone and its records are kept, so switching back restores them. Changes can take up to 48 hours to reach everyone. Requires ADMIN on the owning team.
+  """
+  setDomainNameservers(SetDomainNameserversInput: SetDomainNameserversInput!): RegisteredDomain!
 
   """
   Create or update environment variables in bulk. Returns any warnings plus a hint about whether a redeploy is needed for them to take effect. Requires MEMBER on the owning team.
@@ -3700,6 +4411,16 @@ type Mutation {
   setTeamDeploymentPreviews(enabled: Boolean!, teamId: ID!): Team!
 
   """
+  Require two-factor authentication for members who change production environments. While on, a member without it is refused any write to an environment named prod, production, prd or live. Turning it on needs two-factor on your own account. Requires ADMIN on the team.
+  """
+  setTeamTwoFactorPolicy(required: Boolean!, teamId: ID!): Team!
+
+  """
+  Public. Exchange a GitHub OAuth code for a session, creating the account on first use and setting the auth cookie. When the email already has an account that cannot be linked automatically (either side unverified), returns `existingAccount` instead and creates nothing. Throttled to 10 per minute.
+  """
+  signInWithGithub(code: String!): GithubSignInResult!
+
+  """
   Public self-serve signup: creates the user and a personal team, sets the HttpOnly auth cookie and returns a JWT. Throttled to 5 per hour per client.
   """
   signup(RegisterInput: RegisterInput!): AuthPayload!
@@ -3715,14 +4436,34 @@ type Mutation {
   startPhoneVerification(phone: String!): PhoneVerificationStarted!
 
   """
+  Start a multipart upload, so a large file can be sent as parts in parallel. Sign the parts with storageUploadPartUrls, then call completeStorageMultipartUpload (or abortStorageMultipartUpload). Requires MEMBER on the team.
+  """
+  startStorageMultipartUpload(StartMultipartUploadInput: StartMultipartUploadInput!, region: String, teamId: ID!): StorageMultipartUpload!
+
+  """
+  Start setting up an authenticator app: returns a new secret and its otpauth:// URI. Nothing changes at sign-in until confirmTwoFactorEnrollment accepts a code from it. Session only.
+  """
+  startTwoFactorEnrollment: TwoFactorEnrollment!
+
+  """
   Open a top-up for the given amount in minor units and return the row carrying its checkoutUrl. Nothing is credited here - the balance moves only when the signed provider webhook confirms settlement. Requires ADMIN on the team.
   """
   startWalletTopUp(amountMinor: Int!, teamId: ID!): WalletTopUp!
 
   """
+  Short-lived presigned PUT URLs for up to 100 parts of a multipart upload. Each part PUT returns an ETag header to pass to completeStorageMultipartUpload. Requires MEMBER on the team.
+  """
+  storageUploadPartUrls(PresignUploadPartsInput: PresignUploadPartsInput!, region: String, teamId: ID!): [PresignedUploadPart!]!
+
+  """
   A short-lived presigned PUT URL for uploading one object straight to the store, bypassing the control plane. Requires MEMBER on the team.
   """
   storageUploadUrl(PresignUploadInput: PresignUploadInput!, region: String, teamId: ID!): PresignedUrl!
+
+  """
+  Short-lived presigned PUT URLs for up to 100 objects in one bucket, so a folder upload costs one call instead of one per file. Requires MEMBER on the team.
+  """
+  storageUploadUrls(PresignUploadsInput: PresignUploadsInput!, region: String, teamId: ID!): [PresignedUpload!]!
 
   """
   Admin-only. Store or rotate one fleet credential in the encrypted secret store. nodeName is required for node-scoped kinds and ignored for fleet-scoped ones. Rotating overwrites the previous value irrecoverably; returns true, never the value.
@@ -3773,6 +4514,11 @@ type Mutation {
   Replace a customer-owned record's contents and republish the zone. Records we manage are not editable. Requires MEMBER on the owning team.
   """
   updateDnsRecord(DnsRecordInput: DnsRecordInput!, recordId: ID!): DnsRecord!
+
+  """
+  Set the signed-in user's full name. One field; it is never split into first and last name by the client. Returns the updated user.
+  """
+  updateMe(UpdateMeInput: UpdateMeInput!): User!
 
   """
   Enable or disable one or more optional notification categories for the signed-in user; writes to a mandatory category do nothing. Returns the full resolved set.
@@ -3828,6 +4574,11 @@ type Mutation {
   Re-check a sending domain's DNS live and update its verification state; `propagating` marks records that are correct but not yet visible everywhere. Throttled to 60 per 10 minutes because the dashboard polls it.
   """
   verifyMailDomain(id: ID!, teamId: ID!): MailDomainDetail!
+
+  """
+  Public. Finish a sign-in that returned `twoFactor`: trade its pendingToken and a 6-digit authenticator code (or a one-time recovery code) for the session, and set the auth cookie. Each code works once; five wrong codes lock the account for 15 minutes. Throttled to 10 per minute.
+  """
+  verifyTwoFactorSignIn(VerifyTwoFactorSignInInput: VerifyTwoFactorSignInInput!): AuthPayload!
 }
 
 type MyService {
@@ -4186,6 +4937,26 @@ input OffsetPaginationArgs {
   sortOrder: SortOrder
 }
 
+input PauseEnvironmentInput {
+  environmentId: ID!
+}
+
+input PauseProjectInput {
+  projectId: ID!
+}
+
+"""An email change waiting for its link to be opened"""
+type PendingEmailChange {
+  """When the link stops working"""
+  expiresAt: DateTime!
+
+  """The address the link was sent to"""
+  newEmail: String!
+
+  """When the link was sent"""
+  requestedAt: DateTime!
+}
+
 type PhoneVerificationStarted {
   channel: String!
   expiresAt: DateTime!
@@ -4300,10 +5071,40 @@ enum PrPreviewStatus {
   UPDATING
 }
 
+input PresignUploadFileInput {
+  contentType: String
+  key: String!
+}
+
 input PresignUploadInput {
   bucket: String!
   contentType: String
   key: String!
+}
+
+input PresignUploadPartsInput {
+  bucket: String!
+  key: String!
+  partNumbers: [Int!]!
+  uploadId: String!
+}
+
+input PresignUploadsInput {
+  bucket: String!
+  files: [PresignUploadFileInput!]!
+}
+
+type PresignedUpload {
+  expiresInSeconds: Int!
+  key: String!
+  method: String!
+  url: String!
+}
+
+type PresignedUploadPart {
+  expiresInSeconds: Int!
+  partNumber: Int!
+  url: String!
 }
 
 type PresignedUrl {
@@ -4344,11 +5145,25 @@ type PricingCatalog {
 
 type Project {
   createdAt: DateTime!
+
+  """
+  The region this project was created for, e.g. "af-west". New services are placed here unless they name another region. Null for projects created before projects carried a region.
+  """
+  defaultRegion: String
   description: String
   displayName: String
   environments: [Environment!]!
   id: ID!
   name: String!
+
+  """True while the project is paused."""
+  paused: Boolean!
+
+  """
+  When the project was paused, or null while it is running. While set, no service in any environment runs and compute is not billed.
+  """
+  pausedAt: DateTime
+  pausedBy: String
   region: String
   regionKey: String
   teamId: String!
@@ -4367,6 +5182,33 @@ type ProjectOffsetPaginated {
 
   """Pagination metadata"""
   pageInfo: OffsetPageInfo!
+}
+
+"""
+A service a project or environment pause or resume could not stop or start
+"""
+type ProjectPauseFailure {
+  """The environment the service belongs to."""
+  environmentName: String!
+
+  """
+  What went wrong, in words fit to show the customer, ending with a reference id support can look up.
+  """
+  message: String!
+  serviceId: ID!
+  serviceName: String!
+}
+
+"""The outcome of pausing or resuming a project"""
+type ProjectPauseResult {
+  """Services stopped (pause) or started (resume) by this call."""
+  changed: Int!
+
+  """
+  Services this call could not stop or start. Empty when everything finished. Running the same action again retries them.
+  """
+  failed: [ProjectPauseFailure!]!
+  project: Project!
 }
 
 type ProjectUsage {
@@ -4425,14 +5267,24 @@ type Query {
   getAdminOverview: AdminOverview!
 
   """
-  Admin-only. The paginated projects table across every team. Limit defaults to 50 and is clamped to 200.
+  Admin-only. The paginated projects table across every team. Limit defaults to 50 and is clamped to 200. Optional search matches the project name, display name or id.
   """
-  getAdminProjects(limit: Int, offset: Int): AdminProjectsPage!
+  getAdminProjects(limit: Int, offset: Int, search: String): AdminProjectsPage!
 
   """
   Admin-only. A page of per-project resource-usage rows for the console's usage cards, newest project first. Sorting and search are ignored: the rollup is computed per page rather than in SQL.
   """
   getAdminResourceUsage(OffsetPaginationArgs: OffsetPaginationArgs): AdminResourceUsageRowOffsetPaginated!
+
+  """
+  Admin-only. The console header search: users, projects, nodes, tickets and hub threads matching a name, email, id, NC- reference or node address, grouped by kind with at most limitPerKind hits each.
+  """
+  getAdminSearch(AdminSearchInput: AdminSearchInput!): AdminSearchResults!
+
+  """
+  Get the admin console session the caller is signed in with. Fails with UNAUTHENTICATED when there is none, which is how the console learns it is signed out.
+  """
+  getAdminSession: AdminSessionInfo!
 
   """
   Admin-only. One ticket with its full conversation, for the console detail view.
@@ -4448,6 +5300,11 @@ type Query {
   Admin-only. A page of the tickets on one status tab, newest first; omit `status` for the All tab. Optional search matches the subject and the NC- reference.
   """
   getAdminTickets(OffsetPaginationArgs: OffsetPaginationArgs, status: TicketStatus): SupportTicketListItemOffsetPaginated!
+
+  """
+  Admin-only. A user's two-factor state and the last support reset, for the user drawer. No secrets.
+  """
+  getAdminUserTwoFactor(userId: ID!): AdminUserTwoFactor!
 
   """
   Admin-only. The searchable, paginated users table. Limit defaults to 50 and is clamped to 200.
@@ -4500,6 +5357,11 @@ type Query {
   getBillingSettings(teamId: ID!): BillingSettingsView!
 
   """
+  One monthly statement rendered as a PDF: opening and closing balance, top-ups, usage by service and the transactions in the period. Returns the file base64-encoded with its suggested name. Requires MEMBER on the workspace that owns it, with access to Billing.
+  """
+  getBillingStatementPdf(GetBillingStatementPdfInput: GetBillingStatementPdfInput!): BillingStatementPdf!
+
+  """
   The bucket's CORS rules, empty when none are set. Requires MEMBER on the team.
   """
   getBucketCors(bucket: String!, region: String, teamId: ID!): [CorsRule!]!
@@ -4535,62 +5397,62 @@ type Query {
   getCacheStats(serviceId: ID!): RedisStats!
 
   """
-  A page of published announcements, pinned first and newest next. Unpublished ones are never returned. Optional search matches title and body.
+  A page of published announcements, pinned first and newest next. Unpublished ones are never returned. Optional search matches title and body. Public, except notices addressed to affected accounts, which need a signed-in caller.
   """
   getCommunityAnnouncements(OffsetPaginationArgs: OffsetPaginationArgs): AnnouncementViewOffsetPaginated!
 
   """
-  One published knowledge-base article by slug, with its body. Counts the view.
+  One published knowledge-base article by slug, with its body. Counts the view. Public.
   """
   getCommunityArticle(slug: String!): KbArticleView!
 
   """
-  A page of published knowledge-base articles for the help-centre index. Bodies are not included. Optional search matches title, summary and category.
+  A page of published knowledge-base articles for the help-centre index. Bodies are not included. Optional search matches title, summary and category. Public.
   """
   getCommunityArticles(OffsetPaginationArgs: OffsetPaginationArgs): KbArticleViewOffsetPaginated!
 
   """
-  A page of published changelog entries, newest first. Drafts and scheduled entries are excluded by the query, so they count towards neither the rows nor the total. Optional search matches title and summary.
+  A page of published changelog entries, newest first. Drafts and scheduled entries are excluded by the query, so they count towards neither the rows nor the total. Optional search matches title and summary; optional tag keeps entries with that tag (New, Improved, Fixed), case-insensitive. Public.
   """
-  getCommunityChangelog(OffsetPaginationArgs: OffsetPaginationArgs): ChangelogEntryViewOffsetPaginated!
+  getCommunityChangelog(OffsetPaginationArgs: OffsetPaginationArgs, tag: String): ChangelogEntryViewOffsetPaginated!
 
   """
-  One published changelog entry by slug, with its body and comment thread.
+  One published changelog entry by slug, with its body and comment thread. Public.
   """
   getCommunityChangelogEntry(slug: String!): ChangelogEntryView!
 
   """
-  A page of the customer hub's post list, with the caller's own vote/follow flags on each row. `kinds` selects the tab (discussions, bugs, feature requests); optional search matches the post title and body. Signed-in customers only; staff-only fields are never returned.
+  A page of the customer hub's post list, with the caller's own vote/follow flags on each row. `kinds` selects the tab (discussions, bugs, feature requests); optional search matches the post title and body. Public: a signed-out visitor gets the same rows with every viewer flag false. Staff-only fields are never returned.
   """
   getCommunityFeed(CommunityFeedInput: CommunityFeedInput, OffsetPaginationArgs: OffsetPaginationArgs): CommunityItemOffsetPaginated!
 
   """
-  One hub thread with its public replies, and counts the view. Internal staff notes are excluded at the query.
+  One hub thread with its public replies, and counts the view. Internal staff notes are excluded at the query. Public.
   """
   getCommunityItem(id: ID!): CommunityItemDetail!
 
   """
-  A hub profile with its activity and reputation - the caller's own by default, or another user's when userId is given.
+  A hub profile with its activity and reputation - the caller's own by default, or another user's when userId is given. Another member's profile is public; your own needs you signed in.
   """
   getCommunityProfile(userId: ID): CommunityProfile!
 
   """
-  The public roadmap as ordered columns of cards, each carrying the caller's own follow state.
+  The public roadmap as ordered columns of cards, each carrying the caller's own follow state. Public.
   """
   getCommunityRoadmap: [RoadmapColumn!]!
 
   """
-  Full-text search across everything published on the hub - posts, changelog, announcements and articles. Same engine as the staff console, narrower scope.
+  Full-text search across everything published on the hub - posts, changelog, announcements and articles. Same engine as the staff console, narrower scope. Public.
   """
   getCommunitySearch(HubSearchInput: HubSearchInput!): HubSearchResults!
 
   """
-  Live "you may be looking for" suggestions for a title as it is being typed, so duplicates get caught before they are posted. Returns at most five; not paginated.
+  Live "you may be looking for" suggestions for a title as it is being typed, so duplicates get caught before they are posted. Returns at most five; not paginated. Signed-in only: it serves the composer.
   """
   getCommunitySimilar(text: String!): [CommunityRelated!]!
 
   """
-  The hub's top contributors by reputation (default 5, capped at 50), for the leaderboard panel. A fixed top-N rail; not paginated.
+  The hub's top contributors by reputation (default 5, capped at 50), for the leaderboard panel. A fixed top-N rail; not paginated. Public.
   """
   getCommunityTopContributors(limit: Int): [CommunityContributor!]!
 
@@ -4700,6 +5562,11 @@ type Query {
   getEstimateResourceCost(EstimateResourceInput: EstimateResourceInput!): ResourceEstimate!
 
   """
+  How much of the free app and free database slots is used, counted exactly as createService counts them: this workspace's free services plus every free service the caller created in any workspace. Names the service holding each slot. Requires MEMBER on the team.
+  """
+  getFreeTierSlots(teamId: ID!): FreeTierSlots!
+
+  """
   A page of the accounts and organisations the team's GitHub App is installed on, each with its repo count and a Configure-in-GitHub link, by login. Optional search matches the login. Richer than githubConnection, which returns logins only. Requires MEMBER on the team.
   """
   getGithubAccounts(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): GithubAccountOffsetPaginated!
@@ -4728,6 +5595,11 @@ type Query {
   A page of branch names for one repository the team can access, for the branch dropdown. Optional search matches the branch name - a busy repository has thousands, and scrolling is not how anyone finds one. Throws when no installation in the team covers that repository's owner. Requires MEMBER on the team.
   """
   getGithubRepositoryBranches(OffsetPaginationArgs: OffsetPaginationArgs, repoFullName: String!, teamId: ID!): GithubBranchOffsetPaginated!
+
+  """
+  Public. The Google authorize URL (openid email profile, PKCE S256) for the dashboard to redirect to. `state` and `codeChallenge` are made by the browser, which keeps the nonce and the verifier.
+  """
+  getGoogleLoginUrl(codeChallenge: String!, state: String!): String!
 
   """
   Admin-only. Ask the hub assistant a free-form question, optionally grounded in one conversation. Returns generated text; nothing is written.
@@ -4821,6 +5693,11 @@ type Query {
   Admin-only. The number behind each inbox filter chip, computed over the whole queue rather than the current page.
   """
   getHubInboxCounts: HubInboxCounts!
+
+  """
+  Admin-only. One knowledge-base article in any state, with its body, for the console editor. Does not count a view.
+  """
+  getHubKbArticle(id: ID!): KbArticleView!
 
   """
   Admin-only. A page of knowledge-base articles, drafts and archived ones included. Optional search matches title, summary and category.
@@ -5011,6 +5888,11 @@ type Query {
   getObjectStores(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ObjectStoreOffsetPaginated!
 
   """
+  The signed-in user's email change waiting for its link to be opened, or null when there is none.
+  """
+  getPendingEmailChange: PendingEmailChange
+
+  """
   Whether the signed-in account has a verified phone number, i.e. has cleared the compute gate. Drives the signup flow's next step.
   """
   getPhoneVerified: Boolean!
@@ -5044,6 +5926,11 @@ type Query {
   One project by id, with its environments. Requires MEMBER on the owning team.
   """
   getProject(id: ID!): Project!
+
+  """
+  How the services in one environment connect: a link for every service whose variables point at another service's private host, public URL, custom domain or database/cache address. Returns variable names only, never values. Requires MEMBER on the owning team, with access to the project.
+  """
+  getProjectServiceLinks(GetProjectServiceLinksInput: GetProjectServiceLinksInput!): [ServiceLink!]!
 
   """
   Project-wide usage rollup: totals plus a per-service breakdown for the project overview. Requires MEMBER on the owning team.
@@ -5111,7 +5998,7 @@ type Query {
   getServiceEnvVars(OffsetPaginationArgs: OffsetPaginationArgs, serviceId: ID!): ServiceEnvVarOffsetPaginated!
 
   """
-  Datastore connection-card tiles for one service: live connections and storage against the engine's connection cap and per-database disk cap. uptimePct is not populated yet. Requires MEMBER on the owning team.
+  Datastore connection-card tiles for one service: live connections and storage against the engine's connection cap and per-database disk cap, plus 30-day uptime: null while the service is still being measured, with uptimeState saying MEASURING or NO_DATA. Requires MEMBER on the owning team.
   """
   getServiceHeadline(serviceId: ID!): ServiceHeadline!
 
@@ -5146,6 +6033,11 @@ type Query {
   getServiceUsage(serviceId: ID!): ServiceUsage!
 
   """
+  Public. Which outside sign-in providers are configured here. The dashboard hides a provider that is not, rather than showing a button that cannot work.
+  """
+  getSignInProviders: SignInProviders!
+
+  """
   A page of the caller's static sites in their default team, most-recently-updated first. Optional search matches the site name and its subdomain.
   """
   getStaticSites(OffsetPaginationArgs: OffsetPaginationArgs): StaticSiteOffsetPaginated!
@@ -5154,6 +6046,11 @@ type Query {
   Public, paginated incident history, newest first. Pass the previous page's nextBefore value as `before` to page into older incidents.
   """
   getStatusIncidents(before: String, limit: Int): StatusIncidentsPage!
+
+  """
+  The workspace’s live S3 access keys, oldest first. Never includes a secret — a secret is only returned once, by createStorageAccessKey. Requires MEMBER on the team.
+  """
+  getStorageAccessKeys(teamId: ID!): [StorageAccessKey!]!
 
   """
   A page of the buckets in the team's store for a region, by name. Optional search matches the bucket name. Per-bucket counts and sizes are resolved lazily, only if selected. Requires MEMBER on the team.
@@ -5196,6 +6093,11 @@ type Query {
   getTeamApiTokens(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): ApiTokenOffsetPaginated!
 
   """
+  A page of the workspace's invites that nobody has accepted yet, newest first. Expired invites are included (see `expired`) so they can be resent. Optional search matches the email. Requires ADMIN on the team.
+  """
+  getTeamInvites(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): InviteOffsetPaginated!
+
+  """
   A page of the workspace's memberships with each member's role, oldest first. Optional search matches the member's email and display name. Requires MEMBER on the team.
   """
   getTeamMembers(OffsetPaginationArgs: OffsetPaginationArgs, teamId: ID!): TeamMembershipOffsetPaginated!
@@ -5204,6 +6106,11 @@ type Query {
   A workspace's roles, with how many people hold each and the projects it reaches. The six default roles are created on the first call, so this never returns an empty list for a real workspace.
   """
   getTeamRoles(teamId: ID!): [TeamRoleRow!]!
+
+  """
+  Whether two-factor authentication is on for the signed-in user's own account, and how many recovery codes are left.
+  """
+  getTwoFactorStatus: TwoFactorStatus!
 
   """
   The workspace's wallet balance in minor units (kobo), its low-balance threshold and whether it has fallen to that threshold. Requires MEMBER on the team.
@@ -5403,6 +6310,11 @@ type ReferralTierView {
   rateMinor: Float!
 }
 
+input RegenerateTwoFactorRecoveryCodesInput {
+  """A current 6-digit code from the authenticator app"""
+  code: String!
+}
+
 type RegionLoad {
   computeLoadPct: Float!
   label: String!
@@ -5456,6 +6368,12 @@ enum RegisteredDomainStatus {
   REGISTERING
 }
 
+input RequestEmailChangeInput {
+  code: String
+  currentPassword: String
+  newEmail: String!
+}
+
 type ResourceCost {
   category: UsageCategory!
   cycleKobo: Float!
@@ -5492,6 +6410,9 @@ type Restore {
   completedAt: DateTime
   createdAt: DateTime!
   error: String
+
+  """Why the restore failed, when it did"""
+  errorCode: BackupFailureReason
   id: ID!
   safetyBackupId: String
   serviceId: String!
@@ -5505,6 +6426,21 @@ enum RestoreStatus {
   FAILED
   PENDING
   RUNNING
+}
+
+input ResumeEnvironmentInput {
+  environmentId: ID!
+}
+
+input ResumeProjectInput {
+  projectId: ID!
+}
+
+"""Revoke one of the workspace’s S3 access keys."""
+input RevokeStorageAccessKeyInput {
+  """The key’s id (not its access key ID)."""
+  id: ID!
+  teamId: ID!
 }
 
 type RoadmapColumn {
@@ -5643,6 +6579,16 @@ type Service {
   envVarKeys: [String!]!
   environment: EnvironmentRef
   environmentId: String!
+
+  """
+  Whether the public TLS endpoint accepts connections. Private access from apps in the project is unaffected.
+  """
+  externalAccessEnabled: Boolean!
+
+  """
+  IP addresses or CIDR ranges allowed through the public endpoint. Null means any address.
+  """
+  externalAllowedIps: [String!]
   framework: String
   gitUrl: String
   health: ServiceHealth!
@@ -5693,6 +6639,12 @@ type Service {
   suspendedBy: String
   suspendedForAbuseAt: DateTime
   suspendedForBillingAt: DateTime
+
+  """True when this service is off because its environment is paused."""
+  suspendedWithEnvironment: Boolean!
+
+  """True when this service is off because its whole project is paused."""
+  suspendedWithProject: Boolean!
   suspension: ServiceSuspension!
   tier: ServiceTier
   type: ServiceType!
@@ -5736,7 +6688,19 @@ type ServiceHeadline {
   connections: Int
   storageBytes: Float
   storageLimitBytes: Float
+
+  """
+  Uptime over the last 30 days, in percent. Null while the service is still being measured: no health samples yet, or less than a day of them.
+  """
   uptimePct: Float
+
+  """When uptime measurement began within the 30-day window."""
+  uptimeSince: DateTime
+
+  """
+  MEASURED when uptimePct is a real figure; MEASURING while the service has less than a day of health history; NO_DATA when it has none.
+  """
+  uptimeState: UptimeState!
 }
 
 enum ServiceHealth {
@@ -5745,6 +6709,34 @@ enum ServiceHealth {
   MISSING
   STOPPED
   UNKNOWN
+}
+
+"""
+A link from one service to another in the same environment, found from variables whose value points at the other service
+"""
+type ServiceLink {
+  """The service whose variables point out"""
+  fromServiceId: ID!
+
+  """DATABASE or CACHE for a data service, HTTP for an app"""
+  kind: ServiceLinkKind!
+
+  """The service they point at"""
+  toServiceId: ID!
+
+  """
+  Names of the variables that point at the other service, sorted. Values are never returned.
+  """
+  via: [String!]!
+}
+
+"""
+What a link points at: a database, a cache, or another service over HTTP
+"""
+enum ServiceLinkKind {
+  CACHE
+  DATABASE
+  HTTP
 }
 
 type ServiceObservability {
@@ -5850,11 +6842,48 @@ type ServiceUsage {
   type: ServiceType!
 }
 
+"""Open, close or narrow a database's public TLS endpoint"""
+input SetDatabaseExternalAccessInput {
+  """
+  IP addresses or CIDR ranges (IPv4 or IPv6) allowed through the public endpoint. Empty or null allows any address; omit to keep the current list.
+  """
+  allowedIps: [String!]
+
+  """Whether the public endpoint accepts connections"""
+  enabled: Boolean!
+  serviceId: ID!
+}
+
+"""Change which nameservers a domain bought here uses"""
+input SetDomainNameserversInput {
+  """The registered domain to change"""
+  domainId: ID!
+
+  """
+  NC puts the domain back on Naijacloud DNS; CUSTOM points it at `nameservers`
+  """
+  mode: NameserverMode!
+
+  """
+  Required for CUSTOM: 2 to 13 hostnames, e.g. ns1.example.com. Leave empty for NC.
+  """
+  nameservers: [String!]
+}
+
 input SetMemberRoleInput {
   projectIds: [ID!]
   roleId: ID
   teamId: ID!
   userId: ID!
+}
+
+"""Which outside sign-in providers are switched on"""
+type SignInProviders {
+  """GitHub sign-in is configured"""
+  github: Boolean!
+
+  """Google sign-in is configured"""
+  google: Boolean!
 }
 
 type SignupPoint {
@@ -5872,6 +6901,12 @@ enum SourceType {
   DOCKER_IMAGE
   GITHUB_APP
   PUBLIC_GIT
+}
+
+input StartMultipartUploadInput {
+  bucket: String!
+  contentType: String
+  key: String!
 }
 
 """A page of static sites with pagination metadata"""
@@ -5953,6 +6988,20 @@ type StatusSummary {
   uptime90d: Float
 }
 
+"""
+A named S3 access key for the workspace’s buckets. Works with any S3 client, in every region the workspace stores data in. The secret is only ever returned once, when the key is created.
+"""
+type StorageAccessKey {
+  """The S3 access key ID. Safe to show."""
+  accessKeyId: String!
+  createdAt: DateTime!
+  id: ID!
+
+  """What the key is for, e.g. "storefront uploads"."""
+  name: String!
+  updatedAt: DateTime!
+}
+
 type StorageBucket {
   createdAt: String
   endpoint: String!
@@ -5978,6 +7027,20 @@ type StorageCredentials {
   accessKeyId: String!
   regions: [String!]!
   secretAccessKey: String
+}
+
+"""Where a region’s S3 API answers."""
+type StorageEndpoint {
+  """Public S3 endpoint URL for that region."""
+  endpoint: String!
+
+  """Region key, e.g. "af-west"."""
+  region: String!
+}
+
+type StorageMultipartUpload {
+  key: String!
+  uploadId: String!
 }
 
 type StorageObject {
@@ -6007,6 +7070,8 @@ type SupportTicket {
   assigneeUserId: ID
   code: String!
   createdAt: DateTime!
+  firstResponseAt: DateTime
+  firstResponseDueAt: DateTime!
   id: ID!
   messages: [SupportTicketMessage!]!
   number: Int!
@@ -6016,6 +7081,8 @@ type SupportTicket {
   requesterName: String!
   resolvedAt: DateTime
   serviceName: String
+  slaBreached: Boolean!
+  slaMinutes: Int!
   status: TicketStatus!
   subject: String!
   updatedAt: DateTime!
@@ -6034,6 +7101,8 @@ type SupportTicketListItem {
   assigneeUserId: ID
   code: String!
   createdAt: DateTime!
+  firstResponseAt: DateTime
+  firstResponseDueAt: DateTime!
   id: ID!
   number: Int!
   priority: TicketPriority!
@@ -6042,6 +7111,8 @@ type SupportTicketListItem {
   requesterName: String!
   resolvedAt: DateTime
   serviceName: String
+  slaBreached: Boolean!
+  slaMinutes: Int!
   status: TicketStatus!
   subject: String!
   updatedAt: DateTime!
@@ -6062,6 +7133,7 @@ type SupportTicketMessage {
   body: String!
   createdAt: DateTime!
   id: ID!
+  internal: Boolean!
 }
 
 enum SystemIndicator {
@@ -6106,6 +7178,9 @@ type Team {
   myRole: Role
   name: String!
   referralCode: String
+
+  """Members without two-factor cannot change production environments"""
+  requireTwoFactorForProduction: Boolean!
   updatedAt: DateTime!
 }
 
@@ -6196,6 +7271,45 @@ enum TopUpStatus {
   PENDING
 }
 
+"""A sign-in waiting for its authenticator code"""
+type TwoFactorChallenge {
+  """When the pending sign-in times out"""
+  expiresAt: DateTime!
+
+  """
+  Pass to verifyTwoFactorSignIn with the code. Not a session: it opens nothing else.
+  """
+  pendingToken: String!
+}
+
+"""The secret to add to an authenticator app"""
+type TwoFactorEnrollment {
+  """The otpauth:// URI to render as a QR code. Contains the secret."""
+  otpauthUrl: String!
+
+  """The base32 secret, for typing into an app that cannot scan a QR code"""
+  secret: String!
+}
+
+"""One-time recovery codes, shown only this once"""
+type TwoFactorRecoveryCodes {
+  """Ten one-time codes. Each signs in once in place of an app code."""
+  codes: [String!]!
+  status: TwoFactorStatus!
+}
+
+"""Two-factor authentication on your own account"""
+type TwoFactorStatus {
+  """An authenticator code is asked for at every sign-in"""
+  enabled: Boolean!
+
+  """When it was turned on; null while off"""
+  enabledAt: DateTime
+
+  """Unused one-time recovery codes left; 0 while off"""
+  recoveryCodesRemaining: Int!
+}
+
 type UnitRateCard {
   currency: String!
   dbDiskKoboPerGbMonth: Float!
@@ -6220,6 +7334,11 @@ input UpdateCronJobInput {
   command: String
   schedule: String
   serviceId: ID!
+}
+
+input UpdateMeInput {
+  """Your full name, as teammates see it."""
+  name: String!
 }
 
 input UpdateNotificationPreferenceInput {
@@ -6266,6 +7385,15 @@ type UploadHeader {
   value: String!
 }
 
+"""
+Whether the uptime figure is meaningful yet: MEASURED (it is), MEASURING (less than a day of history, so no figure yet) or NO_DATA.
+"""
+enum UptimeState {
+  MEASURED
+  MEASURING
+  NO_DATA
+}
+
 enum UsageCategory {
   ANALYTICS
   BANDWIDTH
@@ -6283,10 +7411,18 @@ type User {
   emailVerifiedAt: DateTime
   firstName: String
   githubLogin: String
+
+  """
+  Whether this account has a password. False for accounts that sign in with GitHub only.
+  """
+  hasPassword: Boolean!
   id: ID!
   lastName: String
   name: String
   phoneVerifiedAt: DateTime
+
+  """The outside accounts (GitHub, Google) this user can sign in with."""
+  signInMethods: [LinkedIdentity!]!
   status: UserStatus!
   updatedAt: DateTime!
 }
@@ -6307,6 +7443,14 @@ enum UserStatus {
   ACTIVE
   SUSPENDED
   TRIAL
+}
+
+input VerifyTwoFactorSignInInput {
+  """A 6-digit code from the authenticator app, or a recovery code"""
+  code: String!
+
+  """From the TwoFactorChallenge the sign-in returned"""
+  pendingToken: String!
 }
 
 type WalletBalance {

@@ -225,6 +225,8 @@ Login options
   --email <email>              Email, instead of being prompted
   --password <password>        Password, instead of being prompted
   --token <token>              Store a token or an nc_live_ API key (CI)
+  --code <code>                Two-factor code (or a recovery code), instead of
+                               being prompted. API keys never need one.
 
 Init options
   --name/--output/--index      Manifest values, instead of being prompted
@@ -445,7 +447,9 @@ async function main(): Promise<void> {
       const email = flags.get("email");
       const password = flags.get("password");
       const token = flags.get("token");
+      const code = flags.get("code");
       if (email) options.email = email;
+      if (code) options.code = code;
       if (password) options.password = password;
       if (token) options.token = token;
 
