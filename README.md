@@ -191,8 +191,9 @@ The token is validated immediately against the API, and **nothing is saved if va
 For CI and scripts, use a **workspace API key** instead of a password. Create one
 in the dashboard under **Settings → API keys** (it starts `nc_live_`) and give it
 the **Platform API** scope, which every command works with. A key scoped to
-**Deploys** alone is enough for `redeploy <service-id>`, `deployments` and
-`cancel`, but not for a static-site `deploy` or for finding a service by name.
+**Deploys** alone is enough for `redeploy <service-id>`, `deployments`,
+`cancel`, and a static-site `deploy` into a folder already linked to a site.
+Creating a new site, or finding a service by name, needs **Platform API**.
 Then either store it or pass it per run:
 
 ```bash
