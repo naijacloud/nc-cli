@@ -3,8 +3,9 @@
 // trade the pending token and a code for the session before saving anything.
 // `--token` (API keys, CI) never meets two-factor.
 //
-// fetch is stubbed; HOME points at a throwaway directory so the credential
-// file this writes is not the developer's.
+// fetch is stubbed; the home directory points at a throwaway directory so the
+// credential file this writes is not the developer's. os.homedir() reads HOME
+// on POSIX but USERPROFILE on Windows, so both are pointed there.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +14,8 @@ import os from "node:os";
 import path from "node:path";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "nc-cli-2fa-"));
-const realHome = process.env.HOME;
+const HOME_VARS = ["HOME", "USERPROFILE"];
+const realHome = Object.fromEntries(HOME_VARS.map((k) => [k, process.env[k]]));
 const realFetch = globalThis.fetch;
 let auth;
 let calls = [];
@@ -49,7 +51,7 @@ const stored = () =>
   JSON.parse(fs.readFileSync(path.join(home, ".naijacloud", "config.json"), "utf8"));
 
 before(async () => {
-  process.env.HOME = home;
+  for (const k of HOME_VARS) process.env[k] = home;
   process.env.HOSTING_API_BASE_URL = "http://api.test";
   delete process.env.HOSTING_API_TOKEN;
   // Quiet the progress lines the command writes to stderr/stdout.
@@ -58,7 +60,10 @@ before(async () => {
 
 after(() => {
   globalThis.fetch = realFetch;
-  process.env.HOME = realHome;
+  for (const k of HOME_VARS) {
+    if (realHome[k] === undefined) delete process.env[k];
+    else process.env[k] = realHome[k];
+  }
   fs.rmSync(home, { recursive: true, force: true });
 });
 
