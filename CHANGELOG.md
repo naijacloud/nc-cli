@@ -7,6 +7,10 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `login` supports two-factor authentication (TGL-768): on an account with it on, the interactive login prompts for the authenticator code (or a recovery code) after the password, with a few tries for a mistyped code. `--code <code>` passes it in a script. `--token` and API keys are unaffected.
+
 ## [1.3.0] - 2026-10-05
 
 ### Fixed

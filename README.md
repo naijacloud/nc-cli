@@ -186,6 +186,8 @@ naijacloud login
 
 You are prompted for your NaijaCloud email and password (the password is not echoed). The `login` mutation exchanges them for a session token, which expires after a few days. Your password is never written to disk; only the returned token is.
 
+If your account has **two-factor authentication** on, you are then asked for the 6-digit code from your authenticator app (or one of your recovery codes). In a script, pass it with `--code <code>`. API keys and `--token` never need a code: two-factor protects signing in, and a key is not a sign-in.
+
 The token is validated immediately against the API, and **nothing is saved if validation fails**. On success it is written to `~/.naijacloud/config.json` with mode `0600` (owner read/write only), inside a `0700` directory.
 
 For CI and scripts, use a **workspace API key** instead of a password. Create one

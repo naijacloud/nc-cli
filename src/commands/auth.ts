@@ -8,7 +8,14 @@
 
 import process from "node:process";
 
-import { NotLoggedInError, apiBaseUrl, getCurrentUser, loginWithPassword } from "../api/index.js";
+import {
+  NaijaCloudError,
+  NotLoggedInError,
+  apiBaseUrl,
+  getCurrentUser,
+  loginWithPassword,
+  verifyTwoFactorSignIn,
+} from "../api/index.js";
 import type { User } from "../api/index.js";
 import {
   CONFIG_FILE,
@@ -30,7 +37,15 @@ export interface LoginOptions {
   password?: string;
   /** Skip the password flow and store a token you already have. */
   token?: string;
+  /**
+   * The two-factor code (or a recovery code), for a non-interactive login on
+   * an account with two-factor on. Prompted for in a terminal otherwise.
+   */
+  code?: string;
 }
+
+/** Wrong codes the interactive prompt allows before giving up. */
+const CODE_TRIES = 3;
 
 /**
  * Authenticates and stores the resulting access token.
@@ -65,7 +80,13 @@ export async function login(options: LoginOptions = {}): Promise<void> {
 
     write(`Signing in to ${base} ...\n`);
     const payload = await loginWithPassword(email.trim(), password);
-    accessToken = payload.accessToken;
+    if (payload.twoFactor) {
+      accessToken = await answerTwoFactor(payload.twoFactor.pendingToken, options.code);
+    } else if (payload.accessToken) {
+      accessToken = payload.accessToken;
+    } else {
+      throw new Error("Login did not return a session. Try again.");
+    }
   }
 
   // Validate immediately against `me` — nothing is written if this fails.
@@ -92,6 +113,47 @@ export async function login(options: LoginOptions = {}): Promise<void> {
 
   process.stdout.write(`Logged in as ${user.email}\n`);
   write(`Token saved to ${CONFIG_FILE} (mode 0600).\n`);
+}
+
+/**
+ * The second step of a password login on an account with two-factor on.
+ *
+ * `--code` is used once, as given, for scripts. In a terminal the code is
+ * prompted for, with a few tries for a mistyped code. API keys and `--token`
+ * never reach this: they are not a sign-in, so two-factor does not apply.
+ */
+async function answerTwoFactor(pendingToken: string, given?: string): Promise<string> {
+  if (given !== undefined) {
+    const { accessToken } = await verifyTwoFactorSignIn(pendingToken, given.trim());
+    return accessToken;
+  }
+  requireTty("This account uses two-factor authentication, so login", [
+    `${programName()} login --email you@example.com --password '<password>' --code <6-digit code>`,
+    `${programName()} login --token '<nc_live_ API key>'`,
+  ]);
+  write("This account uses two-factor authentication.\n");
+  for (let attempt = 1; ; attempt++) {
+    const code = (
+      await promptLine("Authenticator code (or a recovery code): ")
+    ).trim();
+    if (!code) {
+      if (attempt >= CODE_TRIES) throw new Error("A two-factor code is required.");
+      continue;
+    }
+    try {
+      const { accessToken } = await verifyTwoFactorSignIn(pendingToken, code);
+      return accessToken;
+    } catch (error) {
+      // Only a wrong code is worth another try; a lockout or a timed-out
+      // sign-in will not get better by typing again.
+      const wrong =
+        error instanceof NaijaCloudError &&
+        error.code !== "UNAUTHENTICATED" &&
+        /isn.t right/i.test(error.message);
+      if (!wrong || attempt >= CODE_TRIES) throw error;
+      write(`${error.message}\n`);
+    }
+  }
 }
 
 export function logout(): void {
