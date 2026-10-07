@@ -129,6 +129,9 @@ Launch options
   account gets one free app; once it is in use, launch asks which paid size to
   use and shows its monthly price. It never picks a paid size for you.
 
+  A free web service sleeps after 15 minutes without visitors and wakes on the
+  next visit, in under a minute. Paid sizes never sleep.
+
 Projects create options
   --team <name|id>             Team to own it; required if you have several
   --description <text>         Freeform description
@@ -166,7 +169,9 @@ Services create options
 
   Without --tier the service is created Free. Each account gets one free app;
   once it is in use, create fails without creating anything and lists the paid
-  sizes with their prices — pass one with --tier.
+  sizes with their prices — pass one with --tier. A free web service sleeps
+  after 15 minutes without visitors and wakes on the next visit; paid sizes
+  never sleep.
 
 Env options
   --reveal                     Print values, which are masked by default
