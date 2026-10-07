@@ -7,9 +7,25 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-07
+
 ### Added
 
 - `login` supports two-factor authentication (TGL-768): on an account with it on, the interactive login prompts for the authenticator code (or a recovery code) after the password, with a few tries for a mistyped code. `--code <code>` passes it in a script. `--token` and API keys are unaffected.
+
+### Changed
+
+- The size summary before creating a Free web service, and the `launch` /
+  `services create` help, now say that free web services sleep after 15 minutes
+  without visitors and wake on the next visit. Paid sizes never sleep (TGL-540).
+- The README says a Deploys-only API key can redeploy a linked static site
+  (TGL-727).
+
+### Fixed
+
+- The two-factor login tests point `USERPROFILE` as well as `HOME` at their
+  throwaway directory, so on Windows they no longer read and write the real
+  user profile's credentials.
 
 ## [1.3.0] - 2026-10-05
 
@@ -73,6 +89,7 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/naijacloud/nc-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/naijacloud/nc-cli/compare/v1.1.0...v1.2.0
