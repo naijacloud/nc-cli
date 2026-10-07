@@ -33,7 +33,7 @@ on:
 
 permissions:
   contents: write # create the release and upload assets
-  id-token: write # npm provenance
+  id-token: write # npm trusted publishing (OIDC) and the provenance it attests
 
 env:
   # Pinned so every platform's binary embeds the same runtime, rather than
@@ -134,11 +134,14 @@ jobs:
     needs: [binaries, smoke]
     runs-on: ubuntu-latest
 
-    # Hoisted to the job because a step's own `env:` block is not reliably
-    # visible to that same step's `if:`. Declared here, the guard below is
-    # unambiguous — otherwise a configured token could still silently skip.
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # npm publishes by trusted publishing: npm trades this run's OIDC token for
+    # a credential that lives for minutes, so there is no NPM_TOKEN to leak,
+    # expire or rotate. The trusted publisher on npmjs.com names this workflow
+    # file and this environment; rename either and publishing fails with an
+    # auth error. The environment is also where a required reviewer can go.
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@naijacloud/cli
 
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -151,6 +154,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: https://registry.npmjs.org
           cache: npm
+
+      # Trusted publishing needs npm 11.5.1 or later. The npm bundled with Node 22
+      # predates it and falls through to looking for a token that is not there,
+      # failing with an auth error that says nothing about the cause. Pinned to
+      # 11 rather than latest: npm 12 dropped support for some Node 22 releases.
+      - name: Upgrade npm to a version that can publish with OIDC
+        run: npm install -g npm@11
 
       - run: npm ci
 
@@ -225,20 +235,35 @@ jobs:
             --checksums "dist-bin/naijacloud_${{ steps.version.outputs.version }}_checksums.txt"
           tar -czf "dist-bin/naijacloud_${{ steps.version.outputs.version }}_manifests.tar.gz" -C dist-packaging .
 
+      # Skipped when the release already exists, so "Re-run failed jobs" after a
+      # failed npm publish gets past this step instead of failing on it.
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "Release v${{ steps.version.outputs.version }} already exists; not recreating it."
+            exit 0
+          fi
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "v${{ steps.version.outputs.version }}" \
             --generate-notes \
             dist-bin/*.tar.gz dist-bin/*.zip dist-bin/*checksums.txt dist-pkg/*
 
+      # No token and no --provenance flag: under trusted publishing npm
+      # authenticates and attests from the OIDC claim on its own. This step is
+      # never skipped. It used to be skipped when NPM_TOKEN was unset, which
+      # would let a release go green without reaching npm. A version npm
+      # already has is skipped, so re-running a half-finished release works.
       - name: Publish to npm
-        if: ${{ env.NPM_TOKEN != '' }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "@naijacloud/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "@naijacloud/cli@$VERSION is already on npm; not publishing it again."
+            exit 0
+          fi
+          npm publish --access public
 
       # Handed to the `package-managers` job below, which runs after this one
       # has already published, so a bad tap token can no longer hold up npm or
