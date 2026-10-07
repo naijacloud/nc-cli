@@ -258,7 +258,7 @@ Repository
   Build command    (blank for none): npm run build
   Start command    (blank to use the platform default): npm start
   Port             (blank to let the platform decide): 3000
-  Size             Free · ₦0 (one free app per account)
+  Size             Free · ₦0 (one free app per account; sleeps after 15 minutes without visitors)
 ```
 
 Each level you pick is remembered for the next one, so the ids never leave the
@@ -267,6 +267,9 @@ environment you have already chosen. The repository list narrows as you type;
 Escape (or `q` in the other menus) backs out without creating anything.
 
 ### It starts Free, and never picks a paid size for you
+
+A free web service sleeps after 15 minutes without visitors and wakes on the
+next visit, in under a minute; paid sizes never sleep.
 
 A web service or cron job is created at the **Free** size unless `--tier` names
 another. Each account gets one free app (and one free database); once it is in

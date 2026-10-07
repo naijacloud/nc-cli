@@ -48,7 +48,9 @@ export function describeSize(
 ): string {
   const label = tierLabel(tier, familyOf(type));
   if (tier === "FREE") {
-    return `${label} · ₦0 (one free ${familyOf(type) === "compute" ? "app" : "database"} per account)`;
+    // A free web service sleeps when idle; say so before it is created.
+    const sleeps = type === "WEB" ? "; sleeps after 15 minutes without visitors" : "";
+    return `${label} · ₦0 (one free ${familyOf(type) === "compute" ? "app" : "database"} per account${sleeps})`;
   }
   return `${label} · ${priceText(tier, prices)}, billed hourly from your balance`;
 }
