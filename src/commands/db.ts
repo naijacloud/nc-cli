@@ -8,11 +8,12 @@
  * stop reading:
  *
  *   1. **You always know where you are.** The shell prompt is
- *      `project/environment/service=#`, so a production database never looks
- *      like a scratch one.
+ *      `environment/service=#`, so a production database never looks like a
+ *      scratch one.
  *   2. **Statements that cannot be undone are confirmed** — DROP, TRUNCATE,
- *      ALTER, and an UPDATE or DELETE with no WHERE clause. Ordinary writes run
- *      unchallenged, because they are why the console exists.
+ *      ALTER, GRANT/REVOKE, and an UPDATE or DELETE with no WHERE clause, in
+ *      any statement of a multi-statement input (see sql-guard.ts). Ordinary
+ *      writes run unchallenged, because they are why the console exists.
  *
  * Non-interactive runs skip the confirmation rather than failing on it. A
  * statement passed as an argument in CI was written deliberately, and demanding
@@ -44,6 +45,9 @@ import { formatWhen, printGrid, printJson, printTable } from "../output.js";
 import { programName } from "../program-name.js";
 import { isInteractive, promptLine, promptYesNo, write } from "../terminal.js";
 import { requireService } from "./resolve.js";
+import { destructiveReason, dialectOf } from "./sql-guard.js";
+
+export { destructiveReason } from "./sql-guard.js";
 
 /* -------------------------------------------------------------------------- */
 /* Target                                                                     */
@@ -94,52 +98,9 @@ async function target(options: DbOptions, what: string): Promise<ServiceDetail> 
 /* Destructive-statement guard                                                */
 /* -------------------------------------------------------------------------- */
 
-/** Strips comments and leading whitespace so the first keyword is findable. */
-function firstKeyword(statement: string): string {
-  const stripped = statement
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/--[^\n]*/g, " ")
-    .trim();
-  return (/^\s*(\w+)/.exec(stripped)?.[1] ?? "").toUpperCase();
-}
-
-function hasWhere(statement: string): boolean {
-  return /\bWHERE\b/i.test(statement);
-}
-
-/**
- * Names why a statement is worth a second look, or null when it is ordinary.
- *
- * Deliberately narrow. INSERT and a filtered UPDATE are the everyday use of a
- * console and are not challenged; what is challenged is the set of statements
- * whose blast radius is a whole table and which no transaction here will roll
- * back.
- */
-export function destructiveReason(statement: string): string | null {
-  const keyword = firstKeyword(statement);
-
-  switch (keyword) {
-    case "DROP":
-      return "drops a table, index or database";
-    case "TRUNCATE":
-      return "empties a table completely";
-    case "ALTER":
-      return "changes schema";
-    case "GRANT":
-    case "REVOKE":
-      return "changes access control";
-    case "DELETE":
-      return hasWhere(statement) ? null : "deletes every row (no WHERE clause)";
-    case "UPDATE":
-      return hasWhere(statement) ? null : "rewrites every row (no WHERE clause)";
-    default:
-      return null;
-  }
-}
-
 /** Returns false when the user declined. Silent for ordinary statements. */
 async function allowed(statement: string, service: ServiceDetail, yes: boolean): Promise<boolean> {
-  const reason = destructiveReason(statement);
+  const reason = destructiveReason(statement, dialectOf(service.type));
   if (reason === null || yes || !isInteractive()) return true;
 
   const where = service.environment?.name ?? "unknown environment";
@@ -365,6 +326,15 @@ async function printColumns(
   options: DbOptions,
 ): Promise<void> {
   const schema = await getTableColumns(serviceId, table, options.schema);
+
+  // The API answers a table that does not exist with an empty column list, not
+  // an error. A real table always has columns in practice, so say what it is.
+  if (schema.columns.length === 0) {
+    throw new Error(
+      `No table '${table}'${options.schema ? ` in schema ${options.schema}` : ""}. ` +
+        `Run \`${programName()} db tables\` to list them.`,
+    );
+  }
 
   if (options.json) {
     printJson(schema);
