@@ -75,7 +75,7 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
     "Other",
     [
       ["mcp", "Run the MCP server over stdio"],
-      ["--help", "Show this message"],
+      ["--help", "Show this message; <command> --help for one"],
       ["--version", "Show the version"],
     ],
   ],
@@ -104,7 +104,7 @@ ${lines}
 Resource options
   --service <name|id>          Target service; defaults to naijacloud.json's
   --project <name|id>          Target project, where a command accepts one
-  --json                       Machine-readable result on stdout
+  --json                       Machine-readable result on stdout (most commands)
   --yes                        Skip the confirmation prompt
   --limit <n>                  Cap how many rows are returned
 
@@ -120,7 +120,8 @@ Launch options
 
   Walks team → project → environment → service, creating each level that does
   not exist yet. A web service or cron job is built from a connected GitHub
-  repository; a static site is built here and uploaded. For a service that
+  repository (for a public git URL or a Docker image, use \`services create\`
+  --git or --image); a static site is built here and uploaded. For a service that
   needs configuration it offers the .env it finds, shows what is in it with the
   values masked, and passes it to \`createService\` — so the first build already
   has it, instead of failing and being fixed afterwards.
@@ -146,12 +147,19 @@ Environments options
 
 Services create options
   --env <project/environment>  Where it lives (required)
-  --repo <owner/repo>          GitHub repository to build from (required)
+  One source (required):
+  --repo <owner/repo>          GitHub repository, through the NaijaCloud GitHub
+                               App (a github.com URL is accepted too)
+  --git <https url>            Any public git repository; no GitHub App needed
+  --image <reference>          A prebuilt public Docker image, run as-is
   --branch <name>              Branch to build (default: the repo's own)
   --type <web|cron>            Kind of service (default web)
   --schedule <cron>            Cron expression; required for --type cron
+  --command <command>          Cron: the command run on each schedule (required
+                               unless --image, which can run its own)
   --build <command>            Build command
-  --start <command>            Start command
+  --start <command>            Start command (with --image: overrides the
+                               image's command)
   --port <n>                   Port the service listens on
   --root-dir <path>            Subdirectory to build, for a monorepo
   --runtime-version <version>  Runtime version, when not the default
@@ -163,9 +171,11 @@ Services create options
   --no-env-file                Do not look for a .env
   --no-wait                    Return once the first build is queued
 
-  A repository is the only source: the platform builds from a repo it can
-  reach, and there is no upload-and-build path for a web service. Local code is
-  either a static site (\`deploy\`) or it is in a repo.
+  The three sources are the dashboard's: a repository the GitHub App can reach,
+  any public git URL, or a Docker image. There is no upload-and-build path for a
+  web service: local code is either a static site (\`deploy\`) or it is in a
+  repository. A database is created from \`${program} project\` → environment →
+  + New database.
 
   Without --tier the service is created Free. Each account gets one free app;
   once it is in use, create fails without creating anything and lists the paid
@@ -185,7 +195,9 @@ Env options
   defaulting to PROD there would write a variable the app never sees.
 
   \`env set KEY\` with no value reads it from a hidden prompt, or from stdin
-  when piped — so a credential need not land in your shell history.
+  when piped — so a credential need not land in your shell history. A value
+  that starts with -- goes after a lone --:
+    ${program} env set NODE_OPTIONS --service api -- --max-old-space-size=4096
 
 Env import options  (\`env import [file]\`)
   --env <project/environment>  Derive the scope from this environment
@@ -217,8 +229,11 @@ Db options
   --yes                        Skip the prompt on an irreversible statement
 
   \`db shell\` is a REPL; statements end with ';' and \\dt, \\d, \\q work.
-  Queries run as the service's own database user and CAN WRITE. DROP, TRUNCATE,
-  ALTER and an unfiltered UPDATE/DELETE are confirmed first in a terminal.
+  Queries run as the service's own database user and CAN WRITE. In a terminal,
+  DROP, TRUNCATE, ALTER, GRANT/REVOKE and an UPDATE/DELETE with no WHERE are
+  confirmed first, in any statement of the input; so is anything the check
+  cannot read (an unclosed quote, a DO block). Without a terminal they run, as
+  with psql -c; --yes skips the question.
   \`db dump\`/\`db export\` print an expiring download URL on stdout.
 
 Login options
@@ -271,6 +286,12 @@ Environment
   HOSTING_UPLOAD_TIMEOUT_MS    Upload timeout in ms (default 600000)
   NAIJACLOUD_DEPLOY_TIMEOUT_MS Deploy wait timeout in ms (default 900000)
 
+Help and exit codes
+  ${program} <command> --help  Help for one command (also: ${program} help <command>)
+
+  0 success · 1 the command failed · 2 it was typed wrong (unknown option,
+  missing value) · 130 cancelled at a prompt. -- ends the options.
+
 Register with Claude Code
   claude mcp add --transport stdio naijacloud -- ${program} mcp
 
@@ -287,73 +308,314 @@ interface ParsedArgs {
 }
 
 /**
- * Minimal `--flag value` / `--flag=value` parser.
- *
- * `booleans` names the flags that take no value, so `naijacloud deploy --spa
- * dist` keeps `dist` as a positional instead of swallowing it as the value of
- * `--spa`.
+ * A mistake in how the command was typed: an unknown or misspelt flag, a flag
+ * missing its value, a stray argument. Exits 2, the convention for usage
+ * errors, so a script can tell it apart from a command that ran and failed.
  */
-function parseArgs(args: string[], booleans: ReadonlySet<string> = new Set()): ParsedArgs {
+class UsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageError";
+  }
+}
+
+/** What one command accepts. */
+interface CommandSpec {
+  /** Flags that take no value. */
+  booleans?: readonly string[];
+  /** Flags that take a value. */
+  values?: readonly string[];
+  /** Value flags whose value may be omitted (`schema --write`). */
+  optionalValues?: readonly string[];
+  /** The most positional arguments, subcommand included. */
+  maxPositionals: number;
+  /** First line(s) of `<command> --help`. */
+  synopsis: string;
+  /** Sections of the full help shown under it. */
+  sections?: readonly string[];
+}
+
+const COMMANDS: Record<string, CommandSpec> = {
+  login: {
+    values: ["email", "password", "token", "code"],
+    maxPositionals: 0,
+    synopsis:
+      "login [--email <email> --password <password> [--code <code>]] | [--token <token>]\n\n" +
+      "  Prompts for email and password in a terminal. On an account with two-factor\n" +
+      "  authentication on it also asks for the code, or takes it from --code.",
+    sections: ["Login options"],
+  },
+  logout: {
+    maxPositionals: 0,
+    synopsis:
+      "logout\n\n  Deletes the stored credentials. The token itself stays valid until it expires.",
+  },
+  whoami: { booleans: ["json"], maxPositionals: 0, synopsis: "whoami [--json]" },
+  init: {
+    booleans: ["spa", "no-spa", "yes", "force", "json"],
+    values: ["name", "output", "index", "env"],
+    maxPositionals: 1,
+    synopsis: "init [dir] [options]",
+    sections: ["Init options"],
+  },
+  launch: {
+    booleans: ["no-env-file", "wait", "no-wait"],
+    values: ["dotenv", "env-file", "tier"],
+    maxPositionals: 1,
+    synopsis: "launch [dir] [options]",
+    sections: ["Launch options"],
+  },
+  deploy: {
+    booleans: ["spa", "no-spa", "prebuilt", "new", "yes", "wait", "no-wait", "json"],
+    values: ["name", "output", "index", "env"],
+    maxPositionals: 1,
+    synopsis: "deploy [dir] [options]",
+    sections: ["Deploy options"],
+  },
+  redeploy: {
+    booleans: ["wait", "no-wait", "json"],
+    values: ["service"],
+    maxPositionals: 1,
+    synopsis: "redeploy [service] [options]",
+    sections: ["Redeploy options"],
+  },
+  project: {
+    maxPositionals: 1,
+    synopsis:
+      "project [name|id]\n\n" +
+      "  Interactive: browse a project's environments and services, and act on them,\n" +
+      "  including + New service and + New database. Needs a terminal.",
+  },
+  projects: {
+    booleans: ["json"],
+    values: ["team", "description", "display-name"],
+    maxPositionals: 2,
+    synopsis: "projects ls | show <name|id> | create <name> [options]",
+    sections: ["Resource options", "Projects create options"],
+  },
+  environments: {
+    booleans: ["json", "yes"],
+    values: ["project"],
+    maxPositionals: 2,
+    synopsis:
+      "environments ls --project <p> | create <name> --project <p> | rm <project>/<name>",
+    sections: ["Environments options"],
+  },
+  services: {
+    booleans: ["json", "no-env-file", "wait", "no-wait", "secret"],
+    values: [
+      "project", "env", "repo", "git", "image", "branch", "type", "build", "start", "command",
+      "port", "root-dir", "runtime-version", "schedule", "health-check", "region", "tier",
+      "dotenv", "env-file", "scope",
+    ],
+    maxPositionals: 2,
+    synopsis:
+      "services ls [--project <p>] | show <name|id> | create <name> --env <project/environment> <source> [options]",
+    sections: ["Resource options", "Services create options"],
+  },
+  deployments: {
+    booleans: ["json", "yes"],
+    values: ["service", "project", "limit"],
+    maxPositionals: 2,
+    synopsis: "deployments ls [--service <s>|--project <p>] | show <id> | logs <id> | cancel <id>",
+    sections: ["Resource options"],
+  },
+  cancel: {
+    booleans: ["json", "yes"],
+    maxPositionals: 1,
+    synopsis:
+      "cancel <deployment-id> [--yes] [--json]\n\n" +
+      "  Stops an in-flight deployment. To go back to an earlier finished deployment,\n" +
+      "  roll back to it from the service's Deployments page in the dashboard.",
+  },
+  env: {
+    booleans: ["json", "reveal", "secret", "yes"],
+    values: ["service", "project", "scope", "env"],
+    maxPositionals: 3,
+    synopsis: "env ls | set KEY [VALUE] | rm KEY | import [file]   [--service <s>]",
+    sections: ["Resource options", "Env options", "Env import options"],
+  },
+  domains: {
+    booleans: ["json", "yes"],
+    values: ["service", "project"],
+    maxPositionals: 2,
+    synopsis:
+      "domains ls | add <domain> | verify <domain> | rm <domain>   [--service <s>]\n\n" +
+      "  add prints the DNS records to create. verify exits 1 until the domain is ACTIVE.",
+    sections: ["Resource options"],
+  },
+  db: {
+    booleans: ["json", "yes"],
+    values: ["service", "max-rows", "schema", "format"],
+    maxPositionals: 2,
+    synopsis:
+      "db query <sql> | shell | tables | describe <table> | dump | export <table>   [--service <s>]",
+    sections: ["Resource options", "Db options"],
+  },
+  schema: {
+    values: ["write"],
+    optionalValues: ["write"],
+    maxPositionals: 0,
+    synopsis: "schema [--write [path]]",
+    sections: ["Schema options"],
+  },
+  mcp: {
+    maxPositionals: 0,
+    synopsis: "mcp\n\n  Runs the MCP server over stdio, for AI agents.",
+    sections: ["Register with Claude Code"],
+  },
+};
+COMMANDS["envs"] = COMMANDS["environments"] as CommandSpec;
+
+/** Edit distance, for "did you mean". */
+function distance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0] as number;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const current = row[j] as number;
+      row[j] = Math.min(
+        (row[j] as number) + 1,
+        (row[j - 1] as number) + 1,
+        previous + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      previous = current;
+    }
+  }
+  return row[b.length] as number;
+}
+
+function suggestion(name: string, known: readonly string[]): string {
+  const best = known
+    .map((candidate) => ({ candidate, score: distance(name, candidate) }))
+    .sort((x, y) => x.score - y.score)[0];
+  return best && best.score <= Math.max(2, Math.floor(name.length / 3))
+    ? ` (did you mean --${best.candidate}?)`
+    : "";
+}
+
+/**
+ * Parses one command's arguments against what it accepts (TGL-1170).
+ *
+ *  - `--flag value` / `--flag=value`. A value flag with no value is an error,
+ *    so a bare `--service` can never fall back to naijacloud.json's service.
+ *  - An unknown flag is an error with a suggestion, never silently dropped:
+ *    a misspelt `--servcie api` used to act on the linked service instead.
+ *  - `-h` / `--help` anywhere means help; the caller prints it and stops.
+ *  - `--` ends the options: everything after it is an argument, so
+ *    `env set NODE_OPTIONS -- --max-old-space-size=4096` works.
+ *  - Any other `-x` is an error rather than a positional, so `deploy -h`-style
+ *    typos cannot become a directory or a project name.
+ *  - A token with whitespace in it is an argument even if it starts with `--`
+ *    (`db query "-- note\nSELECT 1"`), because no flag name has a space.
+ */
+function parseArgs(
+  command: string,
+  args: string[],
+  spec: CommandSpec,
+): ParsedArgs & { help: boolean } {
+  const booleans = new Set(spec.booleans ?? []);
+  const values = new Set(spec.values ?? []);
+  const optional = new Set(spec.optionalValues ?? []);
+  const known = [...booleans, ...values];
   const flags = new Map<string, string>();
   const positionals: string[] = [];
+  let help = false;
+  let optionsEnded = false;
+  const hint = `Run '${programName()} ${command} --help' for usage.`;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === undefined) continue;
 
-    if (!arg.startsWith("--")) {
+    if (optionsEnded || arg === "-" || /\s/.test(arg) || /^-\d/.test(arg)) {
       positionals.push(arg);
       continue;
     }
+    if (arg === "--") {
+      optionsEnded = true;
+      continue;
+    }
+    if (arg === "-h" || arg === "--help") {
+      help = true;
+      continue;
+    }
+    if (!arg.startsWith("-")) {
+      positionals.push(arg);
+      continue;
+    }
+    if (!arg.startsWith("--")) {
+      throw new UsageError(
+        `Unknown option ${arg}. Options are spelled with two dashes; to pass an argument ` +
+          `that starts with -, put it after --. ${hint}`,
+      );
+    }
 
     const equals = arg.indexOf("=");
-    if (equals !== -1) {
-      flags.set(arg.slice(2, equals), arg.slice(equals + 1));
+    const name = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
+    if (!booleans.has(name) && !values.has(name)) {
+      throw new UsageError(
+        `Unknown option --${name} for ${command}${suggestion(name, known)}. ${hint}`,
+      );
+    }
+
+    if (booleans.has(name)) {
+      if (equals !== -1) throw new UsageError(`--${name} takes no value. ${hint}`);
+      flags.set(name, "");
       continue;
     }
 
-    const name = arg.slice(2);
+    if (equals !== -1) {
+      flags.set(name, arg.slice(equals + 1));
+      continue;
+    }
     const next = args[index + 1];
-    if (!booleans.has(name) && next !== undefined && !next.startsWith("--")) {
+    if (next !== undefined && (!next.startsWith("--") || /\s/.test(next))) {
       flags.set(name, next);
       index += 1;
-    } else {
+    } else if (optional.has(name)) {
       flags.set(name, "");
+    } else {
+      throw new UsageError(
+        `--${name} needs a value. For a value that starts with --, write --${name}=<value>. ${hint}`,
+      );
     }
   }
 
-  return { flags, positionals };
+  if (!help && positionals.length > spec.maxPositionals) {
+    const extra = positionals[spec.maxPositionals];
+    throw new UsageError(
+      `Unexpected argument '${extra}' for ${command}. Quote a value that has spaces in it. ${hint}`,
+    );
+  }
+
+  return { flags, positionals, help };
 }
 
-/** Flags with no value, so the parser leaves the following token alone. */
-const INIT_BOOLEANS = new Set(["spa", "no-spa", "yes", "force", "json"]);
+/** One titled block of the full help, or "" when there is no such block. */
+function helpSection(text: string, title: string): string {
+  const lines = text.split("\n");
+  const start = lines.findIndex((line) => line === title || line.startsWith(`${title}  `));
+  if (start === -1) return "";
+  let end = start + 1;
+  while (end < lines.length && (lines[end] === "" || /^\s/.test(lines[end] as string))) end += 1;
+  return lines.slice(start, end).join("\n").trimEnd();
+}
 
-const DEPLOY_BOOLEANS = new Set([
-  "spa",
-  "no-spa",
-  "prebuilt",
-  "new",
-  "yes",
-  "wait",
-  "no-wait",
-  "json",
-]);
-
-/**
- * Valueless flags shared by the resource commands.
- *
- * `--service` and `--project` are deliberately absent: they take a value, and
- * listing them here would make `--service api` swallow `api` as a positional.
- */
-const RESOURCE_BOOLEANS = new Set([
-  "json",
-  "yes",
-  "reveal",
-  "secret",
-  "wait",
-  "no-wait",
-  "no-env-file",
-]);
+/** `<command> --help`: its synopsis and the parts of the full help that apply. */
+function commandHelp(program: string, command: string): string {
+  const spec = COMMANDS[command] as CommandSpec;
+  const full = usage(program);
+  const sections = (spec.sections ?? [])
+    .map((title) => helpSection(full, title))
+    .filter((section) => section !== "");
+  return (
+    `Usage\n  ${program} ${spec.synopsis}\n` +
+    (sections.length > 0 ? `\n${sections.join("\n\n")}\n` : "") +
+    `\nRun '${program} --help' for every command.\n`
+  );
+}
 
 /**
  * Reads a `--x` / `--no-x` pair as a tri-state: explicitly on, explicitly off,
@@ -409,7 +671,7 @@ function required(
   example: string,
 ): string {
   if (argument === undefined || argument === "") {
-    throw new Error(`${what} is required.\n  ${programName()} ${example}`);
+    throw new UsageError(`${what} is required.\n  ${programName()} ${example}`);
   }
   return argument;
 }
@@ -417,7 +679,7 @@ function required(
 /** Rejects an unknown or missing subcommand, listing the ones that exist. */
 function unknownSubcommand(command: string, subcommand: string | undefined, valid: string[]): Error {
   const listed = valid.join(", ");
-  return new Error(
+  return new UsageError(
     subcommand === undefined
       ? `${command} needs a subcommand: ${listed}.\n  ${programName()} ${command} ${valid[0]}`
       : `Unknown ${command} subcommand '${subcommand}'. Use one of: ${listed}.`,
@@ -429,8 +691,15 @@ async function main(): Promise<void> {
   const program = programName();
 
   if (command === undefined || command === "--help" || command === "-h" || command === "help") {
-    process.stderr.write(usage(program));
-    process.exitCode = command === undefined ? 1 : 0;
+    // `help <command>` is that command's help.
+    const topic = command === "help" ? rest[0] : undefined;
+    if (topic !== undefined && COMMANDS[topic]) {
+      process.stdout.write(commandHelp(program, topic));
+      return;
+    }
+    // Asked-for help is the result, so stdout; a bare invocation is a mistake.
+    (command === undefined ? process.stderr : process.stdout).write(usage(program));
+    process.exitCode = command === undefined ? 2 : 0;
     return;
   }
 
@@ -439,9 +708,21 @@ async function main(): Promise<void> {
     return;
   }
 
+  const spec = COMMANDS[command];
+  if (spec === undefined) {
+    throw new UsageError(
+      `Unknown command: ${command}${commandSuggestion(command)}. Run '${program} --help' for the list.`,
+    );
+  }
+  const parsed = parseArgs(command, rest, spec);
+  if (parsed.help) {
+    process.stdout.write(commandHelp(program, command));
+    return;
+  }
+
   switch (command) {
     case "login": {
-      const { flags } = parseArgs(rest);
+      const { flags } = parsed;
       const options: Parameters<typeof login>[0] = {};
 
       const email = flags.get("email");
@@ -462,13 +743,13 @@ async function main(): Promise<void> {
       return;
 
     case "whoami": {
-      const { flags } = parseArgs(rest, new Set(["json"]));
+      const { flags } = parsed;
       await whoami({ json: flags.has("json") });
       return;
     }
 
     case "init": {
-      const { flags, positionals } = parseArgs(rest, INIT_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { init } = await import("./commands/init.js");
 
       await init({
@@ -486,7 +767,7 @@ async function main(): Promise<void> {
     }
 
     case "launch": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { launch } = await import("./commands/launch.js");
 
       await launch({
@@ -500,7 +781,7 @@ async function main(): Promise<void> {
     }
 
     case "deploy": {
-      const { flags, positionals } = parseArgs(rest, DEPLOY_BOOLEANS);
+      const { flags, positionals } = parsed;
       // Imported lazily so the auth commands never pay to load zod and the
       // archive machinery.
       const { deploy } = await import("./commands/deploy.js");
@@ -522,7 +803,7 @@ async function main(): Promise<void> {
     }
 
     case "redeploy": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { redeploy } = await import("./commands/deployments.js");
 
       await redeploy({
@@ -539,7 +820,7 @@ async function main(): Promise<void> {
     // Singular `project` is the interactive view; plural `projects` is the
     // scriptable listing. The two are different jobs, not two spellings.
     case "project": {
-      const { positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { positionals } = parsed;
       const { projectCommand } = await import("./commands/project.js");
 
       await projectCommand({ reference: positionals[0] });
@@ -547,7 +828,7 @@ async function main(): Promise<void> {
     }
 
     case "projects": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { projectsCreate, projectsList, projectsShow } = await import(
         "./commands/projects.js"
       );
@@ -585,7 +866,7 @@ async function main(): Promise<void> {
     // than the collision.
     case "environments":
     case "envs": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { environmentsCreate, environmentsList, environmentsRemove } = await import(
         "./commands/environments.js"
       );
@@ -616,7 +897,7 @@ async function main(): Promise<void> {
     }
 
     case "services": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { servicesCreate, servicesList, servicesShow } = await import(
         "./commands/services.js"
       );
@@ -638,11 +919,14 @@ async function main(): Promise<void> {
             required(
               positionals[1],
               "A service name",
-              "services create <name> --env <project>/<environment> --repo owner/repo",
+              "services create <name> --env <project>/<environment> --repo owner/repo|--git <url>|--image <ref>",
             ),
             {
               env: value(flags, "env"),
               repo: value(flags, "repo"),
+              git: value(flags, "git"),
+              image: value(flags, "image"),
+              command: value(flags, "command"),
               branch: value(flags, "branch"),
               type: value(flags, "type"),
               build: value(flags, "build"),
@@ -669,7 +953,7 @@ async function main(): Promise<void> {
     }
 
     case "deployments": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { deploymentsCancel, deploymentsList, deploymentsLogs, deploymentsShow } =
         await import("./commands/deployments.js");
       const json = flags.has("json");
@@ -710,7 +994,7 @@ async function main(): Promise<void> {
     // Top-level alias. Cancelling is urgent by nature — a build is burning
     // minutes while you look up the subcommand — so it gets the short spelling.
     case "cancel": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { deploymentsCancel } = await import("./commands/deployments.js");
 
       await deploymentsCancel(required(positionals[0], "A deployment id", "cancel <id>"), {
@@ -721,7 +1005,7 @@ async function main(): Promise<void> {
     }
 
     case "env": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { envList, envRemove, envSet } = await import("./commands/env.js");
       const service = value(flags, "service");
       const json = flags.has("json");
@@ -771,7 +1055,7 @@ async function main(): Promise<void> {
     }
 
     case "domains": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { domainsAdd, domainsList, domainsRemove, domainsVerify } = await import(
         "./commands/domains.js"
       );
@@ -808,7 +1092,7 @@ async function main(): Promise<void> {
     }
 
     case "db": {
-      const { flags, positionals } = parseArgs(rest, RESOURCE_BOOLEANS);
+      const { flags, positionals } = parsed;
       const { dbDescribe, dbDump, dbExport, dbQuery, dbShell, dbTables } = await import(
         "./commands/db.js"
       );
@@ -862,7 +1146,7 @@ async function main(): Promise<void> {
     }
 
     case "schema": {
-      const { flags } = parseArgs(rest);
+      const { flags } = parsed;
       const { schemaCommand } = await import("./commands/schema.js");
       schemaCommand({ write: flags.get("write") });
       return;
@@ -877,10 +1161,16 @@ async function main(): Promise<void> {
     }
 
     default:
-      process.stderr.write(`Unknown command: ${command}\n\n${usage(program)}`);
-      process.exitCode = 1;
-      return;
+      throw new UsageError(`Unknown command: ${command}. Run '${program} --help' for the list.`);
   }
+}
+
+/** "did you mean" for a mistyped command. */
+function commandSuggestion(command: string): string {
+  const best = Object.keys(COMMANDS)
+    .map((candidate) => ({ candidate, score: distance(command, candidate) }))
+    .sort((x, y) => x.score - y.score)[0];
+  return best && best.score <= 2 ? ` (did you mean ${best.candidate}?)` : "";
 }
 
 main().catch((error: unknown) => {
@@ -893,5 +1183,5 @@ main().catch((error: unknown) => {
   }
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`Error: ${message}\n`);
-  process.exitCode = 1;
+  process.exitCode = error instanceof UsageError ? 2 : 1;
 });
