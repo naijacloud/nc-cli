@@ -230,7 +230,7 @@ naijacloud logout    # deletes ~/.naijacloud/config.json (friendly no-op if abse
 
 Token resolution order is `HOSTING_API_TOKEN` → `~/.naijacloud/config.json`. If neither is present, every tool call fails immediately with `Not logged in. Run 'naijacloud login' first.` — never a raw 401.
 
-`HOSTING_API_BASE_URL` must be `https://`; plain `http://` is refused except for `localhost`, so a token or password never crosses a network unencrypted. If it points somewhere other than the API your saved login came from, the CLI warns before sending the token there.
+`HOSTING_API_BASE_URL` must be `https://`; plain `http://` is refused except for `localhost`, so a token or password never crosses a network unencrypted. A saved login is only sent to the API it came from: if `HOSTING_API_BASE_URL` points anywhere else, the CLI stops with an error and sends nothing. Run `naijacloud login` against that host, or pass a token for it explicitly in `HOSTING_API_TOKEN`. A login saved before 1.5.1 is treated as belonging to `https://api.naijacloud.com`.
 
 ---
 

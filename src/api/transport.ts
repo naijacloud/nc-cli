@@ -21,7 +21,13 @@
 import { createRequire } from "node:module";
 import process from "node:process";
 
-import { deviceId, rememberDeviceId, resolveToken } from "../auth/credentials.js";
+import {
+  TOKEN_ENV_VAR,
+  deviceId,
+  rememberDeviceId,
+  resolveToken,
+} from "../auth/credentials.js";
+import type { ResolvedToken } from "../auth/credentials.js";
 
 export const DEFAULT_API_BASE_URL = "https://api.naijacloud.com";
 const GRAPHQL_PATH = "/graphql";
@@ -110,13 +116,14 @@ function graphqlUrl(): string {
   return `${base}${GRAPHQL_PATH}`;
 }
 
-/** Base URLs compared the way a person means them: case and trailing slash aside. */
-function sameBase(a: string, b: string): boolean {
-  const normalise = (url: string): string => url.trim().replace(/\/+$/, "").toLowerCase();
-  return normalise(a) === normalise(b);
+/** A URL's origin (scheme, host, port), or null when it does not parse. */
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }
-
-let warnedAboutBase = false;
 
 function timeoutMs(): number {
   const raw = Number(process.env["HOSTING_API_TIMEOUT_MS"]);
@@ -370,27 +377,43 @@ export async function execute<T>(
   return payload.data;
 }
 
-/** Executes an operation with the resolved credentials, failing fast if absent. */
-export async function authed<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+/**
+ * The credentials a request to the configured API may carry, or null when
+ * there are none (TGL-1174).
+ *
+ * A saved login is only ever sent to the origin it was issued for. A login
+ * saved before the origin was recorded belongs to the default API. Pointing
+ * HOSTING_API_BASE_URL somewhere else (a leftover staging variable, a .envrc,
+ * a CI variable) is refused before any request is made: that host needs its
+ * own login, or a token passed explicitly in HOSTING_API_TOKEN, which is the
+ * user's own choice and goes to whichever https host is configured.
+ *
+ * The base URL itself is checked first, so a refused URL gets one message.
+ */
+export function requestToken(): ResolvedToken | null {
+  graphqlUrl();
   const resolved = resolveToken();
-  if (!resolved) throw new NotLoggedInError();
+  if (!resolved || resolved.source !== "file") return resolved;
 
-  // A stored login names the API it came from. Pointing HOSTING_API_BASE_URL
-  // somewhere else (a leftover staging variable, a .envrc) would hand that
-  // session to a different server, so say so (TGL-1174).
-  if (
-    resolved.source === "file" &&
-    resolved.issuedFor &&
-    !sameBase(resolved.issuedFor, apiBaseUrl()) &&
-    !warnedAboutBase
-  ) {
-    warnedAboutBase = true;
-    process.stderr.write(
-      `Warning: your saved login was issued by ${resolved.issuedFor}, but HOSTING_API_BASE_URL ` +
-        `points at ${apiBaseUrl()}, so the token is being sent there. If that is not intended, ` +
-        "unset HOSTING_API_BASE_URL; otherwise log in against it or set HOSTING_API_TOKEN.\n",
+  const issuedFor = resolved.issuedFor?.trim() || DEFAULT_API_BASE_URL;
+  const issuedOrigin = originOf(issuedFor);
+  const targetOrigin = originOf(apiBaseUrl());
+  if (issuedOrigin === null || issuedOrigin !== targetOrigin) {
+    throw new NaijaCloudError(
+      `Your saved login belongs to ${issuedOrigin ?? issuedFor}, but HOSTING_API_BASE_URL points at ` +
+        `${targetOrigin ?? apiBaseUrl()}, so it was not sent. Run 'naijacloud login' (or ` +
+        "'naijacloud login --token <token>') against the new host, or pass a token for it " +
+        `explicitly in ${TOKEN_ENV_VAR}. To use your saved login, unset HOSTING_API_BASE_URL.`,
+      { code: "LOGIN_FOR_ANOTHER_HOST" },
     );
   }
+  return resolved;
+}
+
+/** Executes an operation with the resolved credentials, failing fast if absent. */
+export async function authed<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const resolved = requestToken();
+  if (!resolved) throw new NotLoggedInError();
   return await execute<T>(query, variables, resolved.token);
 }
 

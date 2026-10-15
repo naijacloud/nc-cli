@@ -37,7 +37,10 @@ export interface StoredCredentials {
   accessToken: string;
   /** Cached identity so `whoami` need not hit the network. Not authoritative. */
   user?: { id: string; email: string; name: string | null };
-  /** API base URL this token was issued against. */
+  /**
+   * API base URL this token was issued against. The token is only sent to this
+   * origin (TGL-1174); a file without it belongs to the default API.
+   */
   apiBaseUrl?: string;
   savedAt?: string;
 }

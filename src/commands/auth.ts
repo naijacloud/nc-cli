@@ -14,6 +14,7 @@ import {
   apiBaseUrl,
   getCurrentUser,
   loginWithPassword,
+  requestToken,
   verifyTwoFactorSignIn,
 } from "../api/index.js";
 import type { User } from "../api/index.js";
@@ -21,7 +22,6 @@ import {
   CONFIG_FILE,
   TOKEN_ENV_VAR,
   deleteStoredCredentials,
-  resolveToken,
   writeStoredCredentials,
 } from "../auth/credentials.js";
 import { printJson } from "../output.js";
@@ -182,7 +182,9 @@ export function logout(): void {
 }
 
 export async function whoami(options: { json?: boolean } = {}): Promise<void> {
-  const resolved = resolveToken();
+  // The same gate every request goes through: a saved login is only shown
+  // to the API it was issued by (TGL-1174).
+  const resolved = requestToken();
   if (!resolved) {
     if (options.json) {
       printJson({ loggedIn: false });
