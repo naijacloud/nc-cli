@@ -7,6 +7,24 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-15
+
+### Security
+
+- A saved login is only sent to the API origin it was issued for (TGL-1174).
+  When `HOSTING_API_BASE_URL` points at a different origin, the CLI sends no
+  token, says which origin the saved login belongs to, and exits non-zero; log
+  in against the new host, or pass a token for it in `HOSTING_API_TOKEN`. 1.5.0
+  only warned and sent the token anyway. A login saved before the origin was
+  recorded is treated as belonging to `https://api.naijacloud.com`. An explicit
+  `HOSTING_API_TOKEN` is still sent to whichever https (or localhost) host is
+  configured. `whoami` goes through the same check.
+
+### Fixed
+
+- A refused `HOSTING_API_BASE_URL` (plain http, not a URL, another scheme) no
+  longer also prints "the token is being sent there".
+
 ## [1.5.0] - 2026-10-15
 
 ### Security
@@ -151,7 +169,8 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/naijacloud/nc-cli/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/naijacloud/nc-cli/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/naijacloud/nc-cli/compare/v1.2.0...v1.3.0

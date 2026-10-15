@@ -175,21 +175,22 @@ test("a rejected --token says so once, without telling you to run login", async 
   );
 });
 
-// TGL-1174: a stored login sent to a base URL other than the one it came from
-// is warned about.
-test("a saved login used against a different base URL warns", async () => {
+// TGL-1174: a stored login is never sent to a base URL other than the one it
+// came from. The request is refused before fetch is called.
+test("a saved login used against a different base URL is refused, not sent", async () => {
   stub({ Login: { data: { login: { accessToken: "s1", user: { id: "u1", email: "a@b.c" }, twoFactor: null } } } });
   await auth.login({ email: "a@b.c", password: "pw" });
   const { getCurrentUser } = await import("../build/api/index.js");
-  const realErr = process.stderr.write;
-  const err = [];
+  calls = [];
   process.env.HOSTING_API_BASE_URL = "http://localhost:10";
-  process.stderr.write = (chunk) => (err.push(String(chunk)), true);
   try {
-    await getCurrentUser();
+    await assert.rejects(getCurrentUser(), (error) => {
+      assert.equal(error.code, "LOGIN_FOR_ANOTHER_HOST");
+      assert.match(error.message, /belongs to http:\/\/localhost:9.*points at http:\/\/localhost:10/s);
+      return true;
+    });
   } finally {
-    process.stderr.write = realErr;
     process.env.HOSTING_API_BASE_URL = "http://localhost:9";
   }
-  assert.match(err.join(""), /issued by http:\/\/localhost:9.*points at http:\/\/localhost:10/s);
+  assert.equal(calls.length, 0);
 });
