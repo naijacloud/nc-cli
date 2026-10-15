@@ -130,7 +130,7 @@ export async function collectEnvVars(options: CollectOptions): Promise<Collected
       // so the omission is visible, but never uploaded on its own.
       if (found.length > 0) {
         write(
-          `Note: ${found[0]!} exists but was not imported. Pass --env-file to import it.\n`,
+          `Note: ${found[0]!} exists but was not imported. Pass --dotenv ${found[0]!} to import it.\n`,
         );
       }
       return { vars: [], source: null };

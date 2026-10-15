@@ -374,7 +374,7 @@ export function createServer(): McpServer {
           return fail(
             `Deployment ${deploymentId} is ${current.status}, so there is nothing to cancel: ` +
               "cancelling only stops a deployment that is QUEUED, BUILDING, TESTING or DEPLOYING. " +
-              "It does not roll back a live release.",
+              "It does not roll back a live release; `naijacloud rollback <deploymentId>` does.",
           );
         }
 

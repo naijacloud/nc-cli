@@ -66,6 +66,7 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
       ["services ls|show|create", "Services this account can reach"],
       ["deployments ls|show|logs", "Deployment history and build output"],
       ["cancel <deployment>", "Stop an in-flight deployment"],
+      ["rollback <deployment>", "Put an earlier deployment's image back live"],
       ["env ls|set|rm|import", "Environment variables on a service"],
       ["domains ls|add|verify|rm", "Custom domains on a service"],
       ["db query|shell|tables", "SQL console; also describe, dump, export"],
@@ -425,8 +426,16 @@ const COMMANDS: Record<string, CommandSpec> = {
     maxPositionals: 1,
     synopsis:
       "cancel <deployment-id> [--yes] [--json]\n\n" +
-      "  Stops an in-flight deployment. To go back to an earlier finished deployment,\n" +
-      "  roll back to it from the service's Deployments page in the dashboard.",
+      "  Stops an in-flight deployment. To go back to an earlier version, use rollback.",
+  },
+  rollback: {
+    booleans: ["json", "yes", "wait", "no-wait"],
+    maxPositionals: 1,
+    synopsis:
+      "rollback <deployment-id> [--yes] [--no-wait] [--json]\n\n" +
+      "  Releases the exact image an earlier successful deployment ran, without\n" +
+      "  rebuilding. Find the id with `deployments ls --service <s>`. Waits for it to\n" +
+      "  go live and exits non-zero if it does not.",
   },
   env: {
     booleans: ["json", "reveal", "secret", "yes"],
@@ -1000,6 +1009,17 @@ async function main(): Promise<void> {
       await deploymentsCancel(required(positionals[0], "A deployment id", "cancel <id>"), {
         yes: flags.has("yes"),
         json: flags.has("json"),
+      });
+      return;
+    }
+
+    case "rollback": {
+      const { flags, positionals } = parsed;
+      const { rollback } = await import("./commands/deployments.js");
+      await rollback(required(positionals[0], "A deployment id", "rollback <deployment-id>"), {
+        yes: flags.has("yes"),
+        json: flags.has("json"),
+        wait: tristate(flags, "wait") ?? true,
       });
       return;
     }

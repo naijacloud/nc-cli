@@ -64,17 +64,27 @@ export function parseScope(raw: string): EnvVarScope {
  */
 export async function scopeForService(
   serviceId: string,
-): Promise<{ scope: EnvVarScope; environment: string | null }> {
+): Promise<{ scope: EnvVarScope; environment: string | null; uploadedStatic: boolean }> {
   try {
     const service = await getService(serviceId);
     const name = service.environment?.name ?? null;
     return {
       scope: scopeForEnvironment({ name, isPreview: service.isPreview }),
       environment: name,
+      uploadedStatic: isUploadedStatic(service),
     };
   } catch {
-    return { scope: "PROD", environment: null };
+    return { scope: "PROD", environment: null, uploadedStatic: false };
   }
+}
+
+/**
+ * A static site uploaded by `deploy`: plain files with no build on the
+ * platform, so environment variables never reach it. A static site built from
+ * a repository does read them, at build time.
+ */
+function isUploadedStatic(service: { isStatic: boolean; repoFullName: string | null; sourceType: string | null }): boolean {
+  return service.isStatic && !service.repoFullName && !service.sourceType;
 }
 
 /** `********` plus the true length, which confirms a write landed without showing it. */
@@ -227,10 +237,14 @@ export async function envSet(
   );
   let scope: EnvVarScope;
   let scopeSource: string | null = null;
+  // Read the service only when the scope has to be derived from it; the same
+  // read says whether it is an uploaded static site (see report()).
+  let uploadedStatic = false;
   if (options.scope !== undefined) {
     scope = parseScope(options.scope);
   } else {
     const derived = await scopeForService(serviceId);
+    uploadedStatic = derived.uploadedStatic;
     scope = derived.scope;
     if (derived.environment !== null) scopeSource = `from environment ${derived.environment}`;
   }
@@ -246,6 +260,7 @@ export async function envSet(
     scopeSource,
     json: options.json,
     verb: "set",
+    uploadedStatic,
   });
 }
 
@@ -315,6 +330,8 @@ function report(
     scopeSource: string | null;
     json: boolean;
     verb: string;
+    /** A `deploy`-uploaded static site, which never reads variables. */
+    uploadedStatic?: boolean;
   },
 ): void {
   if (context.json) {
@@ -337,7 +354,12 @@ function report(
     : "";
   process.stdout.write(`${context.key} ${context.verb}${scopeNote}\n`);
   for (const warning of result.warnings) write(`Warning: ${warning}\n`);
-  if (result.needsRedeploy) {
+  if (context.uploadedStatic) {
+    write(
+      "Note: this is a static site uploaded with `deploy`. Its files are served as they are, " +
+        "so it never reads environment variables; put the value in the files at build time instead.\n",
+    );
+  } else if (result.needsRedeploy) {
     write(
       `Redeploy for this to take effect:\n` +
         `  ${programName()} redeploy ${context.serviceId}\n`,

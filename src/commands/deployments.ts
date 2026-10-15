@@ -19,6 +19,7 @@ import {
   NaijaCloudError,
   cancelDeployment,
   getDeployment,
+  rollbackDeployment,
   getDeploymentLogs,
   getService,
   listDeploymentsByProject,
@@ -257,9 +258,9 @@ export async function redeploy(options: RedeployOptions): Promise<void> {
 /**
  * Stops an in-flight deployment.
  *
- * NaijaCloud has no rollback: cancelling a deploy that already went live does
- * nothing, so this checks the current state first and says so rather than
- * reporting a no-op as a success.
+ * Cancelling a deploy that already went live does nothing, so this checks the
+ * current state first and points at `rollback` rather than reporting a no-op
+ * as a success.
  */
 export async function deploymentsCancel(
   deploymentId: string,
@@ -271,7 +272,9 @@ export async function deploymentsCancel(
     throw new Error(
       `Deployment ${deploymentId} is ${current.status}, which cancelling cannot change — ` +
         "it only stops a build that is still QUEUED, BUILDING, TESTING or DEPLOYING. " +
-        "NaijaCloud has no rollback; deploy a previous commit instead.",
+        `To go back to an earlier version, roll back to a deployment that ran it: ` +
+        `\`${programName()} deployments ls --service <s>\`, then ` +
+        `\`${programName()} rollback <deployment-id>\`.`,
     );
   }
 
@@ -294,4 +297,64 @@ export async function deploymentsCancel(
   }
 
   process.stdout.write(`${cancelled.id} ${cancelled.status}\n`);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Rollback                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Puts an earlier deployment's exact image back live (`rollbackDeployment`).
+ *
+ * No rebuild: the image that deployment ran is released again, so it is the
+ * fast way back from a bad deploy. Waits like `redeploy`, and exits non-zero
+ * if the rollback does not go live.
+ */
+export async function rollback(
+  deploymentId: string,
+  options: { yes: boolean; json: boolean; wait: boolean },
+): Promise<void> {
+  const target = await getDeployment(deploymentId);
+  const label =
+    `${target.serviceName ?? target.serviceId}` +
+    `${target.commitSha ? ` to ${shortSha(target.commitSha)}` : ""}` +
+    `${target.commitMessage ? ` (${firstLine(target.commitMessage)})` : ""}`;
+
+  if (!options.yes && isInteractive()) {
+    const confirmed = await promptYesNo(`Roll ${label} back? It replaces what is live now.`, false);
+    if (!confirmed) {
+      write("Not rolled back.\n");
+      return;
+    }
+  }
+
+  const deployment = await rollbackDeployment(deploymentId);
+  let status: DeploymentStatus = deployment.status;
+  let failure: string | null = null;
+  if (options.wait) {
+    const settled = await waitForDeployment(deployment.id, status);
+    status = settled.status;
+    if (status !== "RUNNING") failure = settled.error;
+  }
+
+  if (options.json) {
+    printJson({
+      ok: status === "RUNNING" || !options.wait,
+      deploymentId: deployment.id,
+      rolledBackTo: deploymentId,
+      serviceId: deployment.serviceId,
+      status,
+      error: failure,
+    });
+  }
+  if (status === "FAILED" || status === "CANCELLED") {
+    throw new Error(
+      `Rollback ${deployment.id} ended as ${status}${failure ? `: ${failure}` : ""}. ` +
+        "What was live before is still serving.",
+    );
+  }
+  if (!options.json) {
+    process.stdout.write(`${deployment.id} ${status}\n`);
+    if (!options.wait) write(`Rollback ${deployment.id} queued; not waiting (--no-wait).\n`);
+  }
 }

@@ -161,7 +161,21 @@ export async function projectsCreate(
   if (options.description !== undefined) input.description = options.description;
   if (options.displayName !== undefined) input.displayName = options.displayName;
 
-  const project = await createProject(input);
+  let project: Awaited<ReturnType<typeof createProject>>;
+  try {
+    project = await createProject(input);
+  } catch (error) {
+    // The API's generic CONFLICT ("That conflicts with something that already
+    // exists") is a project name already used in this team: names are unique
+    // per team.
+    if (error instanceof Error && /conflicts with something that already exists/i.test(error.message)) {
+      throw new Error(
+        `${team.name} already has a project called '${name}'. Project names are unique within a team; ` +
+          `pick another name, or see it with \`${programName()} projects show ${name}\`.`,
+      );
+    }
+    throw error;
+  }
   const environments = project.environments ?? [];
 
   if (options.json) {

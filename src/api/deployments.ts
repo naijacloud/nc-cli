@@ -101,6 +101,19 @@ export async function cancelDeployment(deploymentId: string): Promise<Deployment
   return data.cancelDeployment;
 }
 
+/**
+ * Redeploys the exact image an earlier successful deployment ran, without
+ * rebuilding its commit. The API refuses a deployment with no image digest
+ * (one that never succeeded, or a static upload).
+ */
+export async function rollbackDeployment(deploymentId: string): Promise<Deployment> {
+  const data = await authed<{ rollbackDeployment: Deployment }>(
+    `mutation RollbackDeployment($deploymentId: ID!) { rollbackDeployment(deploymentId: $deploymentId) { ${DEPLOYMENT_FIELDS} } }`,
+    { deploymentId },
+  );
+  return data.rollbackDeployment;
+}
+
 export async function getDeploymentLogs(deploymentId: string): Promise<DeploymentLog[]> {
   // Oldest first is the API's default for this list, which is the order build
   // output reads in; every page is read so a long build is not cut at 100 lines.

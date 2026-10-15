@@ -180,3 +180,60 @@ test("domains verify exits non-zero while the domain is still PENDING", async ()
   assert.equal(process.exitCode, 1);
   process.exitCode = undefined;
 });
+
+// TGL-1172: messages that said the wrong thing.
+test("cancel on a finished deployment points at rollback, not 'no rollback'", async () => {
+  const { deploymentsCancel } = await import("../build/commands/deployments.js");
+  const result = await run(
+    () => ({ getDeployment: { id: "dep1", serviceId: SERVICE, status: "RUNNING", branch: "main" } }),
+    () => deploymentsCancel("dep1", { yes: true, json: false }),
+  );
+  assert.ok(result.error);
+  assert.match(result.error.message, /rollback <deployment-id>/);
+  assert.doesNotMatch(result.error.message, /no rollback/);
+});
+
+test("rollback calls rollbackDeployment", async () => {
+  const { rollback } = await import("../build/commands/deployments.js");
+  const result = await run(
+    (query) =>
+      /rollbackDeployment/.test(query)
+        ? { rollbackDeployment: { id: "dep2", serviceId: SERVICE, status: "QUEUED" } }
+        : { getDeployment: { id: "dep1", serviceId: SERVICE, status: "SUPERSEDED", commitSha: "abcdef123456" } },
+    () => rollback("dep1", { yes: true, json: false, wait: false }),
+  );
+  assert.equal(result.error, undefined);
+  assert.ok(result.sent.some(({ query }) => /rollbackDeployment\(deploymentId: \$deploymentId\)/.test(query)));
+  assert.match(result.out, /dep2 QUEUED/);
+});
+
+test("a taken project name says so, instead of the API's generic conflict", async () => {
+  const { projectsCreate } = await import("../build/commands/projects.js");
+  const realFetch = globalThis.fetch;
+  process.env.HOSTING_API_TOKEN = "test-token";
+  globalThis.fetch = async (_url, init) => {
+    const { query } = JSON.parse(init.body);
+    if (/getMyTeams/.test(query)) {
+      return Response.json({ data: { getMyTeams: { items: [{ id: "t1", name: "Acme", defaultRegion: null }], pageInfo: { hasNextPage: false } } } });
+    }
+    return Response.json({ data: null, errors: [{ message: "That conflicts with something that already exists. (reference abc)", extensions: { code: "CONFLICT" } }] });
+  };
+  try {
+    await assert.rejects(projectsCreate("shop", { json: false }), /Acme already has a project called 'shop'/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("db describe of a missing table fails instead of 'no columns'", async () => {
+  const { dbDescribe } = await import("../build/commands/db.js");
+  const result = await run(
+    (query) =>
+      /getTableColumns/.test(query)
+        ? { getTableColumns: { name: "nope", schema: "public", primaryKey: [], columns: [] } }
+        : { getService: { id: SERVICE, name: "db", type: "POSTGRES", status: "ACTIVE", environment: { id: "e", name: "dev" } } },
+    () => dbDescribe("nope", { service: SERVICE, json: false, maxRows: undefined, schema: undefined, format: undefined, yes: false }),
+  );
+  assert.ok(result.error);
+  assert.match(result.error.message, /No table 'nope'/);
+});
