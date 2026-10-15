@@ -190,6 +190,8 @@ If your account has **two-factor authentication** on, you are then asked for the
 
 The token is validated immediately against the API, and **nothing is saved if validation fails**. On success it is written to `~/.naijacloud/config.json` with mode `0600` (owner read/write only), inside a `0700` directory.
 
+A password login also sends this machine's **device id**, a random value created once in `~/.naijacloud/device` (mode `0600`) and kept across `logout`. NaijaCloud emails "New sign-in to your account" for a device it has not seen, so the first login from a machine may send one and later ones do not.
+
 For CI and scripts, use a **workspace API key** instead of a password. Create one
 in the dashboard under **Settings → API keys** (it starts `nc_live_`) and give it
 the **Platform API** scope, which every command works with. A key scoped to
@@ -214,6 +216,8 @@ naijacloud whoami    # prints the account, or "Not logged in..." and exits 1
 naijacloud logout    # deletes ~/.naijacloud/config.json (friendly no-op if absent)
 ```
 
+`logout` only deletes the file: the token stays valid until it expires (7 days for a password login) or, for an API key, until you revoke it. The API's own logout signs out every device, so the CLI does not call it.
+
 ### Configuration
 
 | Variable                       | Default                      | Purpose                                                                                                                                    |
@@ -225,6 +229,8 @@ naijacloud logout    # deletes ~/.naijacloud/config.json (friendly no-op if abse
 | `NAIJACLOUD_DEPLOY_TIMEOUT_MS` | `900000`                     | How long `deploy` and `redeploy` wait for a build to reach a terminal state                                                                |
 
 Token resolution order is `HOSTING_API_TOKEN` → `~/.naijacloud/config.json`. If neither is present, every tool call fails immediately with `Not logged in. Run 'naijacloud login' first.` — never a raw 401.
+
+`HOSTING_API_BASE_URL` must be `https://`; plain `http://` is refused except for `localhost`, so a token or password never crosses a network unencrypted. If it points somewhere other than the API your saved login came from, the CLI warns before sending the token there.
 
 ---
 
@@ -375,8 +381,19 @@ naijacloud services create api \
   --dotenv .env
 ```
 
-`services create` also takes `--type cron --schedule "0 3 * * *"`, `--root-dir`
-for a monorepo, `--runtime-version`, `--health-check`, `--region`,
+The source is one of `--repo owner/repo` (through the GitHub App), `--git <https
+url>` (any public repository, no GitHub App needed) or `--image <reference>` (a
+prebuilt public Docker image), the same three the dashboard offers:
+
+```bash
+naijacloud services create api --env storefront/prod --git https://gitlab.com/acme/api
+naijacloud services create web --env storefront/prod --image ghcr.io/acme/web:1.8.0 --port 8080
+naijacloud services create nightly --env storefront/prod --type cron \
+  --git https://github.com/acme/jobs --schedule "0 3 * * *" --command "node cleanup.js"
+```
+
+`services create` also takes `--type cron --schedule "0 3 * * *" --command <cmd>`,
+`--root-dir` for a monorepo, `--runtime-version`, `--health-check`, `--region`,
 `--tier free|starter|pro|pro-max` and `--no-wait`.
 
 Without `--tier` it creates a **Free** service. If the account's free app is
@@ -394,13 +411,14 @@ Nothing was created. Name a paid size to create it anyway:
 ### A web service comes from a repository
 
 Worth knowing before you plan around it: the platform builds a web service from
-a **connected GitHub repository** or runs a **prebuilt image** — there is no
-upload-and-build path for one. The only thing that accepts bytes from your
-machine is a static site.
+a **repository** (through the GitHub App, or any public git URL) or runs a
+**prebuilt image** — there is no upload-and-build path for one. The only thing
+that accepts bytes from your machine is a static site.
 
 So local code is either a static site (`naijacloud deploy`, or *Static site* in
-`launch`) or it is in a repo. If the team has no GitHub App installation yet,
-`launch` says so and prints the install URL rather than failing:
+`launch`) or it is in a repo. `launch` lists the GitHub App's repositories; if
+the team has no installation yet it prints the install URL, and
+`services create --git` or `--image` work without one:
 
 ```
 Error: No repositories are connected to acme.
@@ -540,11 +558,13 @@ The pipeline is: run the build, archive the output, request a presigned upload s
 | `output`        | Directory to deploy, relative to the manifest. May also be a single `.html` file.                                                                |
 | `spa`           | Serve the entry file for unmatched paths, so client-side routes survive a refresh.                                                               |
 | `index`         | Entry file, when it is not `index.html`.                                                                                                         |
-| `ignore`        | Globs excluded from the archive.                                                                                                                 |
+| `ignore`        | Patterns excluded from the archive, in `.gitignore` syntax (`!` re-includes).                                                                    |
 
 Commit it. The `serviceId` is not a secret — it is only actionable with credentials for the owning team — and committing it is what lets CI deploy from a clean checkout with no linking step and no extra configuration.
 
-`.git`, `node_modules`, `.naijacloud` and **every `.env` file** are excluded from the archive unconditionally, whatever `ignore` says. A static bundle is world-readable by definition, so there is no legitimate case for uploading one.
+`.git`, `node_modules`, `.naijacloud`, **every `.env` file** and **credential files** are excluded from the archive unconditionally, whatever `ignore` says. A static bundle is world-readable by definition, so there is no legitimate case for uploading one. Credential files are `.npmrc`, `.yarnrc(.yml)`, `.pypirc`, `.netrc`, `.git-credentials`, `.pgpass`, `.my.cnf`, `.htpasswd`, `.dev.vars`, private keys and keystores (`id_rsa*`, `id_ed25519*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`), `credentials.json`, `service-account*.json`, Terraform state, and the `.ssh/`, `.aws/`, `.docker/`, `.gnupg/`, `.kube/` directories. Each one left out is listed by name before the upload, and any other dotfile that will be published (outside `.well-known/`) is named in a warning.
+
+To leave out more, add a **`.naijacloudignore`** in `.gitignore` syntax, in the deployed directory or beside `naijacloud.json`. A `!` pattern can re-include something an earlier pattern excluded, but never a credential file.
 
 ### Options
 
@@ -642,12 +662,14 @@ naijacloud environments rm shop/staging    # and every service in it
 naijacloud services ls                     # flat list, one request
 naijacloud services show karakata-api      # repo, branch, build command, URL
 naijacloud services create api --env shop/prod --repo acme/shop --dotenv .env
+naijacloud services create api --env shop/prod --git https://github.com/acme/shop
 
 naijacloud deployments ls --service api --limit 10
 naijacloud deployments show <id>
 naijacloud deployments logs <id>           # build output
 naijacloud redeploy api                    # build the service's branch tip
 naijacloud cancel <id>                     # stop an in-flight build
+naijacloud rollback <id>                   # put an earlier deployment's image back live
 
 naijacloud env ls --service api
 naijacloud env set DATABASE_URL --service api --secret
@@ -655,9 +677,9 @@ naijacloud env rm OLD_FLAG --service api
 naijacloud env import .env --service api   # upserts; leaves other keys alone
 
 naijacloud domains ls --service api
-naijacloud domains add app.example.com --service api
-naijacloud domains verify app.example.com
-naijacloud domains rm app.example.com
+naijacloud domains add app.example.com --service api   # prints the DNS records to create
+naijacloud domains verify app.example.com --service api  # exits 1 until ACTIVE
+naijacloud domains rm app.example.com --service api
 
 naijacloud db tables --service shop-db
 naijacloud db query "SELECT 1" --service shop-db
@@ -679,9 +701,15 @@ In a directory whose `naijacloud.json` names a `serviceId`, `--service` is optio
 
 ### Scripting
 
-Every command takes `--json` and writes its result to **stdout**, while prompts, progress and warnings go to stderr. `njc services ls --json | jq` is safe to pipe.
+The resource commands take `--json` and write their result to **stdout**, while prompts, progress, warnings and errors go to stderr (errors are plain text, not JSON). `njc services ls --json | jq` is safe to pipe. `project`, `launch`, `db shell`, `logout` and `schema` are interactive or print their own format and take no `--json`.
 
-Exit status is non-zero on failure, so `redeploy` gates a pipeline on its own:
+Every command has its own help: `naijacloud deploy --help` (or `help deploy`) prints it and does nothing else. An unknown or misspelt option is an error, never ignored: `--servcie api` stops with "did you mean --service?" instead of acting on the linked service. `--` ends the options, for a value that starts with `--`:
+
+```bash
+naijacloud env set NODE_OPTIONS --service api -- --max-old-space-size=4096
+```
+
+Exit status is `0` on success, `1` when the command failed, `2` when it was typed wrong (unknown option, missing value or argument) and `130` when you backed out of a prompt. `domains verify` exits `1` until the domain is `ACTIVE`, and `redeploy` gates a pipeline on its own:
 
 ```bash
 naijacloud redeploy api || exit 1   # waits by default; --no-wait returns once queued
@@ -729,7 +757,11 @@ a prompt on every statement, because a console that nags is one you stop reading
   production database never looks like a scratch one.
 - **Irreversible statements are confirmed**: `DROP`, `TRUNCATE`, `ALTER`,
   `GRANT`/`REVOKE`, and an `UPDATE` or `DELETE` with **no `WHERE` clause**. A
-  filtered write runs unchallenged.
+  filtered write runs unchallenged. Every statement of the input is checked,
+  with comments and string literals read for what they are, so
+  `BEGIN; DROP TABLE t; COMMIT;` and `DELETE FROM t -- WHERE id = 1` are
+  confirmed too. Input the check cannot read for certain (an unclosed quote or
+  comment, a `DO` block, MySQL's `/*! */`) is confirmed as well.
 
 ```
 $ naijacloud db query "DELETE FROM users" --service shop-db
@@ -835,7 +867,7 @@ The Inspector opens a browser UI where you can list the tools and call them indi
 
 ## Tools
 
-All eleven tools, as the agent sees them:
+All twelve tools, as the agent sees them:
 
 | Tool                  | Parameters                                                   | Notes                                                                                                |
 | --------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -847,7 +879,8 @@ All eleven tools, as the agent sees them:
 | `delete_deployment`   | `deploymentId`, `confirm`                                    | **Cancels** — see below. Requires `confirm: true`.                                                   |
 | `get_deployment_logs` | `deploymentId`, `limit?`                                     | Build/runtime lines with level and stream. Read-only.                                                |
 | `list_domains`        | `serviceId` \| `projectId`                                   | Custom domains + the DNS records they need. Read-only.                                               |
-| `add_domain`          | `serviceId`, `domain`                                        | Attaches a domain; returns the DNS target to point at.                                               |
+| `add_domain`          | `serviceId`, `domain`                                        | Attaches a domain; returns the DNS `records` to create (A records or CNAME + TXT, per region).       |
+| `create_service`      | `environmentId`, `name`, one of `repoFullName`/`gitUrl`/`image`, `type?`, … , `confirm` | Creates a web service or cron job (Free by default) and queues its build. Requires `confirm: true`. |
 | `list_env_vars`       | `serviceId` \| `projectId`                                   | **Values always masked.** Read-only.                                                                 |
 | `set_env_var`         | `serviceId`, `key`, `value`, `target?`, `secret?`, `confirm` | Upserts one variable. Requires `confirm: true`.                                                      |
 
@@ -859,7 +892,7 @@ CLI-only.
 
 ### Safety behaviour
 
-- **`delete_deployment` and `set_env_var` are confirm-gated.** Without `confirm: true` they return an error and perform no action, so an agent has to come back deliberately after checking with you.
+- **`delete_deployment`, `create_service` and `set_env_var` are confirm-gated.** Without `confirm: true` they return an error and perform no action, so an agent has to come back deliberately after checking with you.
 - **Values are never echoed.** `list_env_vars` replaces every value with `********` and reports only its length; `set_env_var` does not include the value it wrote in its response. NaijaCloud's API returns env var values in full, so this masking is done here.
 - **Tokens are never logged.** Not in tool output, not in error messages, not in diagnostics.
 - **stdout is protocol-only.** Under `naijacloud mcp` every diagnostic goes to stderr, so nothing can corrupt the MCP stream.
