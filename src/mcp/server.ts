@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import {
   addDomain,
+  createRuntimeService,
   dnsRecordsFor,
   CANCELLABLE_STATUSES,
   cancelDeployment,
@@ -40,6 +41,8 @@ import {
 } from "../api/index.js";
 import type { EnvTarget, ServiceEnvVar } from "../api/index.js";
 import { scopeForService } from "../commands/env.js";
+import { pickSource } from "../commands/services.js";
+import { appTierOrFree } from "../tiers.js";
 
 const SERVER_NAME = "naijacloud";
 const SERVER_VERSION = CLIENT_VERSION;
@@ -487,6 +490,83 @@ export function createServer(): McpServer {
               .join("; ")}` +
             `${(created.dnsTarget.conflicts ?? []).length > 0 ? ", and remove the records listed in conflicts" : ""}` +
             ", then it verifies automatically.",
+        });
+      }),
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /* Services                                                               */
+  /* ---------------------------------------------------------------------- */
+
+  server.registerTool(
+    "create_service",
+    {
+      title: "Create a web service or cron job",
+      description:
+        "Create a web service or cron job in an environment and queue its first build, " +
+        "from exactly one source: repoFullName (a repository the team's NaijaCloud GitHub " +
+        "App can reach), gitUrl (any public https git URL, no GitHub App needed) or image " +
+        "(a prebuilt public Docker image, run as-is). Created at the Free size unless tier " +
+        "names a paid one; each account has one free app, and when it is in use the call " +
+        "fails without creating anything. Side effect: creates a real service and starts a " +
+        "build in that environment. Requires confirm=true.",
+      inputSchema: {
+        environmentId: z.string().min(1).describe("Environment id to create the service in (get_project lists them)."),
+        name: z.string().min(1).describe("Service name, also used for its *.naijacloud.app subdomain."),
+        type: z.enum(["web", "cron"]).default("web").describe("web (serves HTTP) or cron (runs on a schedule)."),
+        repoFullName: z.string().min(1).optional().describe("owner/repo, built through the GitHub App."),
+        gitUrl: z.string().min(1).optional().describe("Public https git URL, e.g. https://github.com/acme/api."),
+        image: z.string().min(1).optional().describe("Docker image reference, e.g. ghcr.io/acme/api:1.8.0."),
+        branch: z.string().min(1).optional().describe("Branch to build (git sources only)."),
+        buildCommand: z.string().optional().describe("Build command (git sources only)."),
+        startCommand: z
+          .string()
+          .optional()
+          .describe("Web: start command (for an image, overrides the image's command). Cron: the command run on each schedule."),
+        schedule: z.string().optional().describe("Cron expression; required for type cron, e.g. '0 3 * * *'."),
+        port: z.number().int().min(1).max(65535).optional().describe("Port the web service listens on."),
+        tier: z
+          .enum(["free", "starter", "pro", "pro-max"])
+          .default("free")
+          .describe("Size. Free unless a paid size is named; prices at naijacloud.com/pricing."),
+        confirm: z.boolean().describe("Must be true: this creates a service and starts a build."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async (input) =>
+      await run(async () => {
+        if (input.confirm !== true) {
+          return fail("create_service creates a real service and starts a build. Re-invoke with confirm=true.");
+        }
+        const source = pickSource({ repo: input.repoFullName, git: input.gitUrl, image: input.image });
+        const type = input.type === "cron" ? "CRON" : "WEB";
+        if (type === "CRON" && !input.schedule) return fail("A cron job needs a schedule, e.g. '0 3 * * *'.");
+        if (type === "CRON" && source.sourceType !== "DOCKER_IMAGE" && !input.startCommand?.trim()) {
+          return fail("A cron job built from a repository needs startCommand, the command run on each schedule.");
+        }
+        const spec: Parameters<typeof createRuntimeService>[0] = {
+          environmentId: input.environmentId,
+          name: input.name,
+          type,
+          ...source,
+          tier: appTierOrFree(input.tier),
+        };
+        if (input.branch && source.sourceType !== "DOCKER_IMAGE") spec.branch = input.branch;
+        if (input.buildCommand && source.sourceType !== "DOCKER_IMAGE") spec.buildCommand = input.buildCommand;
+        if (input.startCommand?.trim()) {
+          if (type === "CRON") spec.command = input.startCommand;
+          else if (source.sourceType === "DOCKER_IMAGE") spec.imageCommand = input.startCommand;
+          else spec.startCommand = input.startCommand;
+        }
+        if (input.schedule) spec.schedule = input.schedule;
+        if (input.port !== undefined) spec.port = input.port;
+        const service = await createRuntimeService(spec);
+        return ok({
+          created: true,
+          service,
+          nextStep:
+            "The first build is queued. list_deployments with this serviceId shows its progress; " +
+            "get_deployment_logs shows the build output.",
         });
       }),
   );

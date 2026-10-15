@@ -256,8 +256,11 @@ async function chooseRepo(teamId: string, teamName: string): Promise<Installatio
     throw new Error(
       `No repositories are connected to ${teamName}.\n` +
         (url
-          ? `Install the NaijaCloud GitHub App, then run \`${programName()} launch\` again:\n  ${url}`
-          : "Connect a repository in the dashboard, then run this again."),
+          ? `Install the NaijaCloud GitHub App, then run \`${programName()} launch\` again:\n  ${url}\n`
+          : "Connect a repository in the dashboard, then run this again.\n") +
+        "Or create the service from a public git URL or a Docker image, without the GitHub App:\n" +
+        `  ${programName()} services create <name> --env <project>/<environment> --git https://github.com/owner/repo\n` +
+        `  ${programName()} services create <name> --env <project>/<environment> --image ghcr.io/owner/app:1.0`,
     );
   }
 
@@ -326,10 +329,22 @@ async function launchFromRepo(
       ? await promptWithDefault("  Build command   ", detected.buildCommand)
       : await askOptional("Build command", "blank for none");
 
-  const start =
-    detected?.startCommand != null
-      ? await promptWithDefault("  Start command   ", detected.startCommand)
-      : await askOptional("Start command", "blank to use the platform default");
+  // A cron job's command is what runs on each schedule, and the API refuses a
+  // repo-built job without one; a web service's start command is optional.
+  let start: string | undefined;
+  if (kind === "cron") {
+    start = (
+      detected?.startCommand != null
+        ? await promptWithDefault("  Command          (runs on each schedule)", detected.startCommand)
+        : await promptLine("  Command          (runs on each schedule): ")
+    ).trim();
+    if (start === "") throw new Error("A cron job needs a command to run on each schedule.");
+  } else {
+    start =
+      detected?.startCommand != null
+        ? await promptWithDefault("  Start command   ", detected.startCommand)
+        : await askOptional("Start command", "blank to use the platform default");
+  }
 
   let schedule: string | undefined;
   if (kind === "cron") {
@@ -381,7 +396,11 @@ async function launchFromRepo(
   };
   if (rootDir !== undefined) spec.rootDir = rootDir;
   if (build !== undefined && build !== "") spec.buildCommand = build;
-  if (start !== undefined && start !== "") spec.startCommand = start;
+  if (start !== undefined && start !== "") {
+    // The API reads a cron job's command from `command`, not `startCommand`.
+    if (type === "CRON") spec.command = start;
+    else spec.startCommand = start;
+  }
   if (schedule !== undefined) spec.schedule = schedule;
   if (port !== undefined) spec.port = port;
   if (detected?.runtimeVersion != null) spec.runtimeVersion = detected.runtimeVersion;

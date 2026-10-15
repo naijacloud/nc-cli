@@ -12,6 +12,7 @@ import process from "node:process";
 import {
   createRuntimeService,
   getProject,
+  githubAppInstallUrl,
   getService,
   listDeploymentsByService,
   listMyServices,
@@ -251,12 +252,18 @@ export async function createPreferringFree(
 export interface ServicesCreateOptions {
   /** Environment to create it in, as an id or `project/environment`. Required. */
   env: string | undefined;
-  /** `owner/repo` — the only source a runtime service can be built from here. */
+  /** `owner/repo` (or a github.com URL), built through the GitHub App. */
   repo: string | undefined;
+  /** A public https git URL, built without the GitHub App (PUBLIC_GIT). */
+  git: string | undefined;
+  /** A prebuilt Docker image reference, run as-is (DOCKER_IMAGE). */
+  image: string | undefined;
   branch: string | undefined;
   type: string | undefined;
   build: string | undefined;
   start: string | undefined;
+  /** A cron job's scheduled command. `--start` is accepted for it too. */
+  command: string | undefined;
   port: string | undefined;
   rootDir: string | undefined;
   runtimeVersion: string | undefined;
@@ -286,12 +293,113 @@ function parsePort(raw: string | undefined): number | undefined {
 }
 
 /**
- * Creates a web service or cron job from a connected repository.
+ * `--repo` as `owner/repo`, accepting the forms people paste: a github.com
+ * https URL (with or without `.git` or a trailing slash) and the SSH form
+ * `git@github.com:owner/repo.git`. Anything else that is not owner/repo is an
+ * error naming `--git`, which is what a non-GitHub URL wants.
+ */
+export function normaliseRepo(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "").replace(/\.git$/i, "");
+  const url = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s]+)\/([^/\s#?]+)$/i.exec(trimmed);
+  if (url) return `${url[1]}/${url[2]}`;
+  const ssh = /^git@github\.com:([^/\s]+)\/([^/\s]+)$/i.exec(trimmed);
+  if (ssh) return `${ssh[1]}/${ssh[2]}`;
+  if (/^[^/\s:]+\/[^/\s]+$/.test(trimmed)) return trimmed;
+  throw new Error(
+    `--repo must be owner/repo (or a github.com URL), not '${raw}'. ` +
+      "For a repository on another host, or without the GitHub App, use --git <https url>.",
+  );
+}
+
+/**
+ * Whether a git URL carries credentials, by the API's own rule: any password
+ * component, or a username on http(s) other than the literal `git` (a token
+ * pasted in the username slot). Checked here so the error arrives before the
+ * URL leaves the machine.
+ */
+export function gitUrlHasCredentials(url: string): boolean {
+  const match = /^\s*([a-z][a-z0-9+.-]*):\/\/([^/?#]*)@/i.exec(url);
+  if (!match) return false;
+  const scheme = (match[1] ?? "").toLowerCase();
+  const userinfo = match[2] ?? "";
+  if (userinfo.includes(":")) return true;
+  return (scheme === "http" || scheme === "https") && userinfo !== "git";
+}
+
+/** Image names that are databases: the API refuses them, so say why first. */
+const DATASTORE_IMAGE =
+  /^(docker\.io\/)?(library\/)?(postgres|mysql|mariadb|mongo|mongodb|redis|valkey)(:|@|$)/i;
+
+/** Where the service's code comes from, as the API's CreateServiceInput spells it. */
+type Source =
+  | { sourceType: "GITHUB_APP"; repoFullName: string }
+  | { sourceType: "PUBLIC_GIT"; gitUrl: string }
+  | { sourceType: "DOCKER_IMAGE"; image: string };
+
+/** Turns --repo / --git / --image into exactly one source, or says what is wrong. */
+export function pickSource(options: Pick<ServicesCreateOptions, "repo" | "git" | "image">): Source {
+  const given = (["repo", "git", "image"] as const).filter((key) => options[key] !== undefined);
+  if (given.length > 1) {
+    throw new Error(
+      `Pass one source, not ${given.map((key) => `--${key}`).join(" and ")}: ` +
+        "--repo (GitHub App), --git (public git URL) or --image (Docker image).",
+    );
+  }
+  if (options.image !== undefined) {
+    const image = options.image.trim();
+    if (image === "") throw new Error("--image needs an image reference, e.g. ghcr.io/acme/api:1.8.0.");
+    if (DATASTORE_IMAGE.test(image)) {
+      throw new Error(
+        `${image} is a database image. Create a database instead (\`${programName()} project\` → ` +
+          "environment → New database); it comes with backups and a private connection.",
+      );
+    }
+    return { sourceType: "DOCKER_IMAGE", image };
+  }
+  if (options.git !== undefined) {
+    const gitUrl = options.git.trim().replace(/\/+$/, "");
+    if (!/^https:\/\/\S+$/.test(gitUrl)) {
+      throw new Error(`--git must be the repository's https:// URL, like https://github.com/acme/api, not '${options.git}'.`);
+    }
+    if (gitUrlHasCredentials(gitUrl)) {
+      throw new Error(
+        "Remove the username or token from the --git URL. Public repositories need no credentials; " +
+          "for a private one, use --repo with the GitHub App instead.",
+      );
+    }
+    return { sourceType: "PUBLIC_GIT", gitUrl };
+  }
+  if (options.repo !== undefined) {
+    return { sourceType: "GITHUB_APP", repoFullName: normaliseRepo(options.repo) };
+  }
+  throw new Error(
+    "A web service or cron job needs a source. Pass one of:\n" +
+      "  --repo owner/repo     a repository the NaijaCloud GitHub App can reach\n" +
+      "  --git <https url>     any public git repository, no GitHub App needed\n" +
+      "  --image <reference>   a prebuilt Docker image, e.g. ghcr.io/acme/api:1.8.0\n" +
+      `To ship a local directory instead, it has to be a static site: ${programName()} deploy`,
+  );
+}
+
+/** The flags that named the source, for the retry line in an error. */
+function sourceFlags(source: Source): string {
+  switch (source.sourceType) {
+    case "GITHUB_APP":
+      return `--repo ${source.repoFullName}`;
+    case "PUBLIC_GIT":
+      return `--git ${source.gitUrl}`;
+    case "DOCKER_IMAGE":
+      return `--image ${source.image}`;
+  }
+}
+
+/**
+ * Creates a web service or cron job from a connected GitHub repository, a
+ * public git URL, or a Docker image — the three sources the dashboard offers
+ * (TGL-1177), sent the way the dashboard sends them.
  *
- * **A repository is the only source available.** `SourceType` has two members,
- * `GITHUB_APP` and `DOCKER_IMAGE`, and no upload variant — the platform builds
- * from a repo it can reach, so there is no way to hand it the directory you are
- * standing in. Local code is a static site (`deploy`) or it is in a repo.
+ * There is no upload source: local code is a static site (`deploy`) or it is
+ * in a repository.
  */
 export async function servicesCreate(
   name: string,
@@ -303,16 +411,7 @@ export async function servicesCreate(
         `  ${programName()} services create ${name} --env <project>/<environment> --repo <owner/repo>`,
     );
   }
-  if (options.repo === undefined) {
-    throw new Error(
-      "--repo is required: a web service is built from a connected GitHub repository.\n" +
-        `  ${programName()} services create ${name} --env <project>/<environment> --repo owner/repo\n` +
-        `To ship a local directory instead, it has to be a static site: ${programName()} deploy`,
-    );
-  }
-  if (!/^[^/\s]+\/[^/\s]+$/.test(options.repo)) {
-    throw new Error(`--repo must be owner/repo, not '${options.repo}'.`);
-  }
+  const source = pickSource(options);
 
   const type = SERVICE_TYPES[(options.type ?? "web").toLowerCase()];
   if (!type) {
@@ -320,6 +419,16 @@ export async function servicesCreate(
   }
   if (type === "CRON" && options.schedule === undefined) {
     throw new Error("A cron job needs --schedule, e.g. --schedule '0 3 * * *'.");
+  }
+  const cronCommand = options.command ?? (type === "CRON" ? options.start : undefined);
+  if (type === "CRON" && source.sourceType !== "DOCKER_IMAGE" && !cronCommand?.trim()) {
+    throw new Error(
+      "A cron job built from a repository needs --command, the command to run on each schedule, " +
+        "e.g. --command 'node jobs/cleanup.js'.",
+    );
+  }
+  if (source.sourceType === "DOCKER_IMAGE" && (options.build !== undefined || options.rootDir !== undefined)) {
+    throw new Error("An image is not built, so --build and --root-dir do not apply to --image.");
   }
 
   const tier = appTierOrFree(options.tier);
@@ -342,12 +451,22 @@ export async function servicesCreate(
     environmentId: environment.id,
     name,
     type,
-    sourceType: "GITHUB_APP",
-    repoFullName: options.repo,
+    ...source,
   };
-  if (options.branch !== undefined) spec.branch = options.branch;
+  if (options.branch !== undefined) {
+    if (source.sourceType === "DOCKER_IMAGE") {
+      throw new Error("An image has no branch; tag the image instead (--image name:tag).");
+    }
+    spec.branch = options.branch;
+  }
   if (options.build !== undefined) spec.buildCommand = options.build;
-  if (options.start !== undefined) spec.startCommand = options.start;
+  if (type === "CRON") {
+    if (cronCommand !== undefined && cronCommand.trim() !== "") spec.command = cronCommand;
+  } else if (options.start !== undefined) {
+    // An image's command override is its own field; a repo build's is the start command.
+    if (source.sourceType === "DOCKER_IMAGE") spec.imageCommand = options.start;
+    else spec.startCommand = options.start;
+  }
   if (options.runtimeVersion !== undefined) spec.runtimeVersion = options.runtimeVersion;
   if (options.rootDir !== undefined) spec.rootDir = options.rootDir;
   if (options.schedule !== undefined) spec.schedule = options.schedule;
@@ -364,22 +483,50 @@ export async function servicesCreate(
   const prices = tier === "FREE" ? [] : await loadPrices(type);
   if (!options.json) write(`Size: ${describeSize(tier, type, prices)}\n`);
 
-  await createPreferringFree(
-    spec,
-    {
-      wait: options.wait,
-      json: options.json,
-      envSource: collected.source,
-      envCount: envVars.length,
-    },
-    // The account's one free app is already in use. A paid size is a decision
-    // for the caller to make explicitly, so this fails and names the flag.
-    async (refusal) => {
+  try {
+    await createPreferringFree(
+      spec,
+      {
+        wait: options.wait,
+        json: options.json,
+        envSource: collected.source,
+        envCount: envVars.length,
+      },
+      // The account's one free app is already in use. A paid size is a decision
+      // for the caller to make explicitly, so this fails and names the flag.
+      async (refusal) => {
+        throw new Error(
+          `${refusal.message}\nNothing was created. Name a paid size to create it anyway:\n` +
+            `${paidSizeLines(type, await loadPrices(type))}\n` +
+            `  ${programName()} services create ${name} --env ${options.env} ${sourceFlags(source)} --tier starter`,
+        );
+      },
+    );
+  } catch (error) {
+    // The GitHub App is not installed for this team, or cannot see the repo.
+    // Say how to fix that, and that it is not the only way in.
+    if (
+      source.sourceType === "GITHUB_APP" &&
+      error instanceof Error &&
+      /no connected github installation|github app/i.test(error.message)
+    ) {
+      let url: string | null = null;
+      if (environment.teamId) {
+        try {
+          url = await githubAppInstallUrl(environment.teamId);
+        } catch {
+          // fall back to the generic pointer below
+        }
+      }
       throw new Error(
-        `${refusal.message}\nNothing was created. Name a paid size to create it anyway:\n` +
-          `${paidSizeLines(type, await loadPrices(type))}\n` +
-          `  ${programName()} services create ${name} --env ${options.env} --repo ${options.repo} --tier starter`,
+        `${error.message}\n` +
+          (url
+            ? `Install the NaijaCloud GitHub App and give it access to ${source.repoFullName}:\n  ${url}\n`
+            : "Install the NaijaCloud GitHub App from the dashboard (Settings → GitHub) and give it access to the repository.\n") +
+          "Or, for a public repository, build it without the app:\n" +
+          `  ${programName()} services create ${name} --env ${options.env} --git https://github.com/${source.repoFullName}`,
       );
-    },
-  );
+    }
+    throw error;
+  }
 }

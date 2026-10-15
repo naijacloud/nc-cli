@@ -43,15 +43,15 @@ export type ServiceType =
 export type EnvVarScope = "ALL" | "PROD" | "UAT" | "DEV";
 
 /**
- * Where a service's code comes from.
+ * Where a service's code comes from: a repository through the GitHub App, any
+ * public git URL, or a prebuilt Docker image.
  *
- * These two are the whole enum. There is deliberately no "upload" member: the
- * platform builds a web service from a connected repository or runs a prebuilt
- * image, and the only thing that accepts uploaded bytes is a STATIC service via
- * `staticUploadId`. That is why `services create` cannot take a local directory
- * for a web service, and why `deploy` remains the path for local code.
+ * There is deliberately no "upload" member: the only thing that accepts
+ * uploaded bytes is a STATIC service via `staticUploadId`. That is why
+ * `services create` cannot take a local directory for a web service, and why
+ * `deploy` remains the path for local code.
  */
-export type SourceType = "GITHUB_APP" | "DOCKER_IMAGE";
+export type SourceType = "GITHUB_APP" | "PUBLIC_GIT" | "DOCKER_IMAGE";
 
 /**
  * Resource sizes a service can be created at, as the API spells them.
