@@ -54,9 +54,14 @@ export async function loginWithPassword(
     }
   `;
   try {
-    const data = await execute<{ login: LoginResult }>(query, {
-      input: { email, password },
-    });
+    // The device cookie is what lets the API recognise this machine and skip
+    // the "New sign-in" email after the first login from it (TGL-1171).
+    const data = await execute<{ login: LoginResult }>(
+      query,
+      { input: { email, password } },
+      undefined,
+      { device: true },
+    );
     return { ...data.login, twoFactor: data.login.twoFactor ?? null };
   } catch (error) {
     // A rejected password is a credentials problem, not a "log in again" loop.
@@ -90,7 +95,7 @@ export async function verifyTwoFactorSignIn(
   try {
     const data = await execute<{
       verifyTwoFactorSignIn: { accessToken: string | null; user: User | null };
-    }>(query, { input: { pendingToken, code } });
+    }>(query, { input: { pendingToken, code } }, undefined, { device: true });
     const { accessToken, user } = data.verifyTwoFactorSignIn;
     if (!accessToken || !user) {
       throw new NaijaCloudError("Two-factor sign-in did not return a session.");

@@ -21,7 +21,7 @@
 import { createRequire } from "node:module";
 import process from "node:process";
 
-import { resolveToken } from "../auth/credentials.js";
+import { deviceId, rememberDeviceId, resolveToken } from "../auth/credentials.js";
 
 export const DEFAULT_API_BASE_URL = "https://api.naijacloud.com";
 const GRAPHQL_PATH = "/graphql";
@@ -66,9 +66,57 @@ export function apiBaseUrl(): string {
   return (override && override.replace(/\/+$/, "")) || DEFAULT_API_BASE_URL;
 }
 
-function graphqlUrl(): string {
-  return `${apiBaseUrl()}${GRAPHQL_PATH}`;
+/** Hosts plain http is allowed to: this machine only. */
+function isLoopback(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "::1" ||
+    /^127(\.\d{1,3}){3}$/.test(host)
+  );
 }
+
+/**
+ * The GraphQL endpoint, refusing a base URL a credential must not go to
+ * (TGL-1174): one that does not parse, or plain http to anything but this
+ * machine. Every request carries a token or a password, so neither is allowed
+ * to cross a network in cleartext — the same rule the email SDKs apply.
+ */
+function graphqlUrl(): string {
+  const base = apiBaseUrl();
+  let parsed: URL;
+  try {
+    parsed = new URL(base);
+  } catch {
+    throw new NaijaCloudError(
+      `HOSTING_API_BASE_URL is not a valid URL: '${base}'. It should look like ${DEFAULT_API_BASE_URL}.`,
+      { code: "BAD_CONFIG" },
+    );
+  }
+  if (parsed.protocol === "http:" && !isLoopback(parsed.hostname)) {
+    throw new NaijaCloudError(
+      `Refusing to send credentials to ${base} over plain http. Use an https:// URL ` +
+        "(http is only allowed for localhost), or unset HOSTING_API_BASE_URL.",
+      { code: "BAD_CONFIG" },
+    );
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new NaijaCloudError(
+      `HOSTING_API_BASE_URL must be an https:// URL, not '${base}'.`,
+      { code: "BAD_CONFIG" },
+    );
+  }
+  return `${base}${GRAPHQL_PATH}`;
+}
+
+/** Base URLs compared the way a person means them: case and trailing slash aside. */
+function sameBase(a: string, b: string): boolean {
+  const normalise = (url: string): string => url.trim().replace(/\/+$/, "").toLowerCase();
+  return normalise(a) === normalise(b);
+}
+
+let warnedAboutBase = false;
 
 function timeoutMs(): number {
   const raw = Number(process.env["HOSTING_API_TIMEOUT_MS"]);
@@ -129,20 +177,44 @@ function describe(error: GraphQLError): string {
   return error.message || "Unknown NaijaCloud API error";
 }
 
-/**
- * Whether a 400 is the server refusing the operation's shape — a field or
- * argument this CLI sends that the API no longer has. That only happens when
- * the API moved on and this build did not, so it gets its own message.
- */
-async function isSchemaMismatch(response: Response): Promise<boolean> {
+/** Options for {@link execute}. */
+export interface ExecuteOptions {
+  /**
+   * Send this machine's `nc.device` cookie, and keep the one the API sets.
+   * Only the sign-in mutations need it: the API decides from it whether to
+   * email "New sign-in to your account" (TGL-1171).
+   */
+  device?: boolean;
+}
+
+/** The `nc.device` value in the response's Set-Cookie headers, if any. */
+function deviceCookieOf(response: Response): string | undefined {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const cookies = headers.getSetCookie?.() ?? [];
+  for (const cookie of cookies) {
+    const match = /^\s*nc\.device=([^;]*)/.exec(cookie);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+  }
+  return undefined;
+}
+
+/** Reads a GraphQL body from a non-2xx answer, or null when it is not one. */
+async function graphqlBody(response: Response): Promise<GraphQLResponse<unknown> | null> {
   try {
     const body = (await response.json()) as GraphQLResponse<unknown>;
-    return (body.errors ?? []).some(
-      (error) => error.extensions?.code === "GRAPHQL_VALIDATION_FAILED",
-    );
+    return body && typeof body === "object" ? body : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** "Wait 30 seconds" from a Retry-After header, in seconds or as a date. */
+function retryAfter(response: Response): string {
+  const raw = response.headers.get("retry-after")?.trim();
+  if (!raw) return "Wait a minute";
+  const seconds = /^\d+$/.test(raw) ? Number(raw) : Math.ceil((Date.parse(raw) - Date.now()) / 1000);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "Wait a moment";
+  return seconds < 120 ? `Wait ${seconds} second${seconds === 1 ? "" : "s"}` : `Wait ${Math.ceil(seconds / 60)} minutes`;
 }
 
 /**
@@ -153,6 +225,7 @@ export async function execute<T>(
   query: string,
   variables: Record<string, unknown>,
   token?: string,
+  options: ExecuteOptions = {},
 ): Promise<T> {
   const url = graphqlUrl();
   const headers: Record<string, string> = {
@@ -160,6 +233,7 @@ export async function execute<T>(
     "user-agent": `naijacloud-cli/${CLIENT_VERSION}`,
   };
   if (token) headers["authorization"] = `Bearer ${token}`;
+  if (options.device) headers["cookie"] = `nc.device=${encodeURIComponent(deviceId())}`;
 
   let response: Response;
   try {
@@ -179,34 +253,88 @@ export async function execute<T>(
     );
   }
 
+  if (options.device) {
+    const issued = deviceCookieOf(response);
+    if (issued) rememberDeviceId(issued);
+  }
+
   // The GraphQL endpoint answers 200 even for application errors; a non-2xx
   // here means the gateway or a proxy failed — or that the server refused the
   // operation itself, which Apollo answers with 400 and a JSON body.
-  if (!response.ok && response.status !== 200) {
-    if (response.status === 401 || response.status === 403) {
-      throw new NotLoggedInError(
-        "NaijaCloud rejected the stored credentials. Run 'naijacloud login' again.",
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new NaijaCloudError(
+        `NaijaCloud is limiting how fast requests are accepted from you (HTTP 429). ${retryAfter(response)} and try again.`,
+        { code: "RATE_LIMITED", statusCode: 429 },
       );
     }
-    if (response.status === 400 && (await isSchemaMismatch(response))) {
+    if (response.status === 401 || response.status === 403) {
+      // Only the API's own answer says anything about the credentials. A 403
+      // HTML page is a firewall, a WAF or a captive portal, and logging in
+      // again cannot get past it.
+      const body = await graphqlBody(response);
+      const codes = (body?.errors ?? []).map((error) => error.extensions?.code);
+      if (codes.includes("UNAUTHENTICATED")) {
+        throw new NotLoggedInError(
+          `NaijaCloud rejected the credentials (they may have expired). Run 'naijacloud login' again.`,
+        );
+      }
+      if (body?.errors?.[0]) {
+        throw new NaijaCloudError(`Permission denied by NaijaCloud: ${describe(body.errors[0])}`, {
+          code: "FORBIDDEN",
+          statusCode: response.status,
+        });
+      }
       throw new NaijaCloudError(
-        `This version of the CLI (${CLIENT_VERSION}) no longer matches the NaijaCloud API. ` +
-          "Update it — npm install -g @naijacloud/cli@latest, or reinstall the way you installed it — and try again.",
-        { code: "GRAPHQL_VALIDATION_FAILED", statusCode: 400 },
+        `The request was blocked before it reached the NaijaCloud API (HTTP ${response.status} from ${url}). ` +
+          "A firewall, proxy, VPN or captive portal on your network is the usual cause — " +
+          "try another network. Logging in again will not help.",
+        { code: "BLOCKED", statusCode: response.status },
       );
+    }
+    if (response.status === 400) {
+      const body = await graphqlBody(response);
+      if ((body?.errors ?? []).some((error) => error.extensions?.code === "GRAPHQL_VALIDATION_FAILED")) {
+        throw new NaijaCloudError(
+          `This version of the CLI (${CLIENT_VERSION}) no longer matches the NaijaCloud API. ` +
+            "Update it — npm install -g @naijacloud/cli@latest, or reinstall the way you installed it — and try again.",
+          { code: "GRAPHQL_VALIDATION_FAILED", statusCode: 400 },
+        );
+      }
+      if (body?.errors?.[0]) {
+        throw new NaijaCloudError(describe(body.errors[0]), { statusCode: 400 });
+      }
     }
     throw new NaijaCloudError(
-      `NaijaCloud API returned HTTP ${response.status} ${response.statusText}.`,
+      `NaijaCloud API returned HTTP ${response.status} ${response.statusText}.` +
+        (response.status >= 500 ? " This is on our side; try again in a minute." : ""),
       { statusCode: response.status },
+    );
+  }
+
+  // Read the text first, so a connection that drops mid-answer is told apart
+  // from an answer that is not JSON (a proxy's HTML page).
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    throw new NaijaCloudError(
+      "The connection dropped before NaijaCloud finished answering. Check your connection and try again.",
+      { code: "CONNECTION_DROPPED", statusCode: response.status },
     );
   }
 
   let payload: GraphQLResponse<T>;
   try {
-    payload = (await response.json()) as GraphQLResponse<T>;
+    payload = JSON.parse(text) as GraphQLResponse<T>;
   } catch {
+    const html = /^\s*</.test(text);
     throw new NaijaCloudError(
-      `NaijaCloud API returned a non-JSON response (HTTP ${response.status}).`,
+      html
+        ? `Something between you and NaijaCloud answered with a web page instead of the API (HTTP ${response.status}). ` +
+            "A proxy, VPN or captive portal is the usual cause; try another network."
+        : `NaijaCloud API returned an answer that is not JSON (HTTP ${response.status}). ` +
+            "The connection may have been cut; try again.",
       { statusCode: response.status },
     );
   }
@@ -222,18 +350,18 @@ export async function execute<T>(
           "Run 'naijacloud login' again.",
       );
     }
-    const options: { code?: string; statusCode?: number } = {};
-    if (code !== undefined) options.code = code;
-    if (statusCode !== undefined) options.statusCode = statusCode;
+    const errorOptions: { code?: string; statusCode?: number } = {};
+    if (code !== undefined) errorOptions.code = code;
+    if (statusCode !== undefined) errorOptions.statusCode = statusCode;
 
     if (code === "FORBIDDEN" || statusCode === 403) {
       throw new NaijaCloudError(`Permission denied by NaijaCloud: ${describe(firstError)}`, {
-        ...options,
+        ...errorOptions,
         statusCode: statusCode ?? 403,
       });
     }
 
-    throw new NaijaCloudError(describe(firstError), options);
+    throw new NaijaCloudError(describe(firstError), errorOptions);
   }
 
   if (payload.data == null) {
@@ -246,6 +374,23 @@ export async function execute<T>(
 export async function authed<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const resolved = resolveToken();
   if (!resolved) throw new NotLoggedInError();
+
+  // A stored login names the API it came from. Pointing HOSTING_API_BASE_URL
+  // somewhere else (a leftover staging variable, a .envrc) would hand that
+  // session to a different server, so say so (TGL-1174).
+  if (
+    resolved.source === "file" &&
+    resolved.issuedFor &&
+    !sameBase(resolved.issuedFor, apiBaseUrl()) &&
+    !warnedAboutBase
+  ) {
+    warnedAboutBase = true;
+    process.stderr.write(
+      `Warning: your saved login was issued by ${resolved.issuedFor}, but HOSTING_API_BASE_URL ` +
+        `points at ${apiBaseUrl()}, so the token is being sent there. If that is not intended, ` +
+        "unset HOSTING_API_BASE_URL; otherwise log in against it or set HOSTING_API_TOKEN.\n",
+    );
+  }
   return await execute<T>(query, variables, resolved.token);
 }
 

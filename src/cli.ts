@@ -451,7 +451,7 @@ async function main(): Promise<void> {
       if (email) options.email = email;
       if (code) options.code = code;
       if (password) options.password = password;
-      if (token) options.token = token;
+      if (token !== undefined) options.token = token;
 
       await login(options);
       return;
