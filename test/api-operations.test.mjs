@@ -14,6 +14,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { buildSchema, parse, validate } from "graphql";
+import os from "node:os";
+import path from "node:path";
+
+// The login operations send the device cookie, which creates ~/.naijacloud/device;
+// keep that in a throwaway home rather than the developer's.
+const home = fs.mkdtempSync(path.join(os.tmpdir(), "nc-cli-ops-"));
+process.env.HOME = home;
+process.env.USERPROFILE = home;
 
 const schemaPath =
   process.env.NAIJACLOUD_SCHEMA ?? fileURLToPath(new URL("./fixtures/schema.gql", import.meta.url));
