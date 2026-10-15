@@ -21,7 +21,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 import {
@@ -36,15 +36,18 @@ import {
 } from "../api/index.js";
 import type { DeploymentStatus, StaticSite } from "../api/index.js";
 import {
+  IGNORE_FILENAME,
   MANIFEST_FILENAME,
   MANIFEST_VERSION,
   detectLocal,
   findManifest,
+  publishedDotfiles,
+  readIgnoreFile,
   readManifest,
   selectFiles,
   writeManifest,
 } from "../deploy-static/manifest.js";
-import type { Manifest } from "../deploy-static/manifest.js";
+import type { IgnoreSource, Manifest } from "../deploy-static/manifest.js";
 import { askManifestBasics } from "../deploy-static/configure.js";
 import { askEnvironment } from "../deploy-static/target.js";
 import { programName } from "../program-name.js";
@@ -286,15 +289,43 @@ function buildBundle(config: ResolvedConfig): Bundle {
     };
   }
 
-  const { entries, excluded } = selectFiles(target, config.ignore);
+  // A .naijacloudignore beside naijacloud.json also applies when the deployed
+  // directory is a subdirectory of it (dist/, build/); its patterns are
+  // relative to where the file lives.
+  const extra: IgnoreSource[] = [];
+  const base = relative(config.root, target).split(sep).join("/");
+  if (base !== "" && !base.startsWith("..")) {
+    extra.push({ patterns: readIgnoreFile(join(config.root, IGNORE_FILENAME)), base });
+  }
+
+  const { entries, excluded, secrets, ignored } = selectFiles(target, config.ignore, extra);
   if (entries.length === 0) {
     throw new Error(`${relative(config.root, target) || target} is empty — nothing to deploy.`);
   }
 
-  if (excluded.length > 0) {
-    // Secrets are dropped unconditionally, so say which ones: silence here would
-    // look like the file was uploaded.
-    write(`Skipped ${excluded.length} excluded path(s): ${excluded.slice(0, 5).join(", ")}\n`);
+  if (secrets.length > 0) {
+    // Named in full, every one: these are the files someone would least want
+    // to discover were published, so the list is the reassurance.
+    write(
+      `Not uploading ${secrets.length} file(s) that look like credentials ` +
+        `(a deployed site is public):\n${secrets.map((path) => `  ${path}`).join("\n")}\n`,
+    );
+  }
+  const routine = excluded.filter((path) => !secrets.includes(path) && !secrets.includes(`${path}/`));
+  if (routine.length > 0) {
+    write(`Skipped ${routine.length} excluded path(s): ${routine.slice(0, 5).join(", ")}${routine.length > 5 ? ", …" : ""}\n`);
+  }
+  if (ignored.length > 0) {
+    write(
+      `Ignored ${ignored.length} path(s) by ignore rules: ${ignored.slice(0, 5).join(", ")}${ignored.length > 5 ? ", …" : ""}\n`,
+    );
+  }
+  const dotfiles = publishedDotfiles(entries);
+  if (dotfiles.length > 0) {
+    write(
+      `Warning: these dotfiles will be published: ${dotfiles.slice(0, 10).join(", ")}` +
+        `${dotfiles.length > 10 ? ", …" : ""}. Add them to ${IGNORE_FILENAME} if they are private.\n`,
+    );
   }
 
   const entryName = config.index ?? "index.html";

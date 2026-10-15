@@ -113,8 +113,11 @@ export const manifestSchema = z
       .array(z.string())
       .optional()
       .describe(
-        "Glob patterns excluded from the archive, on top of the always-excluded set " +
-          "(.git, node_modules, .naijacloud, .env files).",
+        "Glob patterns excluded from the archive, in .gitignore syntax (`!` re-includes), " +
+          "on top of the always-excluded set (.git, node_modules, .naijacloud, .env files, " +
+          "and credential files such as .npmrc, .netrc, id_rsa, *.pem, *.key, .ssh/, .aws/). " +
+          "A .naijacloudignore file in the deployed directory or beside naijacloud.json " +
+          "adds more. Credential files cannot be re-included.",
       ),
   })
   .describe(
@@ -359,7 +362,15 @@ export function detectLocal(dir: string): Detected {
 /* -------------------------------------------------------------------------- */
 
 /** Paths never uploaded, whatever `ignore` says. */
-const ALWAYS_EXCLUDED = new Set([".git", "node_modules", STATE_DIR, MANIFEST_FILENAME]);
+const ALWAYS_EXCLUDED = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  STATE_DIR,
+  MANIFEST_FILENAME,
+  ".naijacloudignore",
+]);
 
 /**
  * Secrets must never reach a public CDN, and a static bundle is world-readable
@@ -380,6 +391,59 @@ export function isEnvFile(name: string): boolean {
   );
 }
 
+/**
+ * Credential files by exact (lower-cased) name (TGL-1167). Each is a token,
+ * password or key in a well-known place: package-registry tokens (.npmrc,
+ * .yarnrc.yml, .pypirc), machine logins (.netrc, .git-credentials, .pgpass,
+ * .my.cnf), Cloudflare's .dev.vars, and cloud-provider credential files.
+ */
+const SECRET_NAMES = new Set([
+  ".npmrc",
+  ".yarnrc",
+  ".yarnrc.yml",
+  ".pypirc",
+  ".netrc",
+  "_netrc",
+  ".git-credentials",
+  ".pgpass",
+  ".my.cnf",
+  ".htpasswd",
+  ".dev.vars",
+  ".s3cfg",
+  ".boto",
+  ".dockercfg",
+  "credentials.json",
+  "client_secret.json",
+  "kubeconfig",
+  "terraform.tfstate",
+  "terraform.tfstate.backup",
+]);
+
+/** Directories that only ever hold credentials: SSH, cloud CLIs, GPG, Docker. */
+const SECRET_DIRS = new Set([".ssh", ".aws", ".gnupg", ".azure", ".kube", ".docker", ".gcloud"]);
+
+/** Private keys and keystores, by name pattern. */
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /^id_(rsa|dsa|ecdsa|ed25519)(_sk)?(\..*)?$/,
+  /\.(pem|key|p12|pfx|jks|keystore|ppk|gpg)$/,
+  /^service-account.*\.json$/,
+  /^.*-credentials\.json$/,
+  /\.tfvars$/,
+];
+
+/**
+ * Whether a file or directory name looks like a credential that must never be
+ * published. Checked by name, before `ignore` and `.naijacloudignore`, and a
+ * negated pattern cannot bring one back: a deploy is public, so a key that
+ * really belongs on the site has to be renamed on purpose.
+ */
+export function isSecretFile(name: string, isDirectory = false): boolean {
+  const lower = name.toLowerCase();
+  if (isEnvFile(lower)) return true;
+  if (isDirectory) return SECRET_DIRS.has(lower);
+  return SECRET_NAMES.has(lower) || SECRET_PATTERNS.some((pattern) => pattern.test(lower));
+}
+
 /** One file selected for the archive. */
 export interface ArchiveEntry {
   /** Absolute path on disk. */
@@ -391,23 +455,50 @@ export interface ArchiveEntry {
 
 export interface ArchiveSelection {
   entries: ArchiveEntry[];
-  /** Paths dropped by the always-excluded rules, for the "skipped" notice. */
+  /** Paths dropped by the always-excluded rules (secrets included), for the "skipped" notice. */
   excluded: string[];
+  /** The subset of `excluded` that looked like credentials, warned about by name. */
+  secrets: string[];
+  /** Paths left out by `ignore` or `.naijacloudignore`. */
+  ignored: string[];
+}
+
+/** One parsed ignore rule, in gitignore syntax. */
+interface IgnoreRule {
+  test: (relative: string) => boolean;
+  /** `!pattern`: re-include what an earlier rule left out. */
+  negated: boolean;
 }
 
 /**
- * Translates one ignore pattern into a regular expression.
+ * Translates one ignore pattern into a rule, in the .gitignore dialect people
+ * already know: `*` (within a path segment), `**` (across segments), `?`, a
+ * trailing `/` for "this directory and everything under it", a leading `/` to
+ * anchor at the deployed directory, and `!` to re-include. A pattern with no
+ * slash (other than a trailing one) matches by basename anywhere in the tree.
  *
- * Supports the subset people actually write in this file: `*` (within a path
- * segment), `**` (across segments), `?`, and a trailing `/` meaning "this
- * directory and everything under it". A pattern with no slash matches by
- * basename anywhere in the tree, the way .gitignore behaves.
+ * `base` is the deployed directory's path relative to the file the pattern came
+ * from, so a `.naijacloudignore` beside naijacloud.json can name `dist/x`.
  */
-function patternToRegExp(pattern: string): { test: (relative: string) => boolean } {
-  const trimmed = pattern.replace(/^\.\//, "");
+function parseRule(raw: string, base = ""): IgnoreRule | null {
+  let pattern = raw.replace(/\s+$/, "");
+  if (pattern === "" || pattern.startsWith("#")) return null;
+
+  let negated = false;
+  if (pattern.startsWith("!")) {
+    negated = true;
+    pattern = pattern.slice(1);
+  } else if (pattern.startsWith("\\!") || pattern.startsWith("\\#")) {
+    pattern = pattern.slice(1);
+  }
+
+  pattern = pattern.replace(/^\.\//, "");
   // A trailing slash only says "directory"; the subtree suffix below covers it.
-  const body = trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-  const byBasename = !body.includes("/");
+  const body0 = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+  const anchoredAtRoot = body0.startsWith("/");
+  const body = anchoredAtRoot ? body0.slice(1) : body0;
+  if (body === "") return null;
+  const byBasename = !anchoredAtRoot && !body.includes("/");
 
   let source = "";
   for (let index = 0; index < body.length; index += 1) {
@@ -431,22 +522,78 @@ function patternToRegExp(pattern: string): { test: (relative: string) => boolean
   // The trailing `(/.*)?` is what makes a matched directory take its subtree
   // with it — `coverage/` and `coverage` both drop everything underneath.
   const anchored = new RegExp(`^${source}(/.*)?$`);
+  const prefix = base ? `${base.replace(/\/+$/, "")}/` : "";
   return {
-    test: (relative: string): boolean =>
-      anchored.test(relative) ||
-      (byBasename && relative.split("/").some((segment) => anchored.test(segment))),
+    negated,
+    test: (relative: string): boolean => {
+      const path = `${prefix}${relative}`;
+      return (
+        anchored.test(path) ||
+        (byBasename && relative.split("/").some((segment) => anchored.test(segment)))
+      );
+    },
   };
+}
+
+/** Last matching rule wins, as in .gitignore. */
+function isIgnored(rules: readonly IgnoreRule[], relative: string): boolean {
+  let ignored = false;
+  for (const rule of rules) {
+    if (rule.test(relative)) ignored = !rule.negated;
+  }
+  return ignored;
+}
+
+/** The per-directory ignore file, read in gitignore syntax. */
+export const IGNORE_FILENAME = ".naijacloudignore";
+
+/** Reads an ignore file's patterns, or none when it does not exist. */
+export function readIgnoreFile(path: string): string[] {
+  try {
+    return readFileSync(path, "utf8").split(/\r?\n/);
+  } catch {
+    return [];
+  }
+}
+
+/** Patterns, each optionally tagged with the directory they are relative to. */
+export interface IgnoreSource {
+  patterns: string[];
+  /** The deployed directory's path relative to where these patterns live. */
+  base?: string;
 }
 
 /**
  * Walks the output directory and returns everything that should be archived.
  * Symlinks are followed for files but not for directories, so a link out of the
  * tree cannot smuggle in an unbounded subtree.
+ *
+ * `ignore` (the manifest's list) and the deployed directory's own
+ * `.naijacloudignore` are applied in that order; `extra` adds sources such as a
+ * `.naijacloudignore` beside naijacloud.json when the output is a subdirectory.
  */
-export function selectFiles(root: string, ignore: string[] = []): ArchiveSelection {
-  const matchers = ignore.map(patternToRegExp);
+export function selectFiles(
+  root: string,
+  ignore: string[] = [],
+  extra: IgnoreSource[] = [],
+): ArchiveSelection {
+  const absoluteRoot = resolve(root);
+  const rules: IgnoreRule[] = [];
+  for (const source of [
+    ...extra,
+    { patterns: ignore },
+    { patterns: readIgnoreFile(join(absoluteRoot, IGNORE_FILENAME)) },
+  ]) {
+    for (const pattern of source.patterns) {
+      const rule = parseRule(pattern, source.base);
+      if (rule) rules.push(rule);
+    }
+  }
+
   const entries: ArchiveEntry[] = [];
   const excluded: string[] = [];
+  const secrets: string[] = [];
+  const ignored: string[] = [];
 
   const walk = (dir: string, prefix: string): void => {
     let names: string[];
@@ -460,11 +607,10 @@ export function selectFiles(root: string, ignore: string[] = []): ArchiveSelecti
     for (const name of names) {
       const relative = prefix ? `${prefix}/${name}` : name;
 
-      if (ALWAYS_EXCLUDED.has(name) || isEnvFile(name)) {
+      if (ALWAYS_EXCLUDED.has(name)) {
         excluded.push(relative);
         continue;
       }
-      if (matchers.some((matcher) => matcher.test(relative))) continue;
 
       const absolute = join(dir, name);
       let stats;
@@ -474,7 +620,22 @@ export function selectFiles(root: string, ignore: string[] = []): ArchiveSelecti
         continue; // A dangling symlink is not worth failing a deploy over.
       }
 
-      if (stats.isDirectory()) {
+      const directory = stats.isDirectory();
+      if (
+        isSecretFile(name, directory) ||
+        // Docker's credential store: only the file, a .docker/ dir is excluded whole.
+        (name.toLowerCase() === "config.json" && /(^|\/)\.docker$/i.test(prefix))
+      ) {
+        excluded.push(relative);
+        secrets.push(directory ? `${relative}/` : relative);
+        continue;
+      }
+      if (isIgnored(rules, relative)) {
+        ignored.push(relative);
+        continue;
+      }
+
+      if (directory) {
         walk(absolute, relative);
       } else if (stats.isFile()) {
         entries.push({ absolute, relative, size: stats.size });
@@ -482,6 +643,21 @@ export function selectFiles(root: string, ignore: string[] = []): ArchiveSelecti
     }
   };
 
-  walk(resolve(root), "");
-  return { entries, excluded };
+  walk(absoluteRoot, "");
+  return { entries, excluded, secrets, ignored };
+}
+
+/**
+ * Dotfiles that will be published, other than under `.well-known/` (which
+ * exists to be served). Not secret by name, but worth a line before upload so
+ * nothing private goes out unnoticed.
+ */
+export function publishedDotfiles(entries: readonly ArchiveEntry[]): string[] {
+  return entries
+    .map((entry) => entry.relative)
+    .filter(
+      (relative) =>
+        !relative.startsWith(".well-known/") &&
+        relative.split("/").some((segment) => segment.startsWith(".")),
+    );
 }

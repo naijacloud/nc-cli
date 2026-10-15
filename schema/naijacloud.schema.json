@@ -44,7 +44,7 @@
       "type": "string"
     },
     "ignore": {
-      "description": "Glob patterns excluded from the archive, on top of the always-excluded set (.git, node_modules, .naijacloud, .env files).",
+      "description": "Glob patterns excluded from the archive, in .gitignore syntax (`!` re-includes), on top of the always-excluded set (.git, node_modules, .naijacloud, .env files, and credential files such as .npmrc, .netrc, id_rsa, *.pem, *.key, .ssh/, .aws/). A .naijacloudignore file in the deployed directory or beside naijacloud.json adds more. Credential files cannot be re-included.",
       "type": "array",
       "items": {
         "type": "string"
