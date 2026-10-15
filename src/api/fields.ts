@@ -39,7 +39,13 @@ export const DOMAIN_FIELDS = `
   status
   verifiedAt
   lastCheck
-  dnsTarget { cname aRecord isApex }
+  dnsTarget {
+    cname
+    aRecord
+    isApex
+    records { type name value purpose }
+    conflicts { type name value purpose }
+  }
 `;
 
 export const PROJECT_FIELDS = `

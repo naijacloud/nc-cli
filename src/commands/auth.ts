@@ -60,8 +60,11 @@ export async function login(options: LoginOptions = {}): Promise<void> {
 
   let accessToken: string;
 
-  if (options.token) {
+  if (options.token !== undefined) {
     accessToken = options.token.trim();
+    if (!accessToken) {
+      throw new Error("--token is empty. Pass the access token or nc_live_ API key as its value.");
+    }
     write(`Validating token against ${base} ...\n`);
   } else {
     if (options.email === undefined || options.password === undefined) {
@@ -96,9 +99,10 @@ export async function login(options: LoginOptions = {}): Promise<void> {
   } catch (error) {
     // Only an authentication failure says anything about the token; a network
     // or server error must not be reported as "your token was rejected".
-    if (options.token && error instanceof NotLoggedInError) {
+    if (options.token !== undefined && error instanceof NotLoggedInError) {
       throw new Error(
-        `The token passed to --token was rejected by NaijaCloud (${error.message}). Nothing was saved.`,
+        "NaijaCloud did not accept the token passed to --token: it is wrong, revoked or expired. " +
+          "Nothing was saved. Create a new API key in Settings → API keys, or log in with your email and password.",
       );
     }
     throw error;
@@ -160,6 +164,11 @@ export function logout(): void {
   const existed = deleteStoredCredentials();
   if (existed) {
     process.stdout.write(`Logged out. Removed ${CONFIG_FILE}\n`);
+    // The CLI does not call the API's logout: that signs out every device.
+    write(
+      "The token itself stays valid until it expires (7 days for a password login; " +
+        "an API key until it is revoked in Settings → API keys).\n",
+    );
   } else {
     process.stdout.write("Not logged in — nothing to remove.\n");
   }

@@ -134,14 +134,20 @@ export async function createRuntimeService(input: {
   /** `owner/repo`, for a GITHUB_APP source. */
   repoFullName?: string;
   branch?: string;
+  /** Public https git URL, for a PUBLIC_GIT source. */
+  gitUrl?: string;
   /** Image reference, for a DOCKER_IMAGE source. */
   image?: string;
+  /** A web service image's command, when not the image's own. */
+  imageCommand?: string;
+  /** A cron job's scheduled command (blank on an image runs the image's own). */
+  command?: string;
   buildCommand?: string;
   startCommand?: string;
   runtimeVersion?: string;
   port?: number;
   rootDir?: string;
-  watchPaths?: string;
+  watchPaths?: string[];
   monorepoStrategy?: MonorepoStrategy;
   /** Cron expression; only meaningful when `type` is CRON. */
   schedule?: string;

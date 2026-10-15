@@ -52,7 +52,7 @@ const stored = () =>
 
 before(async () => {
   for (const k of HOME_VARS) process.env[k] = home;
-  process.env.HOSTING_API_BASE_URL = "http://api.test";
+  process.env.HOSTING_API_BASE_URL = "http://localhost:9";
   delete process.env.HOSTING_API_TOKEN;
   // Quiet the progress lines the command writes to stderr/stdout.
   auth = await import("../build/commands/auth.js");
@@ -133,4 +133,63 @@ test("--token (an API key) never meets two-factor", async () => {
   await auth.login({ token: "nc_live_example" });
   assert.deepEqual(calls.map((c) => c.op), ["CurrentUser"]);
   assert.equal(stored().accessToken, "nc_live_example");
+});
+
+// TGL-1171: without a device cookie every password login looked like a new
+// device and emailed "New sign-in to your account".
+test("password logins send the same nc.device cookie every time, across logout", async () => {
+  const cookies = [];
+  globalThis.fetch = async (_url, init) => {
+    const { query } = JSON.parse(init.body);
+    const op = /(?:mutation|query)\s+(\w+)/.exec(query)?.[1];
+    if (op === "Login") {
+      cookies.push(init.headers.cookie);
+      return Response.json(
+        { data: { login: { accessToken: "s", user: { id: "u1", email: "a@b.c" }, twoFactor: null } } },
+        { headers: { "set-cookie": `${init.headers.cookie}; Path=/; HttpOnly` } },
+      );
+    }
+    return Response.json({ data: { getMe: { id: "u1", email: "a@b.c", status: "ACTIVE" } } });
+  };
+  await auth.login({ email: "a@b.c", password: "pw" });
+  auth.logout();
+  await auth.login({ email: "a@b.c", password: "pw" });
+  assert.equal(cookies.length, 2);
+  assert.match(cookies[0], /^nc\.device=[0-9a-f]{64}$/);
+  assert.equal(cookies[1], cookies[0]);
+  const file = path.join(home, ".naijacloud", "device");
+  assert.equal(`nc.device=${fs.readFileSync(file, "utf8").trim()}`, cookies[0]);
+  if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});
+
+test("an empty --token is refused before any request", async () => {
+  stub();
+  await assert.rejects(auth.login({ token: "   " }), /--token is empty/);
+  assert.equal(calls.length, 0);
+});
+
+test("a rejected --token says so once, without telling you to run login", async () => {
+  stub({ CurrentUser: { errors: [{ message: "Unauthorized", extensions: { code: "UNAUTHENTICATED" } }] } });
+  await assert.rejects(auth.login({ token: "nc_live_bad" }), (err) =>
+    /did not accept the token/.test(err.message) && !/Run 'naijacloud login'/.test(err.message),
+  );
+});
+
+// TGL-1174: a stored login sent to a base URL other than the one it came from
+// is warned about.
+test("a saved login used against a different base URL warns", async () => {
+  stub({ Login: { data: { login: { accessToken: "s1", user: { id: "u1", email: "a@b.c" }, twoFactor: null } } } });
+  await auth.login({ email: "a@b.c", password: "pw" });
+  const { getCurrentUser } = await import("../build/api/index.js");
+  const realErr = process.stderr.write;
+  const err = [];
+  process.env.HOSTING_API_BASE_URL = "http://localhost:10";
+  process.stderr.write = (chunk) => (err.push(String(chunk)), true);
+  try {
+    await getCurrentUser();
+  } finally {
+    process.stderr.write = realErr;
+    process.env.HOSTING_API_BASE_URL = "http://localhost:9";
+  }
+  assert.match(err.join(""), /issued by http:\/\/localhost:9.*points at http:\/\/localhost:10/s);
 });

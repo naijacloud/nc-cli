@@ -4,7 +4,31 @@
 
 import { authed, authedAllPages, pageSelection } from "./transport.js";
 import { DOMAIN_FIELDS } from "./fields.js";
-import type { CustomDomain, DomainWithService } from "./types.js";
+import type { CustomDomain, DnsRecordInstruction, DomainWithService } from "./types.js";
+
+/**
+ * The records a domain needs, exactly as the API worked them out (TGL-1166).
+ *
+ * The API knows which region the service runs in; the CLI does not. On a
+ * direct region it checks for an A record at the node's IP, and a CNAME to the
+ * proxied app domain never matches — so the instruction must come from
+ * `dnsTarget.records`, not be rebuilt here. The fallback is only for an API
+ * that sends no records (an older one, or a tunnel whose records are not ready).
+ */
+export function dnsRecordsFor(domain: CustomDomain): DnsRecordInstruction[] {
+  const records = domain.dnsTarget.records ?? [];
+  if (records.length > 0) return records;
+  if (domain.dnsTarget.aRecord && domain.dnsTarget.isApex) {
+    return [{ type: "A", name: domain.domain, value: domain.dnsTarget.aRecord, purpose: "routing" }];
+  }
+  return [{ type: "CNAME", name: domain.domain, value: domain.dnsTarget.cname, purpose: "routing" }];
+}
+
+/** One record as a line people can copy into their DNS provider. */
+export function formatDnsRecord(record: DnsRecordInstruction): string {
+  const purpose = record.purpose && record.purpose !== "routing" ? `  (${record.purpose})` : "";
+  return `${record.type.padEnd(5)}  ${record.name}  →  ${record.value}${purpose}`;
+}
 
 
 export async function listDomainsByService(serviceId: string): Promise<CustomDomain[]> {

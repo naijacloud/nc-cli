@@ -11,6 +11,8 @@ import process from "node:process";
 
 import {
   addDomain,
+  dnsRecordsFor,
+  formatDnsRecord,
   listDomainsByProject,
   listDomainsByService,
   removeDomain,
@@ -24,28 +26,29 @@ import { isInteractive, promptYesNo, write } from "../terminal.js";
 import { looksLikeId, requireService, resolveProjectId } from "./resolve.js";
 
 /**
- * The DNS record a domain needs, as one line of instruction.
- *
- * An apex domain cannot be a CNAME, which is why the platform hands back a
- * separate A record for it — getting this wrong is the single most common
- * reason a domain sits PENDING forever.
+ * The DNS records a domain needs, one per line, plus any existing record that
+ * stops it verifying. Taken verbatim from the API's `dnsTarget.records`: the
+ * API knows whether the service's region checks for an A record or a CNAME,
+ * and a guess here sent eu-west customers to a CNAME that never verifies
+ * (TGL-1166).
  */
-function dnsInstruction(domain: CustomDomain): string {
-  return domain.dnsTarget.isApex && domain.dnsTarget.aRecord
-    ? `A    ${domain.domain}  →  ${domain.dnsTarget.aRecord}`
-    : `CNAME  ${domain.domain}  →  ${domain.dnsTarget.cname}`;
+function dnsInstructions(domain: CustomDomain): string {
+  const lines = dnsRecordsFor(domain).map((record) => `  ${formatDnsRecord(record)}`);
+  const conflicts = domain.dnsTarget.conflicts ?? [];
+  if (conflicts.length > 0) {
+    lines.push(
+      "Remove these existing records first; they stop the domain verifying:",
+      ...conflicts.map((record) => `  ${formatDnsRecord({ ...record, purpose: null })}`),
+    );
+  }
+  return lines.join("\n");
 }
 
-/**
- * The record target, by the same rule as `dnsInstruction`: an A record only for
- * an apex domain. The table used to prefer the A record whenever the API sent
- * one, so `domains ls` showed an IP for a subdomain that `domains add` had just
- * told the user to CNAME.
- */
+/** The routing target for the table: the first record the API asks for. */
 export function dnsTargetValue(domain: CustomDomain): string {
-  return domain.dnsTarget.isApex && domain.dnsTarget.aRecord
-    ? domain.dnsTarget.aRecord
-    : domain.dnsTarget.cname;
+  const records = dnsRecordsFor(domain);
+  const routing = records.find((record) => record.type === "A" || record.type === "CNAME") ?? records[0];
+  return routing ? `${routing.type} ${routing.value}` : domain.dnsTarget.cname;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -155,14 +158,14 @@ export async function domainsAdd(domain: string, options: DomainTargetOptions): 
   const added = await addDomain(serviceId, domain);
 
   if (options.json) {
-    printJson({ added: true, domain: added, dns: dnsInstruction(added) });
+    printJson({ added: true, domain: added, records: dnsRecordsFor(added), conflicts: added.dnsTarget.conflicts ?? [] });
     return;
   }
 
   process.stdout.write(`${added.domain} ${added.status}\n`);
   // The domain is useless until DNS points at the target, so the record is the
   // actual result of this command, not a footnote.
-  write(`\nAdd this DNS record at your registrar:\n  ${dnsInstruction(added)}\n`);
+  write(`\nCreate these DNS records with your DNS provider:\n${dnsInstructions(added)}\n`);
   write(
     `\nIt verifies automatically once DNS propagates, or check now with ` +
       `\`${programName()} domains verify ${added.domain}\`.\n`,
@@ -176,8 +179,9 @@ export async function domainsAdd(domain: string, options: DomainTargetOptions): 
 /**
  * Re-runs the DNS check now.
  *
- * Still PENDING is a legitimate answer, not a failure — DNS propagation takes
- * as long as the old TTL — so this exits zero either way and says which it was.
+ * Still PENDING is the expected answer while DNS propagates, but it is not
+ * "verified": the command exits 1 so a CI step can gate on it (TGL-1172 #5),
+ * and prints the API's own reason and the records it is waiting for.
  */
 export async function domainsVerify(
   reference: string,
@@ -192,7 +196,9 @@ export async function domainsVerify(
   const domain = await verifyDomain(id);
 
   if (options.json) {
-    printJson({ domain, verified: domain.status === "ACTIVE", dns: dnsInstruction(domain) });
+    const verified = domain.status === "ACTIVE";
+    printJson({ domain, verified, records: dnsRecordsFor(domain), conflicts: domain.dnsTarget.conflicts ?? [] });
+    if (!verified) process.exitCode = 1;
     return;
   }
 
@@ -203,8 +209,10 @@ export async function domainsVerify(
     return;
   }
 
+  process.exitCode = 1;
   write(
-    `DNS does not point here yet. Expected record:\n  ${dnsInstruction(domain)}\n` +
+    `Not verified yet.${domain.lastCheck ? ` ${domain.lastCheck}` : ""}\n` +
+      `Expected records:\n${dnsInstructions(domain)}\n` +
       "Propagation can take as long as the previous record's TTL.\n",
   );
 }

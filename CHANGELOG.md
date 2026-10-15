@@ -7,6 +7,68 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-15
+
+### Security
+
+- `deploy` no longer uploads credential files with a static site (TGL-1167).
+  `.npmrc`, `.yarnrc.yml`, `.pypirc`, `.netrc`, `.git-credentials`, `.pgpass`,
+  `.htpasswd`, `.dev.vars`, private keys and keystores (`id_rsa*`,
+  `id_ed25519*`, `*.pem`, `*.key`, `*.p12`, ...), `credentials.json`,
+  `service-account*.json`, Terraform state and the `.ssh/`, `.aws/`,
+  `.docker/`, `.gnupg/`, `.kube/` directories are always left out and listed by
+  name before the upload. Other dotfiles that will be published are named in a
+  warning.
+- `db query` / `db shell` check every statement before running it (TGL-1168).
+  `BEGIN; DROP TABLE t; COMMIT;` and `DELETE FROM t -- WHERE id = 1` used to run
+  without the confirmation; comments and strings are now lexed out, every
+  statement is classified, and input the check cannot read for certain is
+  confirmed too.
+- The CLI refuses a `HOSTING_API_BASE_URL` that is not a valid URL, or that is
+  plain `http://` to anything but localhost, before sending a token or
+  password; and warns when a saved login is sent to a base URL other than the
+  one it came from (TGL-1174).
+
+### Added
+
+- `services create --git <https url>` and `--image <reference>`: a web service
+  or cron job from any public git repository or a Docker image, without the
+  GitHub App, as the dashboard allows (TGL-1177). `--repo` also accepts a
+  github.com URL. A new MCP tool, `create_service`, does the same.
+- `services create --command`, the command a cron job runs on each schedule.
+- `rollback <deployment-id>`: re-release an earlier successful deployment's
+  image without rebuilding (TGL-1172).
+- `.naijacloudignore` (gitignore syntax) beside `naijacloud.json` or in the
+  deployed directory; manifest `ignore` patterns take `!` re-includes too.
+- Help for every command: `<command> --help`, `-h`, or `help <command>`.
+
+### Changed
+
+- Options are strict (TGL-1170): an unknown or misspelt option, a value flag
+  with no value, a single-dash token or a stray argument is an error with a
+  suggestion and exit code 2, instead of being ignored or taken as an argument.
+  `deploy --help` prints help instead of deploying. `--` ends the options, so a
+  value may start with `--`.
+- `domains add`, `domains verify` and the MCP `add_domain` tool print the DNS
+  records the API asks for, verbatim (A records on a direct region, CNAME plus
+  TXT on a tunnel region), plus any conflicting records to remove (TGL-1166).
+  `domains verify` exits 1 until the domain is ACTIVE.
+- Password logins send a stable per-machine device id (`~/.naijacloud/device`,
+  kept across logout) as the `nc.device` cookie, so only the first login from a
+  machine triggers the "New sign-in" email (TGL-1171).
+
+### Fixed
+
+- A cron job created by `services create` or `launch` sent its command as the
+  start command, which the API rejects for a repository-built job.
+- Error messages (TGL-1172): an HTML 401/403 is reported as a request blocked
+  before reaching the API rather than as bad credentials; 429 says how long to
+  wait; a connection cut mid-answer says so; `db describe` of a missing table
+  fails; a rejected `--token` is one plain sentence and an empty one is refused;
+  `cancel` on a finished deployment points at `rollback`; a taken project name,
+  an ambiguous environment, the unimported `.env` note and `env set` on an
+  uploaded static site say what is actually wrong.
+
 ## [1.4.0] - 2026-10-07
 
 ### Added
@@ -89,7 +151,8 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/naijacloud/nc-cli/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/naijacloud/nc-cli/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/naijacloud/nc-cli/compare/v1.1.0...v1.2.0

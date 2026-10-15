@@ -147,6 +147,8 @@ export interface ResolvedEnvironment {
    * Defaults to false when it could not be determined.
    */
   isPreview: boolean;
+  /** The owning team, when it was looked up by name (for the GitHub App link). */
+  teamId?: string;
 }
 
 /**
@@ -189,9 +191,9 @@ export async function resolveEnvironment(reference: string): Promise<ResolvedEnv
   const { project, name } = split(trimmed);
   if (project === undefined) {
     throw new Error(
-      `'${trimmed}' is ambiguous — most projects have an environment by that name. ` +
-        "Qualify it as project/environment, or use the environment id:\n" +
-        `  ${programName()} deploy --env <project>/${trimmed}`,
+      `'${trimmed}' does not say which project it is in. ` +
+        `Write it as <project>/${trimmed}, or use the environment's id ` +
+        `(\`${programName()} environments ls --project <project>\` lists them).`,
     );
   }
 
@@ -207,6 +209,7 @@ export async function resolveEnvironment(reference: string): Promise<ResolvedEnv
       name: only.name,
       projectName: tree.name,
       isPreview: only.isPreview,
+      teamId: tree.teamId,
     };
   }
   if (found.length > 1) {
