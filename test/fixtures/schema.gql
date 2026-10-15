@@ -588,6 +588,20 @@ enum ApiTokenScope {
   WRITE
 }
 
+"""
+A short-lived token for reading this workspace in Argus. Send it as a Bearer token to apiUrl.
+"""
+type ArgusAccessToken {
+  """The Argus API to call with it."""
+  apiUrl: String!
+
+  """When the token stops working."""
+  expiresAt: DateTime!
+
+  """The signed token (EdDSA JWT)."""
+  token: String!
+}
+
 type AuthPayload {
   """The session token. Null while a two-factor code is pending."""
   accessToken: String
@@ -863,11 +877,14 @@ input ChangePasswordInput {
 }
 
 type ChangelogEntryView {
+  actionLabel: String
+  actionUrl: String
   author: HubStaffMember
   commentCount: Int!
   heroImageUrl: String
   id: ID!
   lastEditedBy: HubStaffMember
+  launchProduct: LaunchProduct
   links: [ChangelogLinkView!]!
   notifiedCount: Int!
   pendingNotifyCount: Int!
@@ -1159,7 +1176,10 @@ input CreateBucketInput {
 }
 
 input CreateChangelogInput {
+  actionLabel: String
+  actionUrl: String
   heroImageUrl: String
+  launchProduct: LaunchProduct
   links: [ChangelogLinkInput!]
   sections: [ChangelogSectionInput!]
   summary: String
@@ -1179,6 +1199,29 @@ input CreateCommunityPostInput {
   tags: [String!]
   title: String!
   version: String
+}
+
+input CreateEnvironmentFromInput {
+  """
+  The git branch copied web services and cron jobs deploy from. Defaults to the environment name.
+  """
+  branch: String
+
+  """What copied databases start with. Ignored for an empty environment."""
+  databaseMode: EnvironmentDatabaseMode! = EMPTY
+
+  """
+  Lowercase letters, numbers and dashes, starting with a letter, at most 20 characters. Unique within the project.
+  """
+  name: String!
+
+  """The project the environment is created in."""
+  projectId: ID!
+
+  """
+  The environment to copy services from, in the same project. Omit for an empty environment.
+  """
+  sourceEnvironmentId: ID
 }
 
 input CreateServiceInput {
@@ -1498,6 +1541,7 @@ enum DeployErrorCode {
   BUILD_OOM
   COMMAND_NOT_FOUND
   CRASH
+  DATA_SERVICE_ON_OTHER_NODE
   HEALTH_TIMEOUT
   IMAGE_REJECTED
   MISSING_SCRIPT
@@ -1614,6 +1658,33 @@ input DetectBuildInput {
   rootDir: String
 }
 
+input DetectRepoAppsInput {
+  branch: String
+  gitUrl: String
+  installationId: String
+  repoFullName: String
+}
+
+type DetectedApp {
+  """What getDetectBuild returns for this rootDir."""
+  build: DetectedBuild!
+
+  """
+  False for a shared package in a workspace (a component library, a config package). Listed so the picker can show it, but not deployable.
+  """
+  deployable: Boolean!
+
+  """
+  Display name: the folder's package name, else the folder name, else the repo name for the root.
+  """
+  name: String!
+
+  """
+  Repo-relative folder the app builds from, "" for the repo root. Pass it as rootDir on createService.
+  """
+  rootDir: String!
+}
+
 type DetectedBuild {
   buildCommand: String
   framework: String
@@ -1627,6 +1698,26 @@ type DetectedBuild {
   staticSpa: Boolean
   watchPaths: [String!]
   workspaceName: String
+}
+
+"""The deployable apps found in a repo"""
+type DetectedRepoApps {
+  """
+  Apps by folder, repo root first, including shared workspace packages marked deployable: false. Empty when nothing was recognised (or status is not OK).
+  """
+  apps: [DetectedApp!]!
+
+  """The task runner at the repo root: turbo, nx or lerna."""
+  orchestrator: String
+  status: RepoScanStatus!
+
+  """
+  The repo had more candidate folders than are scanned; some apps may be missing and can still be picked by typing a root directory.
+  """
+  truncated: Boolean!
+
+  """The repo declares a pnpm/npm/yarn/bun workspace (a monorepo)."""
+  workspace: Boolean!
 }
 
 input DisableTwoFactorInput {
@@ -1906,6 +1997,33 @@ type Environment {
   updatedAt: DateTime!
 }
 
+"""A new environment and how many services it got"""
+type EnvironmentCopyResult {
+  """The environment just created."""
+  environment: Environment!
+
+  """
+  Services copied into it. They are being provisioned and deployed in the background; 0 for an empty environment.
+  """
+  servicesCopied: Int!
+
+  """
+  Production-scoped variables of the copied services that were left out, because the new environment is not production. They stay on the source services. 0 for an empty environment, or when the environment is named prod or production.
+  """
+  variablesSkipped: Int!
+}
+
+"""
+What a copied environment's databases start with. EMPTY: the same engines and sizes with no data. CLONE: a one-time copy of the source databases' data, taken now; after that the two are independent. Caches (Redis, Valkey) always start empty.
+"""
+enum EnvironmentDatabaseMode {
+  """A one-time copy of the source data."""
+  CLONE
+
+  """Same engines, no data."""
+  EMPTY
+}
+
 """The outcome of pausing or resuming an environment"""
 type EnvironmentPauseResult {
   """Services stopped (pause) or started (resume) by this call."""
@@ -2058,6 +2176,12 @@ type FreeTierSlots {
 
   """One free database: any engine, caches included"""
   database: FreeTierSlot!
+}
+
+"""Which workspace the Argus token is for."""
+input GetArgusAccessTokenInput {
+  """The workspace (team) to read Argus data for."""
+  teamId: String!
 }
 
 input GetBillingStatementPdfInput {
@@ -2760,6 +2884,11 @@ enum IncidentStatus {
 type InstallationRepo {
   defaultBranch: String!
   fullName: String!
+
+  """
+  The installation that can read this repo. Pass it to getDetectBuild and getDetectRepoApps, which cannot read a private repo without it.
+  """
+  installationId: String!
   private: Boolean!
 }
 
@@ -2908,6 +3037,33 @@ type KbCandidateOffsetPaginated {
 
   """Pagination metadata"""
   pageInfo: OffsetPageInfo!
+}
+
+"""The launch card for the dashboard Home"""
+type LaunchCard {
+  """
+  The green button, e.g. "Try Argus"
+  """
+  actionLabel: String!
+  actionUrl: String!
+
+  """One sentence under the headline"""
+  body: String!
+
+  """The changelog entry it comes from"""
+  entryId: ID!
+
+  """The benefit headline"""
+  headline: String!
+  imageUrl: String
+  product: LaunchProduct!
+}
+
+"""
+A product a changelog entry launches; such an entry also becomes the launch card on Home
+"""
+enum LaunchProduct {
+  ARGUS
 }
 
 type LifecycleRule {
@@ -3497,9 +3653,19 @@ type Mutation {
   communityDeleteReply(commentId: ID!): CommunityItemDetail!
 
   """
+  Hide a launch card ("Not now") for the signed-in user for good. Idempotent; returns true.
+  """
+  communityDismissLaunchCard(entryId: ID!): Boolean!
+
+  """
   Toggle whether the caller follows an item and is notified when it moves. Use unfollowCommunityDiscussion for an idempotent unfollow.
   """
   communityFollow(postId: ID!): CommunityItem!
+
+  """
+  Record that the user opened What’s new, which clears the dot until a newer entry is published. Always returns true.
+  """
+  communityMarkWhatsNewSeen: Boolean!
 
   """
   Record a helpful / not-helpful vote on a knowledge-base article and return it with updated counts.
@@ -3600,6 +3766,11 @@ type Mutation {
   Create a named environment (lowercase letters, digits and hyphens) inside a project. Requires MEMBER on the project's team.
   """
   createEnvironment(name: String!, projectId: ID!): Environment!
+
+  """
+  Create an environment in a project, empty or as a copy of another environment in it. A copy gets every service in the source - settings, variables and secret files, with references between services pointed at the new copies - except variables scoped to production, which are left out unless the new environment is named prod or production (variablesSkipped counts them). Web services and cron jobs deploy from `branch` (default: the environment name). Databases and caches start empty, or with a one-time copy of the source data when databaseMode is CLONE. Services are provisioned and deployed in the background. Free services count against the free tier like any other; nothing is created if a copy would exceed it. Name: lowercase letters, numbers and dashes, starting with a letter, at most 20 characters. Requires MEMBER on the project's team.
+  """
+  createEnvironmentFrom(CreateEnvironmentFromInput: CreateEnvironmentFromInput!): EnvironmentCopyResult!
 
   """
   Mint a mail API key for the REST send API. The secret is returned once here and is never recoverable. Defaults to a live SEND-scoped key; throttled to 10 per hour so a stolen session cannot become a key farm.
@@ -4321,6 +4492,11 @@ type Mutation {
   setAbuseEnforcementMode(mode: AbuseEnforcementMode!): AbuseEnforcementMode!
 
   """
+  Change the workspace's Argus plan (free, pro or scale). Argus applies the new monthly limit and retention range at once. Requires OWNER.
+  """
+  setArgusPlan(SetArgusPlanInput: SetArgusPlanInput!): Team!
+
+  """
   Turn one backup cadence (hourly, daily or weekly) on or off for a database. Returns the updated schedule. Requires MEMBER on the owning team.
   """
   setBackupFrequency(enabled: Boolean!, frequency: BackupFrequency!, serviceId: ID!): BackupSchedule!
@@ -4391,6 +4567,11 @@ type Mutation {
   setSecretFile(SecretFileInput: SecretFileInput!, serviceId: ID!): SecretFileMutationResult!
 
   """
+  Turn Argus error tracking on or off for a web service or cron job. On: Argus creates a source for it, and every deploy from the next one sets SENTRY_DSN, SENTRY_RELEASE and SENTRY_ENVIRONMENT. Off: the key stops working at once. Requires ADMIN on the owning team.
+  """
+  setServiceArgus(SetServiceArgusInput: SetServiceArgusInput!): Service!
+
+  """
   Configure how a datastore's connection string reaches apps in its environment: rename the injected variable so several engines of one family can coexist, and/or turn injection off. Pass connectionEnvName: null to restore the engine default; omitted arguments are unchanged. Redeploys the environment's apps. Requires ADMIN on the owning team.
   """
   setServiceConnectionInjection(connectionEnvName: String, injectConnectionUrl: Boolean, serviceId: ID!): Service!
@@ -4424,6 +4605,11 @@ type Mutation {
   Public self-serve signup: creates the user and a personal team, sets the HttpOnly auth cookie and returns a JWT. Throttled to 5 per hour per client.
   """
   signup(RegisterInput: RegisterInput!): AuthPayload!
+
+  """
+  Start Argus for a workspace from the Argus-only sign-up: Argus records that the workspace came for Argus (its sidebar and Home lead with Argus) and who gets alert emails. Idempotent. Requires MEMBER.
+  """
+  startArgusOnboarding(StartArgusOnboardingInput: StartArgusOnboardingInput!): Boolean!
 
   """
   Retrieve the EPP/auth code needed to transfer a domain to another registrar. Nothing here changes: the domain stays registered and its DNS keeps answering until the receiving registrar completes the transfer. Refused with the date while the registry lock is on. Requires ADMIN on the owning team.
@@ -5322,6 +5508,11 @@ type Query {
   getApiTokens(OffsetPaginationArgs: OffsetPaginationArgs): ApiTokenOffsetPaginated!
 
   """
+  Get a short-lived token for reading this workspace in Argus (errors and, later, the other modules). Argus verifies it with the control plane public key and never calls back. Requires MEMBER on the team.
+  """
+  getArgusAccessToken(GetArgusAccessTokenInput: GetArgusAccessTokenInput!): ArgusAccessToken!
+
+  """
   A short-lived presigned URL for downloading a completed backup archive. Requires MEMBER on the owning team.
   """
   getBackupDownloadUrl(backupId: ID!): String!
@@ -5432,6 +5623,11 @@ type Query {
   getCommunityItem(id: ID!): CommunityItemDetail!
 
   """
+  The launch card for the dashboard Home, or null: the newest published launch the user has not dismissed, while the given workspace does not use that product yet. Requires membership of the workspace when given.
+  """
+  getCommunityLaunchCard(teamId: ID): LaunchCard
+
+  """
   A hub profile with its activity and reputation - the caller's own by default, or another user's when userId is given. Another member's profile is public; your own needs you signed in.
   """
   getCommunityProfile(userId: ID): CommunityProfile!
@@ -5455,6 +5651,11 @@ type Query {
   The hub's top contributors by reputation (default 5, capped at 50), for the leaderboard panel. A fixed top-N rail; not paginated. Public.
   """
   getCommunityTopContributors(limit: Int): [CommunityContributor!]!
+
+  """
+  The signed-in user’s What’s new feed: the latest published changelog entries, newest first, each marked unread when it is newer than the last time they opened the drawer, plus whether to show the dot.
+  """
+  getCommunityWhatsNew: WhatsNewFeed!
 
   """
   Whether the caller may create compute in this team, plus which gate requirements are required and still unmet. Requires MEMBER on the team.
@@ -5520,6 +5721,11 @@ type Query {
   Best-effort preview of the build and start commands detection would propose for a repo, so the create-service form can pre-fill them. Returns empty fields when the repo cannot be inspected; the same detection runs again on createService. A private repo requires membership of the installation's owning team.
   """
   getDetectBuild(DetectBuildInput: DetectBuildInput!): DetectedBuild!
+
+  """
+  Scan a repo for deployable apps - the members of a monorepo, a frontend next to a backend, or just the root app - with the build defaults getDetectBuild would propose for each folder, so the create-service form can offer a list instead of asking for a root directory. `status` says why a scan came back empty. A private repo requires membership of the installation's owning team.
+  """
+  getDetectRepoApps(DetectRepoAppsInput: DetectRepoAppsInput!): DetectedRepoApps!
 
   """
   A page of a zone's records, alphabetically, including the ones we manage for services and NC Mail. Use each row's `editable` flag to tell them apart. Optional search matches the record name and its content. Requires MEMBER on the owning team.
@@ -6368,6 +6574,17 @@ enum RegisteredDomainStatus {
   REGISTERING
 }
 
+"""
+OK: the repo was read (apps may still be empty). RATE_LIMITED: GitHub refused for quota; try again later or connect GitHub. NOT_FOUND: no such repo or branch, or a private repo without access. NOT_GITHUB: the URL is not on github.com, so it cannot be inspected before deploy. FAILED: any other error.
+"""
+enum RepoScanStatus {
+  FAILED
+  NOT_FOUND
+  NOT_GITHUB
+  OK
+  RATE_LIMITED
+}
+
 input RequestEmailChangeInput {
   code: String
   currentPassword: String
@@ -6564,6 +6781,12 @@ type Service {
   abuseExemptAt: DateTime
   abuseExemptReason: String
   abuseExemptedBy: String
+
+  """The Argus DSN injected as SENTRY_DSN on deploy"""
+  argusDsn: String
+
+  """Argus error tracking is on for this service"""
+  argusEnabled: Boolean!
   branch: String
   buildCommand: String
   connection: ServiceConnection
@@ -6842,6 +7065,15 @@ type ServiceUsage {
   type: ServiceType!
 }
 
+"""Change the workspace's Argus plan."""
+input SetArgusPlanInput {
+  """free, pro or scale."""
+  plan: String!
+
+  """The workspace (team)."""
+  teamId: ID!
+}
+
 """Open, close or narrow a database's public TLS endpoint"""
 input SetDatabaseExternalAccessInput {
   """
@@ -6877,6 +7109,15 @@ input SetMemberRoleInput {
   userId: ID!
 }
 
+"""Turn Argus error tracking on or off for a service."""
+input SetServiceArgusInput {
+  """On: errors are tracked from the next deploy."""
+  enabled: Boolean!
+
+  """The web service or cron job."""
+  serviceId: ID!
+}
+
 """Which outside sign-in providers are switched on"""
 type SignInProviders {
   """GitHub sign-in is configured"""
@@ -6901,6 +7142,12 @@ enum SourceType {
   DOCKER_IMAGE
   GITHUB_APP
   PUBLIC_GIT
+}
+
+"""Start Argus from the Argus-only sign-up."""
+input StartArgusOnboardingInput {
+  """The workspace (team)."""
+  teamId: ID!
 }
 
 input StartMultipartUploadInput {
@@ -7167,6 +7414,8 @@ type TableStatOffsetPaginated {
 }
 
 type Team {
+  """Argus plan: free, pro or scale"""
+  argusPlan: String!
   createdAt: DateTime!
   defaultRegion: String
   deploymentPreviewsEnabled: Boolean!
@@ -7321,8 +7570,11 @@ type UnitRateCard {
 }
 
 input UpdateChangelogInput {
+  actionLabel: String
+  actionUrl: String
   heroImageUrl: String
   id: ID!
+  launchProduct: LaunchProduct
   links: [ChangelogLinkInput!]
   sections: [ChangelogSectionInput!]
   summary: String
@@ -7550,6 +7802,44 @@ type WebRequestSeries {
   points: [WebRequestPoint!]!
   range: MetricRange!
   serviceId: ID!
+}
+
+"""One published product update in What’s new"""
+type WhatsNewEntry {
+  """
+  The action, e.g. "Try Argus →" or "Read more →"
+  """
+  actionLabel: String!
+
+  """Where the action goes: a dashboard path, or the entry’s public page"""
+  actionUrl: String!
+  id: ID!
+
+  """A real screenshot (16:9), if the entry has one"""
+  imageUrl: String
+
+  """The kind pill: New, Improved or Fixed (the entry’s tag)"""
+  kind: String!
+  launchProduct: LaunchProduct
+  publishedAt: DateTime!
+  slug: String!
+
+  """The two-line summary under the title"""
+  summary: String!
+  title: String!
+
+  """Published after the user last opened What’s new"""
+  unread: Boolean!
+}
+
+"""The signed-in user’s What’s new feed"""
+type WhatsNewFeed {
+  """Newest first"""
+  entries: [WhatsNewEntry!]!
+
+  """Whether to show the green dot on What’s new"""
+  hasUnread: Boolean!
+  lastSeenAt: DateTime
 }
 
 type WorkspaceActivityItem {

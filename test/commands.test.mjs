@@ -127,3 +127,56 @@ test("redeploy works with a key that may deploy but not read services", async ()
   }
   assert.ok(sent.some((query) => /triggerDeploy/.test(query)), "triggerDeploy was never sent");
 });
+
+// TGL-1166: on a direct (PUBLIC_A) region the API checks for an A record at
+// the node's IP; the CLI told people to CNAME to the proxied app domain, which
+// never verifies. The records now come from dnsTarget.records verbatim.
+test("domains add prints the records the API asks for, not a guessed CNAME", async () => {
+  const { domainsAdd } = await import("../build/commands/domains.js");
+  const domain = {
+    id: "d1",
+    domain: "qa.example.com",
+    serviceId: SERVICE,
+    status: "PENDING",
+    verifiedAt: null,
+    lastCheck: null,
+    dnsTarget: {
+      cname: "naijacloud.app",
+      aRecord: "2.24.131.222",
+      isApex: false,
+      records: [{ type: "A", name: "qa.example.com", value: "2.24.131.222", purpose: "routing" }],
+      conflicts: [{ type: "CNAME", name: "qa.example.com", value: "old.host", purpose: "conflict" }],
+    },
+  };
+  const result = await run(
+    (query) => (/addCustomDomain/.test(query) ? { addCustomDomain: domain } : {}),
+    () => domainsAdd("qa.example.com", { service: SERVICE, json: false }),
+  );
+  assert.equal(result.error, undefined);
+  assert.match(result.err, /A\s+qa\.example\.com\s+→\s+2\.24\.131\.222/);
+  assert.doesNotMatch(result.err, /CNAME\s+qa\.example\.com\s+→\s+naijacloud\.app/);
+  assert.match(result.err, /Remove these existing records first[\s\S]*old\.host/);
+  const sent = result.sent.find(({ query }) => /addCustomDomain/.test(query)).query;
+  assert.match(sent, /records \{ type name value purpose \}/);
+});
+
+test("domains verify exits non-zero while the domain is still PENDING", async () => {
+  const { domainsVerify } = await import("../build/commands/domains.js");
+  const pending = {
+    id: "11111111-2222-4333-8444-555555555555",
+    domain: "qa.example.com",
+    serviceId: SERVICE,
+    status: "PENDING",
+    verifiedAt: null,
+    lastCheck: "No A record found yet.",
+    dnsTarget: { cname: "naijacloud.app", aRecord: "2.24.131.222", isApex: false, records: null, conflicts: null },
+  };
+  process.exitCode = undefined;
+  const result = await run(
+    () => ({ verifyCustomDomain: pending }),
+    () => domainsVerify(pending.id, { service: SERVICE, json: true }),
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(process.exitCode, 1);
+  process.exitCode = undefined;
+});

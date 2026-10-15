@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import {
   addDomain,
+  dnsRecordsFor,
   CANCELLABLE_STATUSES,
   cancelDeployment,
   getDeployment,
@@ -454,9 +455,10 @@ export function createServer(): McpServer {
       title: "Add a custom domain",
       description:
         "Attach a custom domain to a service. The domain starts PENDING and only goes " +
-        "ACTIVE once its DNS points at the target returned here, so the response's " +
-        "dnsTarget (cname, or aRecord for an apex domain) is the instruction to hand " +
-        "back to the user. Side effect: changes the service's public routing once DNS " +
+        "ACTIVE once its DNS matches what is returned here. The response's `records` " +
+        "(A records on a direct region; a CNAME plus ownership/certificate TXT records on " +
+        "a tunnel region) are the instruction to hand back to the user verbatim, with any " +
+        "`conflicts` to remove first. Side effect: changes the service's public routing once DNS " +
         "resolves. Does not register or buy the domain, and does not change DNS for you.",
       inputSchema: {
         serviceId: z
@@ -476,10 +478,15 @@ export function createServer(): McpServer {
         return ok({
           added: true,
           domain: created,
+          records: dnsRecordsFor(created),
+          conflicts: created.dnsTarget.conflicts ?? [],
           nextStep:
-            created.dnsTarget.isApex && created.dnsTarget.aRecord
-              ? `Point an A record for ${created.domain} at ${created.dnsTarget.aRecord}, then it verifies automatically.`
-              : `Point a CNAME for ${created.domain} at ${created.dnsTarget.cname}, then it verifies automatically.`,
+            `Create ${dnsRecordsFor(created).length === 1 ? "this DNS record" : "these DNS records"} ` +
+            `for ${created.domain}: ${dnsRecordsFor(created)
+              .map((record) => `${record.type} ${record.name} → ${record.value}`)
+              .join("; ")}` +
+            `${(created.dnsTarget.conflicts ?? []).length > 0 ? ", and remove the records listed in conflicts" : ""}` +
+            ", then it verifies automatically.",
         });
       }),
   );

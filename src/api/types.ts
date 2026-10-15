@@ -284,7 +284,25 @@ export interface CustomDomain {
     cname: string;
     aRecord: string | null;
     isApex: boolean;
+    /**
+     * The authoritative instructions, worked out from the service's node: A
+     * records on a direct (PUBLIC_A) region, a CNAME plus ownership and
+     * certificate TXT records on a tunnel region. `cname`/`aRecord` alone are
+     * not enough to tell which (TGL-1166).
+     */
+    records?: DnsRecordInstruction[] | null;
+    /** Records already at the name that stop it verifying; remove these. */
+    conflicts?: DnsRecordInstruction[] | null;
   };
+}
+
+/** One DNS record to create (or, in `conflicts`, to remove). */
+export interface DnsRecordInstruction {
+  type: string;
+  name: string;
+  value: string;
+  /** e.g. "routing", "ownership", "certificate", "conflict". */
+  purpose: string | null;
 }
 
 export interface DomainWithService extends CustomDomain {
