@@ -225,7 +225,7 @@ naijacloud logout    # deletes ~/.naijacloud/config.json (friendly no-op if abse
 | `HOSTING_API_TOKEN`            | —                            | Access token. **Takes precedence over the stored credentials**, so an MCP host can override the account per-server (CI, a second account). |
 | `HOSTING_API_BASE_URL`         | `https://api.naijacloud.com` | API base URL                                                                                                                               |
 | `HOSTING_API_TIMEOUT_MS`       | `30000`                      | Per-request timeout                                                                                                                        |
-| `HOSTING_UPLOAD_TIMEOUT_MS`    | `600000`                     | Timeout for the static-site upload, which is a single large PUT rather than a GraphQL call                                                 |
+| `HOSTING_UPLOAD_TIMEOUT_MS`    | `600000`                     | Timeout for the static-site upload, which is a single large PUT rather than an API call                                                 |
 | `NAIJACLOUD_DEPLOY_TIMEOUT_MS` | `900000`                     | How long `deploy` and `redeploy` wait for a build to reach a terminal state                                                                |
 
 Token resolution order is `HOSTING_API_TOKEN` → `~/.naijacloud/config.json`. If neither is present, every tool call fails immediately with `Not logged in. Run 'naijacloud login' first.` — never a raw 401.
@@ -943,9 +943,10 @@ Three places where the requested tool shape and the platform genuinely disagree,
     ├── output.ts           # one aligned table for humans, one JSON for scripts
     ├── env-file.ts         # .env parsing, secret heuristic, scope derivation
     ├── api
-    │   ├── transport.ts    # GraphQL execute/authed, errors, configuration
-    │   ├── types.ts        # the schema subset the CLI surfaces
-    │   ├── fields.ts       # shared field selections
+    │   ├── transport.ts    # REST execute/authed/authedList, errors, configuration
+    │   ├── types.ts        # the API types the CLI surfaces
+    │   ├── v1.ts           # /v1 shapes and the mappers onto types.ts
+    │   ├── fields.ts       # shared walks over the resource tree
     │   ├── account.ts      # me, login
     │   ├── projects.ts     # teams, projects, environments, services
     │   ├── environments.ts # environments, and creating services inside them
