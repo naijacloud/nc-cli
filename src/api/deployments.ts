@@ -1,104 +1,70 @@
 /**
  * Deployments: history, one-off reads, triggering a release and cancelling one
- * that is still in flight.
+ * that is still in flight. `/v1` calls them deploys.
  */
 
-import { authed, authedAllPages, pageSelection } from "./transport.js";
-import { DEPLOYMENT_FIELDS } from "./fields.js";
+import { authed, authedList, MAX_PAGE_SIZE } from "./transport.js";
+import type { ListPage } from "./transport.js";
+import { listProjectServices } from "./fields.js";
+import { seg, toDeployment, toDeploymentLog } from "./v1.js";
+import type { V1Deploy, V1Service } from "./v1.js";
 import type { Deployment, DeploymentLog, DeploymentWithService } from "./types.js";
 
 
 export async function listDeploymentsByService(serviceId: string): Promise<Deployment[]> {
-  return await authedAllPages<Deployment, { getDeployments: { items: Deployment[]; pageInfo: { hasNextPage: boolean } } }>(
-    `query Deployments($serviceId: ID!, $page: OffsetPaginationArgs) { getDeployments(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection(DEPLOYMENT_FIELDS)} } }`,
-    { serviceId },
-    (data) => data.getDeployments,
-  );
+  return (await authedList<V1Deploy>(`/services/${seg(serviceId)}/deploys`)).map(toDeployment);
 }
 
-/** Every deployment across every service in a project, in one nested query. */
+/**
+ * Recent deployments across every service in a project: the newest page of
+ * each service's history, read in parallel.
+ */
 export async function listDeploymentsByProject(
   projectId: string,
 ): Promise<DeploymentWithService[]> {
-  const data = await authed<{
-    getProject: {
-      environments: {
-        name: string;
-        services: { id: string; name: string; deployments: Deployment[] }[];
-      }[];
-    };
-  }>(
-    `
-      query ProjectDeployments($id: ID!) {
-        getProject(id: $id) {
-          environments {
-            name
-            services {
-              id
-              name
-              deployments { ${DEPLOYMENT_FIELDS} }
-            }
-          }
-        }
-      }
-    `,
-    { id: projectId },
-  );
-
-  return data.getProject.environments.flatMap((environment) =>
-    environment.services.flatMap((service) =>
-      service.deployments.map((deployment) => ({
-        ...deployment,
-        serviceName: service.name,
-        environmentName: environment.name,
-      })),
+  const tree = await listProjectServices(projectId);
+  const perService = await Promise.all(
+    tree.flatMap(({ environment, services }) =>
+      services.map(async (service) => {
+        const page = await authed<ListPage<V1Deploy>>("GET", `/services/${seg(service.id)}/deploys`, {
+          query: { limit: MAX_PAGE_SIZE },
+        });
+        return page.data.map((deploy) => ({
+          ...toDeployment(deploy),
+          serviceName: service.name,
+          environmentName: environment.name,
+        }));
+      }),
     ),
   );
+  return perService.flat();
 }
 
 export async function getDeployment(deploymentId: string): Promise<DeploymentWithService> {
-  const data = await authed<{
-    getDeployment: Deployment & { service: { id: string; name: string; url: string | null } | null };
-  }>(
-    `
-      query GetDeployment($id: ID!) {
-        getDeployment(id: $id) {
-          ${DEPLOYMENT_FIELDS}
-          service { id name url }
-        }
-      }
-    `,
-    { id: deploymentId },
+  const deployment = toDeployment(await authed<V1Deploy>("GET", `/deploys/${seg(deploymentId)}`));
+  const service = await authed<V1Service>("GET", `/services/${seg(deployment.serviceId)}`).catch(
+    () => null,
   );
-
-  const { service, ...deployment } = data.getDeployment;
   return service ? { ...deployment, serviceName: service.name } : deployment;
 }
 
 /**
- * `triggerDeploy` builds and releases the service's *currently configured*
- * source (repo + branch). The schema exposes no per-deploy branch or commit
- * override.
+ * Builds and releases the service's *currently configured* source (repo +
+ * branch). The API exposes no per-deploy branch or commit override.
  */
 export async function triggerDeploy(serviceId: string): Promise<Deployment> {
-  const data = await authed<{ triggerDeploy: Deployment }>(
-    `mutation TriggerDeploy($serviceId: ID!) { triggerDeploy(serviceId: $serviceId) { ${DEPLOYMENT_FIELDS} } }`,
-    { serviceId },
+  return toDeployment(
+    await authed<V1Deploy>("POST", `/services/${seg(serviceId)}/deploys`),
   );
-  return data.triggerDeploy;
 }
 
 /**
- * NaijaCloud has no "delete deployment" mutation — deployment history is
- * immutable. `cancelDeployment` is the only destructive operation available,
- * and it stops an in-flight build/release.
+ * NaijaCloud has no "delete deployment" operation — deployment history is
+ * immutable. Cancelling is the only destructive action available, and it stops
+ * an in-flight build/release.
  */
 export async function cancelDeployment(deploymentId: string): Promise<Deployment> {
-  const data = await authed<{ cancelDeployment: Deployment }>(
-    `mutation CancelDeployment($deploymentId: ID!) { cancelDeployment(deploymentId: $deploymentId) { ${DEPLOYMENT_FIELDS} } }`,
-    { deploymentId },
-  );
-  return data.cancelDeployment;
+  return toDeployment(await authed<V1Deploy>("POST", `/deploys/${seg(deploymentId)}/cancel`));
 }
 
 /**
@@ -107,25 +73,15 @@ export async function cancelDeployment(deploymentId: string): Promise<Deployment
  * (one that never succeeded, or a static upload).
  */
 export async function rollbackDeployment(deploymentId: string): Promise<Deployment> {
-  const data = await authed<{ rollbackDeployment: Deployment }>(
-    `mutation RollbackDeployment($deploymentId: ID!) { rollbackDeployment(deploymentId: $deploymentId) { ${DEPLOYMENT_FIELDS} } }`,
-    { deploymentId },
+  return toDeployment(
+    await authed<V1Deploy>("POST", `/deploys/${seg(deploymentId)}/rollback`),
   );
-  return data.rollbackDeployment;
 }
 
 export async function getDeploymentLogs(deploymentId: string): Promise<DeploymentLog[]> {
-  // Oldest first is the API's default for this list, which is the order build
-  // output reads in; every page is read so a long build is not cut at 100 lines.
-  return await authedAllPages<DeploymentLog, { getDeploymentLogs: { items: DeploymentLog[]; pageInfo: { hasNextPage: boolean } } }>(
-    `
-      query DeploymentLogs($deploymentId: ID!, $page: OffsetPaginationArgs) {
-        getDeploymentLogs(deploymentId: $deploymentId, OffsetPaginationArgs: $page) {
-          ${pageSelection("id level stream line createdAt")}
-        }
-      }
-    `,
-    { deploymentId },
-    (data) => data.getDeploymentLogs,
+  // Oldest first is the API's order for this list, which is the order build
+  // output reads in; every page is read so a long build is not cut short.
+  return (await authedList<DeploymentLog>(`/deploys/${seg(deploymentId)}/logs`)).map(
+    toDeploymentLog,
   );
 }

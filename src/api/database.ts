@@ -1,7 +1,7 @@
 /**
  * The database console — §3.5.
  *
- * `runDatabaseQuery` is **write-capable** and runs as the service's own database
+ * Running a statement is **write-capable** and runs as the service's own database
  * user, so anything that user may do, this may do. There is no read-only mode
  * and no transaction wrapper to hide behind: the guardrails are the caller's
  * job, and they live in `src/commands/db.ts`.
@@ -11,7 +11,8 @@
  * genuine null so an empty string and a NULL stay distinguishable.
  */
 
-import { authed, authedAllPages, pageSelection } from "./transport.js";
+import { authed, authedList } from "./transport.js";
+import { seg } from "./v1.js";
 import type { ServiceType } from "./types.js";
 
 export interface DbQueryResult {
@@ -27,17 +28,6 @@ export interface DbQueryResult {
   executionMs: number;
   engine: ServiceType;
 }
-
-const QUERY_RESULT_FIELDS = `
-  columns
-  rows { cells }
-  rowCount
-  truncated
-  message
-  notices
-  executionMs
-  engine
-`;
 
 /**
  * Strips the phantom row the platform appends to every non-empty result.
@@ -88,20 +78,10 @@ export async function runDatabaseQuery(
   statement: string,
   maxRows?: number,
 ): Promise<DbQueryResult> {
-  const variables: Record<string, unknown> = { serviceId, statement };
-  if (maxRows !== undefined) variables["maxRows"] = maxRows;
-
-  const data = await authed<{ runDatabaseQuery: DbQueryResult }>(
-    `
-      mutation RunDatabaseQuery($serviceId: ID!, $statement: String!, $maxRows: Int) {
-        runDatabaseQuery(serviceId: $serviceId, statement: $statement, maxRows: $maxRows) {
-          ${QUERY_RESULT_FIELDS}
-        }
-      }
-    `,
-    variables,
-  );
-  return stripPhantomRow(data.runDatabaseQuery);
+  const result = await authed<DbQueryResult>("POST", `/services/${seg(serviceId)}/database/query`, {
+    body: maxRows === undefined ? { statement } : { statement, maxRows },
+  });
+  return stripPhantomRow(result);
 }
 
 export interface DbObject {
@@ -112,11 +92,7 @@ export interface DbObject {
 }
 
 export async function listDatabaseObjects(serviceId: string): Promise<DbObject[]> {
-  return await authedAllPages<DbObject, { getDatabaseObjects: { items: DbObject[]; pageInfo: { hasNextPage: boolean } } }>(
-    `query DatabaseObjects($serviceId: ID!, $page: OffsetPaginationArgs) { getDatabaseObjects(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("kind name schema")} } }`,
-    { serviceId },
-    (data) => data.getDatabaseObjects,
-  );
+  return await authedList<DbObject>(`/services/${seg(serviceId)}/database/objects`);
 }
 
 export interface TableStat {
@@ -127,11 +103,7 @@ export interface TableStat {
 }
 
 export async function listTableStats(serviceId: string): Promise<TableStat[]> {
-  return await authedAllPages<TableStat, { getTableStats: { items: TableStat[]; pageInfo: { hasNextPage: boolean } } }>(
-    `query TableStats($serviceId: ID!, $page: OffsetPaginationArgs) { getTableStats(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("name schema estimatedRows")} } }`,
-    { serviceId },
-    (data) => data.getTableStats,
-  );
+  return await authedList<TableStat>(`/services/${seg(serviceId)}/database/table-stats`);
 }
 
 export interface DbColumn {
@@ -155,30 +127,11 @@ export async function getTableColumns(
   table: string,
   schema?: string,
 ): Promise<DbTableSchema> {
-  const variables: Record<string, unknown> = { serviceId, table };
-  if (schema !== undefined) variables["schema"] = schema;
-
-  const data = await authed<{ getTableColumns: DbTableSchema }>(
-    `
-      query TableColumns($serviceId: ID!, $table: String!, $schema: String) {
-        getTableColumns(serviceId: $serviceId, table: $table, schema: $schema) {
-          name
-          schema
-          primaryKey
-          columns {
-            name
-            type
-            nullable
-            default
-            isPrimaryKey
-            references { schema table column }
-          }
-        }
-      }
-    `,
-    variables,
+  return await authed<DbTableSchema>(
+    "GET",
+    `/services/${seg(serviceId)}/database/tables/${seg(table)}/columns`,
+    { query: { schema } },
   );
-  return data.getTableColumns;
 }
 
 /**
@@ -197,8 +150,6 @@ export interface ExportResult {
   expiresAt: string;
 }
 
-const EXPORT_FIELDS = `url filename format objectKey sizeBytes expiresAt`;
-
 export type DatabaseExportFormat = "SQL" | "ARCHIVE";
 export type TableExportFormat = "CSV" | "JSON" | "SQL";
 
@@ -206,18 +157,9 @@ export async function exportDatabase(
   serviceId: string,
   format?: DatabaseExportFormat,
 ): Promise<ExportResult> {
-  const variables: Record<string, unknown> = { serviceId };
-  if (format !== undefined) variables["format"] = format;
-
-  const data = await authed<{ exportDatabase: ExportResult }>(
-    `
-      mutation ExportDatabase($serviceId: ID!, $format: DatabaseExportFormat) {
-        exportDatabase(serviceId: $serviceId, format: $format) { ${EXPORT_FIELDS} }
-      }
-    `,
-    variables,
-  );
-  return data.exportDatabase;
+  return await authed<ExportResult>("POST", `/services/${seg(serviceId)}/database/export`, {
+    body: { format },
+  });
 }
 
 export async function exportTable(
@@ -226,19 +168,9 @@ export async function exportTable(
   format?: TableExportFormat,
   schema?: string,
 ): Promise<ExportResult> {
-  const variables: Record<string, unknown> = { serviceId, table };
-  if (format !== undefined) variables["format"] = format;
-  if (schema !== undefined) variables["schema"] = schema;
-
-  const data = await authed<{ exportTable: ExportResult }>(
-    `
-      mutation ExportTable($serviceId: ID!, $table: String!, $format: TableExportFormat, $schema: String) {
-        exportTable(serviceId: $serviceId, table: $table, format: $format, schema: $schema) {
-          ${EXPORT_FIELDS}
-        }
-      }
-    `,
-    variables,
+  return await authed<ExportResult>(
+    "POST",
+    `/services/${seg(serviceId)}/database/tables/${seg(table)}/export`,
+    { body: { format, schema } },
   );
-  return data.exportTable;
 }

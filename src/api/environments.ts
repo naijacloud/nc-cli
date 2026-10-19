@@ -7,7 +7,8 @@
  */
 
 import { authed } from "./transport.js";
-import { SERVICE_FIELDS } from "./fields.js";
+import { seg, toServiceSummary } from "./v1.js";
+import type { V1Service } from "./v1.js";
 import type {
   EnvVarInput,
   MonorepoStrategy,
@@ -26,24 +27,18 @@ export async function createEnvironment(
   projectId: string,
   name: string,
 ): Promise<EnvironmentRef> {
-  const data = await authed<{ createEnvironment: EnvironmentRef }>(
-    `
-      mutation CreateEnvironment($projectId: ID!, $name: String!) {
-        createEnvironment(projectId: $projectId, name: $name) { id name }
-      }
-    `,
-    { projectId, name },
+  const environment = await authed<EnvironmentRef>(
+    "POST",
+    `/projects/${seg(projectId)}/environments`,
+    { body: { name } },
   );
-  return data.createEnvironment;
+  return { id: environment.id, name: environment.name };
 }
 
 /** Deletes an environment and everything in it. Returns whether it went. */
 export async function deleteEnvironment(environmentId: string): Promise<boolean> {
-  const data = await authed<{ deleteEnvironment: boolean }>(
-    `mutation DeleteEnvironment($id: ID!) { deleteEnvironment(id: $id) }`,
-    { id: environmentId },
-  );
-  return data.deleteEnvironment;
+  await authed<void>("DELETE", `/environments/${seg(environmentId)}`);
+  return true;
 }
 
 /**
@@ -69,15 +64,7 @@ export async function createDatastore(input: {
   dbUser?: string;
   dbPassword?: string;
 }): Promise<ServiceSummary> {
-  const data = await authed<{ createService: ServiceSummary }>(
-    `
-      mutation CreateDatastore($input: CreateServiceInput!) {
-        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
-      }
-    `,
-    { input },
-  );
-  return data.createService;
+  return await createService(input);
 }
 
 /**
@@ -96,15 +83,7 @@ export async function createStaticService(input: {
   staticIndexPath?: string;
   region?: string;
 }): Promise<ServiceSummary> {
-  const data = await authed<{ createService: ServiceSummary }>(
-    `
-      mutation CreateStaticService($input: CreateServiceInput!) {
-        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
-      }
-    `,
-    { input: { ...input, type: "STATIC" } },
-  );
-  return data.createService;
+  return await createService({ ...input, type: "STATIC" });
 }
 
 /**
@@ -156,16 +135,21 @@ export async function createRuntimeService(input: {
   tier?: ServiceTier;
   envVars?: EnvVarInput[];
 }): Promise<ServiceSummary> {
-  const data = await authed<{ createService: ServiceSummary }>(
-    `
-      mutation CreateRuntimeService($input: CreateServiceInput!) {
-        createService(CreateServiceInput: $input) { ${SERVICE_FIELDS} }
-      }
-    `,
-    // Undefined keys are dropped by JSON.stringify, so an omitted option never
-    // reaches the API as an explicit null — which the schema would treat as
-    // "clear this", not "leave it to the platform".
-    { input },
+  // Undefined keys are dropped by JSON.stringify, so an omitted option never
+  // reaches the API as an explicit null — which the API would treat as
+  // "clear this", not "leave it to the platform".
+  return await createService(input);
+}
+
+/**
+ * `POST /v1/environments/{id}/services`, the one create call behind all three
+ * kinds above. The environment goes in the path, everything else in the body.
+ */
+async function createService(
+  input: { environmentId: string } & Record<string, unknown>,
+): Promise<ServiceSummary> {
+  const { environmentId, ...body } = input;
+  return toServiceSummary(
+    await authed<V1Service>("POST", `/environments/${seg(environmentId)}/services`, { body }),
   );
-  return data.createService;
 }

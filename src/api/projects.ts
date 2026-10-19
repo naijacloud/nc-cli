@@ -3,8 +3,10 @@
  * operation hangs off.
  */
 
-import { authed, authedAllPages, pageSelection } from "./transport.js";
-import { PROJECT_FIELDS, SERVICE_FIELDS } from "./fields.js";
+import { NaijaCloudError, authed, authedList } from "./transport.js";
+import { listProjectServices } from "./fields.js";
+import { seg, toProject, toServiceSummary, toTeam } from "./v1.js";
+import type { V1Environment, V1Project, V1Service, V1Workspace } from "./v1.js";
 import type {
   MyService,
   Project,
@@ -17,53 +19,33 @@ import type {
 
 
 export async function listTeams(): Promise<Team[]> {
-  return await authedAllPages<Team, { getMyTeams: { items: Team[]; pageInfo: { hasNextPage: boolean } } }>(
-    `
-      query MyTeams($page: OffsetPaginationArgs) {
-        getMyTeams(OffsetPaginationArgs: $page) { ${pageSelection("id name defaultRegion")} }
-      }
-    `,
-    {},
-    (data) => data.getMyTeams,
-  );
+  return (await authedList<V1Workspace>("/workspaces")).map(toTeam);
 }
 
 /**
  * Every project the caller can see, tagged with its team.
  *
- * `getProjects` is team-scoped and paginated in the schema, so this resolves
- * the caller's teams first and then reads each team's projects, every page —
- * `selection` is spliced into each item, so asking for environments too costs
- * nothing beyond a bigger response.
+ * Projects are workspace-scoped, so this resolves the caller's workspaces
+ * first and then reads each one's projects, every page, in parallel.
  */
-async function projectsAcrossTeams(selection: string): Promise<ProjectWithTeam[]> {
+async function projectsAcrossTeams(): Promise<ProjectWithTeam[]> {
   const teams = await listTeams();
   const perTeam = await Promise.all(
-    teams.map((team) =>
-      authedAllPages<Project, { getProjects: { items: Project[]; pageInfo: { hasNextPage: boolean } } }>(
-        `
-          query TeamProjects($teamId: ID!, $page: OffsetPaginationArgs) {
-            getProjects(teamId: $teamId, OffsetPaginationArgs: $page) { ${pageSelection(selection)} }
-          }
-        `,
-        { teamId: team.id },
-        (data) => data.getProjects,
-      ),
-    ),
+    teams.map((team) => authedList<V1Project>(`/workspaces/${seg(team.id)}/projects`)),
   );
   return teams.flatMap((team, index) =>
-    (perTeam[index] ?? []).map((project) => ({ ...project, teamName: team.name })),
+    (perTeam[index] ?? []).map((project) => ({ ...toProject(project), teamName: team.name })),
   );
 }
 
 export async function listProjects(): Promise<ProjectWithTeam[]> {
-  return await projectsAcrossTeams(PROJECT_FIELDS);
+  return await projectsAcrossTeams();
 }
 
 /**
  * Creates a project inside a team.
  *
- * `teamId` is required by the schema and has no default, so a caller with more
+ * `teamId` is required by the API and has no default, so a caller with more
  * than one team must choose — which is why the interactive flows ask for the
  * team first and the flag-driven ones take `--team`.
  *
@@ -77,33 +59,15 @@ export async function createProject(input: {
   displayName?: string;
   description?: string;
 }): Promise<Project> {
-  const data = await authed<{ createProject: Project }>(
-    `
-      mutation CreateProject(
-        $teamId: ID!
-        $name: String!
-        $displayName: String
-        $description: String
-      ) {
-        createProject(
-          teamId: $teamId
-          name: $name
-          displayName: $displayName
-          description: $description
-        ) {
-          ${PROJECT_FIELDS}
-          environments { id name isPreview }
-        }
-      }
-    `,
-    {
-      teamId: input.teamId,
-      name: input.name,
-      displayName: input.displayName ?? null,
-      description: input.description ?? null,
-    },
-  );
-  return data.createProject;
+  const created = await authed<V1Project>("POST", `/workspaces/${seg(input.teamId)}/projects`, {
+    body: { name: input.name, displayName: input.displayName, description: input.description },
+  });
+  // The create answer may leave out the seeded environments; read them so the
+  // caller sees what the platform actually made.
+  const environments =
+    created.environments ??
+    (await authedList<V1Environment>(`/projects/${seg(created.id)}/environments`));
+  return toProject({ ...created, environments });
 }
 
 /** One `project / environment` pair — a place a service can be created. */
@@ -117,8 +81,7 @@ export interface EnvironmentChoice {
 }
 
 /**
- * Every environment the caller can deploy into, across every project and team,
- * in **one** request.
+ * Every environment the caller can deploy into, across every project and team.
  *
  * Returned flattened rather than as nested projects because that is the shape
  * the question needs — "where should this live?" is answered with one flat list
@@ -128,13 +91,13 @@ export interface EnvironmentChoice {
  * deliberately does not ask for.
  */
 export async function listEnvironmentChoices(): Promise<EnvironmentChoice[]> {
-  const projects = await projectsAcrossTeams(
-    `${PROJECT_FIELDS}
-     environments { id name isPreview }`,
+  const projects = await projectsAcrossTeams();
+  const environments = await Promise.all(
+    projects.map((project) => authedList<V1Environment>(`/projects/${seg(project.id)}/environments`)),
   );
 
-  return projects.flatMap((project) =>
-    (project.environments ?? []).map((environment) => ({
+  return projects.flatMap((project, index) =>
+    (environments[index] ?? []).map((environment) => ({
       projectId: project.id,
       projectName: project.name,
       teamName: project.teamName,
@@ -147,70 +110,62 @@ export async function listEnvironmentChoices(): Promise<EnvironmentChoice[]> {
 
 /** One project, including its environments and the services inside each. */
 export async function getProject(projectId: string): Promise<Project> {
-  const data = await authed<{ getProject: Project }>(
-    `
-      query GetProject($id: ID!) {
-        getProject(id: $id) {
-          ${PROJECT_FIELDS}
-          environments {
-            id
-            name
-            isPreview
-            services { ${SERVICE_FIELDS} }
-          }
-        }
-      }
-    `,
-    { id: projectId },
-  );
-  return data.getProject;
+  const [project, tree] = await Promise.all([
+    authed<V1Project>("GET", `/projects/${seg(projectId)}`),
+    listProjectServices(projectId),
+  ]);
+  return {
+    ...toProject(project),
+    environments: tree.map(({ environment, services }) => ({
+      id: environment.id,
+      name: environment.name,
+      isPreview: environment.isPreview,
+      services,
+    })),
+  };
 }
 
 /**
  * Every service the caller can reach, flat.
  *
- * One request, no team/project/environment walk — which is what makes it the
+ * One list, no workspace/project/environment walk — which is what makes it the
  * right basis for resolving a service *name* to an id. `listProjects` +
  * `getProject` is the richer but far chattier route.
  */
 export async function listMyServices(): Promise<MyService[]> {
-  return await authedAllPages<MyService, { getMyServices: { items: MyService[]; pageInfo: { hasNextPage: boolean } } }>(
-    `
-      query MyServices($page: OffsetPaginationArgs) {
-        getMyServices(OffsetPaginationArgs: $page) { ${pageSelection("id name projectName type")} }
-      }
-    `,
-    {},
-    (data) => data.getMyServices,
-  );
+  return await authedList<MyService>("/services");
 }
 
 /**
- * A project with everything the navigator needs in one request: environments,
- * their region/replica/traffic banner, and the services inside each.
+ * A project with everything the navigator needs: environments, their
+ * region/replica/traffic banner, and the services inside each.
  *
- * Kept separate from `getProject` because the extra `summary` selection is only
- * worth its cost when something is going to render it.
+ * Kept separate from `getProject` because the `summary` banner is only worth
+ * its cost when something is going to render it.
  */
 export async function getProjectTree(projectId: string): Promise<Project> {
-  const data = await authed<{ getProject: Project }>(
-    `
-      query ProjectTree($id: ID!) {
-        getProject(id: $id) {
-          ${PROJECT_FIELDS}
-          environments {
-            id
-            name
-            isPreview
-            summary { region regionKey replicas trafficStatus }
-            services { ${SERVICE_FIELDS} }
-          }
-        }
-      }
-    `,
-    { id: projectId },
+  const [project, environments] = await Promise.all([
+    authed<V1Project>("GET", `/projects/${seg(projectId)}`),
+    authedList<V1Environment>(`/projects/${seg(projectId)}/environments`, { include: "summary" }),
+  ]);
+  const services = await Promise.all(
+    environments.map((environment) =>
+      authedList<V1Service>(`/environments/${seg(environment.id)}/services`),
+    ),
   );
-  return data.getProject;
+  return {
+    ...toProject(project),
+    environments: environments.map((environment, index) => {
+      const summary = environment.summary ?? undefined;
+      return {
+        id: environment.id,
+        name: environment.name,
+        isPreview: environment.isPreview,
+        services: (services[index] ?? []).map(toServiceSummary),
+        ...(summary ? { summary } : {}),
+      };
+    }),
+  };
 }
 
 /**
@@ -223,17 +178,15 @@ export async function getProjectTree(projectId: string): Promise<Project> {
 export async function getServiceConnection(
   serviceId: string,
 ): Promise<ServiceConnection | null> {
-  const data = await authed<{ getService: { connection: ServiceConnection | null } }>(
-    `
-      query ServiceConnection($id: ID!) {
-        getService(id: $id) {
-          connection { scheme host port username password database url externalUrl }
-        }
-      }
-    `,
-    { id: serviceId },
-  );
-  return data.getService.connection;
+  try {
+    return await authed<ServiceConnection>("GET", `/services/${seg(serviceId)}/connection`);
+  } catch (error) {
+    // A service with no connection details answers 404 here.
+    if (error instanceof NaijaCloudError && error.statusCode === 404 && error.code === "NOT_FOUND") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -248,22 +201,19 @@ export interface ServiceDetail extends ServiceSummary {
 
 /** One service, used to report which environment a deploy will land in. */
 export async function getService(serviceId: string): Promise<ServiceDetail> {
-  const data = await authed<{ getService: ServiceDetail }>(
-    `
-      query GetService($id: ID!) {
-        getService(id: $id) {
-          ${SERVICE_FIELDS}
-          isPreview
-          environmentId
-          environment { id name }
-          sourceType
-          rootDir
-          buildCommand
-          startCommand
-        }
-      }
-    `,
-    { id: serviceId },
-  );
-  return data.getService;
+  const service = await authed<V1Service>("GET", `/services/${seg(serviceId)}`);
+  const environment = await authed<V1Environment>(
+    "GET",
+    `/environments/${seg(service.environmentId)}`,
+  ).catch(() => null);
+  return {
+    ...toServiceSummary(service),
+    isPreview: environment?.isPreview ?? false,
+    environmentId: service.environmentId,
+    environment: environment ? { id: environment.id, name: environment.name } : null,
+    sourceType: service.source?.type ?? null,
+    rootDir: service.source?.rootDir ?? null,
+    buildCommand: service.build?.buildCommand ?? null,
+    startCommand: service.build?.startCommand ?? null,
+  };
 }

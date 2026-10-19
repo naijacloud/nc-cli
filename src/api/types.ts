@@ -1,5 +1,5 @@
 /**
- * The subset of NaijaCloud's GraphQL schema the CLI surfaces.
+ * The subset of NaijaCloud's API types the CLI surfaces.
  *
  * Hand-written rather than generated: the CLI touches a fraction of the schema,
  * and these shapes double as the documentation for what each command returns.

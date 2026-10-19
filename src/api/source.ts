@@ -8,19 +8,9 @@
  * that treats them as authoritative will create services that cannot start.
  */
 
-import { authed, authedAllPages, pageSelection } from "./transport.js";
+import { authed, authedList } from "./transport.js";
+import { seg } from "./v1.js";
 import type { DetectedBuild, InstallationRepo } from "./types.js";
-
-const DETECTED_BUILD_FIELDS = `
-  framework
-  runtime
-  runtimeVersion
-  buildCommand
-  startCommand
-  port
-  packageManager
-  monorepoStrategy
-`;
 
 /**
  * Repositories the team's GitHub App installation can see.
@@ -30,17 +20,7 @@ const DETECTED_BUILD_FIELDS = `
  * cue to offer `githubAppInstallUrl`, never an error.
  */
 export async function listGithubRepositories(teamId: string): Promise<InstallationRepo[]> {
-  return await authedAllPages<InstallationRepo, { getGithubRepositories: { items: InstallationRepo[]; pageInfo: { hasNextPage: boolean } } }>(
-    `
-      query GithubRepositories($teamId: ID!, $page: OffsetPaginationArgs) {
-        getGithubRepositories(teamId: $teamId, OffsetPaginationArgs: $page) {
-          ${pageSelection("fullName private defaultBranch")}
-        }
-      }
-    `,
-    { teamId },
-    (data) => data.getGithubRepositories,
-  );
+  return await authedList<InstallationRepo>(`/workspaces/${seg(teamId)}/github/repositories`);
 }
 
 /**
@@ -50,11 +30,11 @@ export async function listGithubRepositories(teamId: string): Promise<Installati
  * team at the moment it is shown rather than being a constant worth caching.
  */
 export async function githubAppInstallUrl(teamId: string): Promise<string> {
-  const data = await authed<{ getGithubAppInstallUrl: string }>(
-    `query GithubAppInstallUrl($teamId: ID!) { getGithubAppInstallUrl(teamId: $teamId) }`,
-    { teamId },
+  const answer = await authed<{ url: string }>(
+    "GET",
+    `/workspaces/${seg(teamId)}/github/install-url`,
   );
-  return data.getGithubAppInstallUrl;
+  return answer.url;
 }
 
 /**
@@ -72,15 +52,7 @@ export async function detectBuild(input: {
   rootDir?: string;
 }): Promise<DetectedBuild | null> {
   try {
-    const data = await authed<{ getDetectBuild: DetectedBuild }>(
-      `
-        query DetectBuild($input: DetectBuildInput!) {
-          getDetectBuild(DetectBuildInput: $input) { ${DETECTED_BUILD_FIELDS} }
-        }
-      `,
-      { input },
-    );
-    return data.getDetectBuild;
+    return await authed<DetectedBuild>("POST", "/detect-build", { body: input });
   } catch {
     return null;
   }

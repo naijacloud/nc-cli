@@ -1,21 +1,21 @@
 /**
  * Transport for NaijaCloud's control-plane API: configuration, errors, and the
- * two functions every operation module goes through.
+ * functions every operation module goes through.
  *
- * NaijaCloud's control plane is a **GraphQL** endpoint at
- * `https://api.naijacloud.com/graphql`, authenticated with
- * `Authorization: Bearer <accessToken>`. There is no REST surface — the paths
- * and operation names below come from the live schema (introspected against
- * the production endpoint), not from guesswork.
+ * The CLI speaks NaijaCloud's public **REST** API at
+ * `https://api.naijacloud.com/v1` (TGL-1406), authenticated with
+ * `Authorization: Bearer <token>`: the session from `naijacloud login`, or a
+ * workspace API key in HOSTING_API_TOKEN. Errors come back as
+ * `{ error: { code, message, requestId } }`; lists as `{ data, nextCursor }`.
+ * GraphQL is the dashboard's private API and the CLI no longer uses it.
  *
  * Resource model, which differs from Vercel's and drives the tool signatures:
  *
- *     Team ──< Project ──< Environment ──< Service ──< Deployment
+ *     Workspace ──< Project ──< Environment ──< Service ──< Deploy
  *
- * Deployments, custom domains and environment variables all hang off a
+ * Deploys, custom domains and environment variables all hang off a
  * **Service**, not a Project. Tools therefore take `serviceId`, and accept
- * `projectId` as a convenience that fans out across the project's services in
- * a single nested GraphQL query.
+ * `projectId` as a convenience that fans out across the project's services.
  */
 
 import { createRequire } from "node:module";
@@ -30,7 +30,7 @@ import {
 import type { ResolvedToken } from "../auth/credentials.js";
 
 export const DEFAULT_API_BASE_URL = "https://api.naijacloud.com";
-const GRAPHQL_PATH = "/graphql";
+const V1_PATH = "/v1";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
@@ -84,12 +84,12 @@ function isLoopback(hostname: string): boolean {
 }
 
 /**
- * The GraphQL endpoint, refusing a base URL a credential must not go to
+ * The REST API root (`<base>/v1`), refusing a base URL a credential must not go to
  * (TGL-1174): one that does not parse, or plain http to anything but this
  * machine. Every request carries a token or a password, so neither is allowed
  * to cross a network in cleartext — the same rule the email SDKs apply.
  */
-function graphqlUrl(): string {
+function apiV1Url(): string {
   const base = apiBaseUrl();
   let parsed: URL;
   try {
@@ -113,7 +113,7 @@ function graphqlUrl(): string {
       { code: "BAD_CONFIG" },
     );
   }
-  return `${base}${GRAPHQL_PATH}`;
+  return `${base}${V1_PATH}`;
 }
 
 /** A URL's origin (scheme, host, port), or null when it does not parse. */
@@ -137,12 +137,18 @@ function timeoutMs(): number {
 export class NaijaCloudError extends Error {
   readonly code: string | undefined;
   readonly statusCode: number | undefined;
+  /** The API's `x-request-id` for this failure; quote it to support. */
+  readonly requestId: string | undefined;
 
-  constructor(message: string, options: { code?: string; statusCode?: number } = {}) {
+  constructor(
+    message: string,
+    options: { code?: string | undefined; statusCode?: number; requestId?: string | undefined } = {},
+  ) {
     super(message);
     this.name = "NaijaCloudError";
     this.code = options.code;
     this.statusCode = options.statusCode;
+    this.requestId = options.requestId;
   }
 }
 
@@ -152,8 +158,8 @@ export class NaijaCloudError extends Error {
  * an actionable message instead of a bare 401.
  */
 export class NotLoggedInError extends NaijaCloudError {
-  constructor(message = "Not logged in. Run 'naijacloud login' first.") {
-    super(message, { code: "UNAUTHENTICATED", statusCode: 401 });
+  constructor(message = "Not logged in. Run 'naijacloud login' first.", requestId?: string) {
+    super(message, { code: "UNAUTHENTICATED", statusCode: 401, requestId });
     this.name = "NotLoggedInError";
   }
 }
@@ -162,54 +168,49 @@ export class NotLoggedInError extends NaijaCloudError {
 /* Transport                                                                  */
 /* -------------------------------------------------------------------------- */
 
-interface GraphQLError {
-  message?: string;
-  path?: (string | number)[];
-  extensions?: {
-    code?: string;
-    originalError?: { message?: string | string[]; error?: string; statusCode?: number };
-  };
-}
-
-interface GraphQLResponse<T> {
-  data?: T | null;
-  errors?: GraphQLError[];
-}
-
-/** GraphQL puts validation detail in extensions.originalError.message (sometimes an array). */
-function describe(error: GraphQLError): string {
-  const original = error.extensions?.originalError?.message;
-  if (Array.isArray(original) && original.length > 0) return original.join("; ");
-  if (typeof original === "string" && original) return original;
-  return error.message || "Unknown NaijaCloud API error";
+/** The `/v1` error envelope: `{ error: { code, message, requestId } }`. */
+interface ErrorEnvelope {
+  error?: { code?: string; message?: string; requestId?: string };
 }
 
 /** Options for {@link execute}. */
 export interface ExecuteOptions {
+  /** JSON request body. */
+  body?: unknown;
+  /** Query string parameters; undefined values are left out. */
+  query?: Record<string, string | number | boolean | undefined>;
   /**
-   * Send this machine's `nc.device` cookie, and keep the one the API sets.
-   * Only the sign-in mutations need it: the API decides from it whether to
-   * email "New sign-in to your account" (TGL-1171).
+   * Send this machine's device id, and keep the one the API answers with.
+   * Only the sign-in calls need it: the API decides from it whether to email
+   * "New sign-in to your account" (TGL-1171).
    */
   device?: boolean;
+  /**
+   * `Idempotency-Key` for a POST that creates something or starts work, so a
+   * retry after a dropped connection cannot do it twice.
+   */
+  idempotencyKey?: string;
 }
 
-/** The `nc.device` value in the response's Set-Cookie headers, if any. */
-function deviceCookieOf(response: Response): string | undefined {
+/** The device id the API issued, from its header or (older APIs) its cookie. */
+function issuedDeviceId(response: Response): string | undefined {
+  const header = response.headers.get("x-device-id")?.trim();
+  if (header) return header;
   const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-  const cookies = headers.getSetCookie?.() ?? [];
-  for (const cookie of cookies) {
+  for (const cookie of headers.getSetCookie?.() ?? []) {
     const match = /^\s*nc\.device=([^;]*)/.exec(cookie);
     if (match?.[1]) return decodeURIComponent(match[1]);
   }
   return undefined;
 }
 
-/** Reads a GraphQL body from a non-2xx answer, or null when it is not one. */
-async function graphqlBody(response: Response): Promise<GraphQLResponse<unknown> | null> {
+/** Reads the error envelope from an answer, or null when it is not one. */
+function envelopeOf(text: string): ErrorEnvelope["error"] | null {
   try {
-    const body = (await response.json()) as GraphQLResponse<unknown>;
-    return body && typeof body === "object" ? body : null;
+    const body = JSON.parse(text) as ErrorEnvelope;
+    return body && typeof body === "object" && body.error && typeof body.error === "object"
+      ? body.error
+      : null;
   } catch {
     return null;
   }
@@ -224,99 +225,63 @@ function retryAfter(response: Response): string {
   return seconds < 120 ? `Wait ${seconds} second${seconds === 1 ? "" : "s"}` : `Wait ${Math.ceil(seconds / 60)} minutes`;
 }
 
+/** " (request id: …)", so a user can quote it to support. */
+function withRequestId(message: string, requestId: string | undefined): string {
+  return requestId ? `${message} (request id: ${requestId})` : message;
+}
+
+/** Builds `<base>/v1<path>?<query>`. */
+function urlFor(path: string, query: ExecuteOptions["query"]): string {
+  const url = new URL(`${apiV1Url()}${path}`);
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+  return url.toString();
+}
+
 /**
- * Executes one GraphQL operation. `token` is sent as a bearer credential; when
- * omitted the request is anonymous (only `login` and `signup` allow that).
+ * Sends one request to the REST API at `/v1`. `token` is sent as a bearer
+ * credential; when omitted the request is anonymous (only signing in and the
+ * public price list allow that). Answers `undefined` for `204 No Content`.
  */
 export async function execute<T>(
-  query: string,
-  variables: Record<string, unknown>,
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
   token?: string,
   options: ExecuteOptions = {},
 ): Promise<T> {
-  const url = graphqlUrl();
+  const url = urlFor(path, options.query);
   const headers: Record<string, string> = {
-    "content-type": "application/json",
+    accept: "application/json",
     "user-agent": `naijacloud-cli/${CLIENT_VERSION}`,
   };
+  if (options.body !== undefined) headers["content-type"] = "application/json";
   if (token) headers["authorization"] = `Bearer ${token}`;
-  if (options.device) headers["cookie"] = `nc.device=${encodeURIComponent(deviceId())}`;
+  if (options.idempotencyKey) headers["idempotency-key"] = options.idempotencyKey;
+  if (options.device) {
+    const id = deviceId();
+    headers["x-device-id"] = id;
+    headers["cookie"] = `nc.device=${encodeURIComponent(id)}`;
+  }
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ query, variables }),
-      signal: AbortSignal.timeout(timeoutMs()),
-    });
+    const init: RequestInit = { method, headers, signal: AbortSignal.timeout(timeoutMs()) };
+    if (options.body !== undefined) init.body = JSON.stringify(options.body);
+    response = await fetch(url, init);
   } catch (cause) {
     const timedOut = cause instanceof Error && cause.name === "TimeoutError";
     throw new NaijaCloudError(
       timedOut
-        ? `The NaijaCloud API at ${url} did not answer within ${Math.round(timeoutMs() / 1000)}s. ` +
+        ? `The NaijaCloud API at ${apiBaseUrl()} did not answer within ${Math.round(timeoutMs() / 1000)}s. ` +
             "Check your connection and try again, or raise HOSTING_API_TIMEOUT_MS on a slow link."
-        : `Cannot reach the NaijaCloud API at ${url}. Check your internet connection and try again.`,
+        : `Cannot reach the NaijaCloud API at ${apiBaseUrl()}. Check your internet connection and try again.`,
     );
   }
 
   if (options.device) {
-    const issued = deviceCookieOf(response);
+    const issued = issuedDeviceId(response);
     if (issued) rememberDeviceId(issued);
-  }
-
-  // The GraphQL endpoint answers 200 even for application errors; a non-2xx
-  // here means the gateway or a proxy failed — or that the server refused the
-  // operation itself, which Apollo answers with 400 and a JSON body.
-  if (!response.ok) {
-    if (response.status === 429) {
-      throw new NaijaCloudError(
-        `NaijaCloud is limiting how fast requests are accepted from you (HTTP 429). ${retryAfter(response)} and try again.`,
-        { code: "RATE_LIMITED", statusCode: 429 },
-      );
-    }
-    if (response.status === 401 || response.status === 403) {
-      // Only the API's own answer says anything about the credentials. A 403
-      // HTML page is a firewall, a WAF or a captive portal, and logging in
-      // again cannot get past it.
-      const body = await graphqlBody(response);
-      const codes = (body?.errors ?? []).map((error) => error.extensions?.code);
-      if (codes.includes("UNAUTHENTICATED")) {
-        throw new NotLoggedInError(
-          `NaijaCloud rejected the credentials (they may have expired). Run 'naijacloud login' again.`,
-        );
-      }
-      if (body?.errors?.[0]) {
-        throw new NaijaCloudError(`Permission denied by NaijaCloud: ${describe(body.errors[0])}`, {
-          code: "FORBIDDEN",
-          statusCode: response.status,
-        });
-      }
-      throw new NaijaCloudError(
-        `The request was blocked before it reached the NaijaCloud API (HTTP ${response.status} from ${url}). ` +
-          "A firewall, proxy, VPN or captive portal on your network is the usual cause — " +
-          "try another network. Logging in again will not help.",
-        { code: "BLOCKED", statusCode: response.status },
-      );
-    }
-    if (response.status === 400) {
-      const body = await graphqlBody(response);
-      if ((body?.errors ?? []).some((error) => error.extensions?.code === "GRAPHQL_VALIDATION_FAILED")) {
-        throw new NaijaCloudError(
-          `This version of the CLI (${CLIENT_VERSION}) no longer matches the NaijaCloud API. ` +
-            "Update it — npm install -g @naijacloud/cli@latest, or reinstall the way you installed it — and try again.",
-          { code: "GRAPHQL_VALIDATION_FAILED", statusCode: 400 },
-        );
-      }
-      if (body?.errors?.[0]) {
-        throw new NaijaCloudError(describe(body.errors[0]), { statusCode: 400 });
-      }
-    }
-    throw new NaijaCloudError(
-      `NaijaCloud API returned HTTP ${response.status} ${response.statusText}.` +
-        (response.status >= 500 ? " This is on our side; try again in a minute." : ""),
-      { statusCode: response.status },
-    );
   }
 
   // Read the text first, so a connection that drops mid-answer is told apart
@@ -331,9 +296,79 @@ export async function execute<T>(
     );
   }
 
-  let payload: GraphQLResponse<T>;
+  if (!response.ok) {
+    const error = envelopeOf(text);
+    const requestId = error?.requestId ?? response.headers.get("x-request-id") ?? undefined;
+    const message = error?.message?.trim();
+
+    if (response.status === 429) {
+      throw new NaijaCloudError(
+        withRequestId(
+          `NaijaCloud is limiting how fast requests are accepted from you (HTTP 429). ${retryAfter(response)} and try again.`,
+          requestId,
+        ),
+        { code: "RATE_LIMITED", statusCode: 429, requestId },
+      );
+    }
+    // Only the API's own envelope says anything about the credentials. An
+    // HTML 401/403 is a firewall, a WAF or a captive portal, and logging in
+    // again cannot get past it.
+    if (!error && (response.status === 401 || response.status === 403)) {
+      throw new NaijaCloudError(
+        `The request was blocked before it reached the NaijaCloud API (HTTP ${response.status} from ${apiBaseUrl()}). ` +
+          "A firewall, proxy, VPN or captive portal on your network is the usual cause — " +
+          "try another network. Logging in again will not help.",
+        { code: "BLOCKED", statusCode: response.status },
+      );
+    }
+    if (error?.code === "UNAUTHENTICATED" || response.status === 401) {
+      throw new NotLoggedInError(
+        "NaijaCloud rejected the credentials (they may have expired). Run 'naijacloud login' again.",
+        requestId,
+      );
+    }
+    if (error?.code === "FORBIDDEN" || response.status === 403) {
+      throw new NaijaCloudError(
+        withRequestId(`Permission denied by NaijaCloud: ${message || "you do not have access to this."}`, requestId),
+        { code: "FORBIDDEN", statusCode: response.status, requestId },
+      );
+    }
+    // A 404 or 405 with no envelope is a route this API does not have: the CLI
+    // is older (or newer) than the API it is talking to.
+    if (!error && (response.status === 404 || response.status === 405)) {
+      throw new NaijaCloudError(
+        `This version of the CLI (${CLIENT_VERSION}) no longer matches the NaijaCloud API. ` +
+          "Update it — npm install -g @naijacloud/cli@latest, or reinstall the way you installed it — and try again.",
+        { code: "API_MISMATCH", statusCode: response.status },
+      );
+    }
+    if (message) {
+      throw new NaijaCloudError(withRequestId(message, requestId), {
+        code: error?.code,
+        statusCode: response.status,
+        requestId,
+      });
+    }
+    if (/^\s*</.test(text)) {
+      throw new NaijaCloudError(
+        `Something between you and NaijaCloud answered with a web page instead of the API (HTTP ${response.status}). ` +
+          "A proxy, VPN or captive portal is the usual cause; try another network.",
+        { statusCode: response.status },
+      );
+    }
+    throw new NaijaCloudError(
+      withRequestId(
+        `NaijaCloud API returned HTTP ${response.status} ${response.statusText}.` +
+          (response.status >= 500 ? " This is on our side; try again in a minute." : ""),
+        requestId,
+      ),
+      { statusCode: response.status, requestId },
+    );
+  }
+
+  if (response.status === 204 || text.trim() === "") return undefined as T;
   try {
-    payload = JSON.parse(text) as GraphQLResponse<T>;
+    return JSON.parse(text) as T;
   } catch {
     const html = /^\s*</.test(text);
     throw new NaijaCloudError(
@@ -345,36 +380,6 @@ export async function execute<T>(
       { statusCode: response.status },
     );
   }
-
-  const firstError = payload.errors?.[0];
-  if (firstError) {
-    const code = firstError.extensions?.code;
-    const statusCode = firstError.extensions?.originalError?.statusCode;
-
-    if (code === "UNAUTHENTICATED" || statusCode === 401) {
-      throw new NotLoggedInError(
-        "NaijaCloud rejected the credentials (they may have expired). " +
-          "Run 'naijacloud login' again.",
-      );
-    }
-    const errorOptions: { code?: string; statusCode?: number } = {};
-    if (code !== undefined) errorOptions.code = code;
-    if (statusCode !== undefined) errorOptions.statusCode = statusCode;
-
-    if (code === "FORBIDDEN" || statusCode === 403) {
-      throw new NaijaCloudError(`Permission denied by NaijaCloud: ${describe(firstError)}`, {
-        ...errorOptions,
-        statusCode: statusCode ?? 403,
-      });
-    }
-
-    throw new NaijaCloudError(describe(firstError), errorOptions);
-  }
-
-  if (payload.data == null) {
-    throw new NaijaCloudError("NaijaCloud API returned an empty response.");
-  }
-  return payload.data;
 }
 
 /**
@@ -391,7 +396,7 @@ export async function execute<T>(
  * The base URL itself is checked first, so a refused URL gets one message.
  */
 export function requestToken(): ResolvedToken | null {
-  graphqlUrl();
+  apiV1Url();
   const resolved = resolveToken();
   if (!resolved || resolved.source !== "file") return resolved;
 
@@ -410,53 +415,50 @@ export function requestToken(): ResolvedToken | null {
   return resolved;
 }
 
-/** Executes an operation with the resolved credentials, failing fast if absent. */
-export async function authed<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+/** Sends a request with the resolved credentials, failing fast if there are none. */
+export async function authed<T>(
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
+  options: ExecuteOptions = {},
+): Promise<T> {
   const resolved = requestToken();
   if (!resolved) throw new NotLoggedInError();
-  return await execute<T>(query, variables, resolved.token);
+  return await execute<T>(method, path, resolved.token, options);
 }
 
 /* -------------------------------------------------------------------------- */
 /* Pagination                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** The largest page the API serves (`OffsetPaginationArgs.limit` is capped at 100). */
+/** The largest page the API serves (`limit` is capped at 100). */
 export const MAX_PAGE_SIZE = 100;
 
 /** A safety stop, so a server that always reports another page cannot loop us forever. */
 const MAX_PAGES = 200;
 
-/** The `{ items pageInfo }` envelope every list query returns. */
-export interface OffsetPage<T> {
-  items: T[];
-  pageInfo: { hasNextPage: boolean };
-}
-
-/** The selection a paginated field needs, wrapped around the item selection. */
-export function pageSelection(itemSelection: string): string {
-  return `items { ${itemSelection} } pageInfo { hasNextPage }`;
+/** The `{ data, nextCursor }` envelope every `/v1` list returns. */
+export interface ListPage<T> {
+  data: T[];
+  nextCursor: string | null;
 }
 
 /**
- * Reads every page of a paginated list query.
- *
- * The query must declare `$page: OffsetPaginationArgs` and pass it to the list
- * field as `OffsetPaginationArgs: $page`; `pick` returns that field's envelope
- * from the response. Pages are read at the maximum size, so a list of up to 100
- * rows is still one request.
+ * Reads every page of a `/v1` list by following `nextCursor`. Pages are read
+ * at the maximum size, so a list of up to 100 rows is still one request.
  */
-export async function authedAllPages<T, D>(
-  query: string,
-  variables: Record<string, unknown>,
-  pick: (data: D) => OffsetPage<T>,
+export async function authedList<T>(
+  path: string,
+  query: ExecuteOptions["query"] = {},
 ): Promise<T[]> {
   const all: T[] = [];
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const data = await authed<D>(query, { ...variables, page: { page, limit: MAX_PAGE_SIZE } });
-    const envelope = pick(data);
-    all.push(...envelope.items);
-    if (!envelope.pageInfo.hasNextPage) break;
+  let cursor: string | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const result: ListPage<T> = await authed<ListPage<T>>("GET", path, {
+      query: cursor ? { ...query, cursor } : { ...query, limit: MAX_PAGE_SIZE },
+    });
+    all.push(...result.data);
+    cursor = result.nextCursor;
+    if (!cursor) break;
   }
   return all;
 }

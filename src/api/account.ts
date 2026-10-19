@@ -6,19 +6,10 @@ import { NaijaCloudError, NotLoggedInError, authed, execute } from "./transport.
 import type { User } from "./types.js";
 
 
-/** `me` — also doubles as the token-validation endpoint used by login/whoami. */
+/** `GET /v1/me` — also doubles as the token-validation endpoint used by login/whoami. */
 export async function getCurrentUser(token?: string): Promise<User> {
-  const query = `
-    query CurrentUser {
-      getMe { id email name firstName lastName status createdAt }
-    }
-  `;
-  if (token) {
-    const data = await execute<{ getMe: User }>(query, {}, token);
-    return data.getMe;
-  }
-  const data = await authed<{ getMe: User }>(query);
-  return data.getMe;
+  if (token) return await execute<User>("GET", "/me", token);
+  return await authed<User>("GET", "/me");
 }
 
 /**
@@ -44,25 +35,14 @@ export async function loginWithPassword(
   email: string,
   password: string,
 ): Promise<LoginResult> {
-  const query = `
-    mutation Login($input: LoginInput!) {
-      login(LoginInput: $input) {
-        accessToken
-        user { id email name firstName lastName status createdAt }
-        twoFactor { pendingToken expiresAt }
-      }
-    }
-  `;
   try {
-    // The device cookie is what lets the API recognise this machine and skip
-    // the "New sign-in" email after the first login from it (TGL-1171).
-    const data = await execute<{ login: LoginResult }>(
-      query,
-      { input: { email, password } },
-      undefined,
-      { device: true },
-    );
-    return { ...data.login, twoFactor: data.login.twoFactor ?? null };
+    // The device id is what lets the API recognise this machine and skip the
+    // "New sign-in" email after the first login from it (TGL-1171).
+    const result = await execute<LoginResult>("POST", "/auth/login", undefined, {
+      body: { email, password },
+      device: true,
+    });
+    return { ...result, twoFactor: result.twoFactor ?? null };
   } catch (error) {
     // A rejected password is a credentials problem, not a "log in again" loop.
     if (error instanceof NotLoggedInError) {
@@ -84,19 +64,11 @@ export async function verifyTwoFactorSignIn(
   pendingToken: string,
   code: string,
 ): Promise<{ accessToken: string; user: User }> {
-  const query = `
-    mutation VerifyTwoFactorSignIn($input: VerifyTwoFactorSignInInput!) {
-      verifyTwoFactorSignIn(VerifyTwoFactorSignInInput: $input) {
-        accessToken
-        user { id email name firstName lastName status createdAt }
-      }
-    }
-  `;
   try {
-    const data = await execute<{
-      verifyTwoFactorSignIn: { accessToken: string | null; user: User | null };
-    }>(query, { input: { pendingToken, code } }, undefined, { device: true });
-    const { accessToken, user } = data.verifyTwoFactorSignIn;
+    const { accessToken, user } = await execute<{
+      accessToken: string | null;
+      user: User | null;
+    }>("POST", "/auth/two-factor", undefined, { body: { pendingToken, code }, device: true });
     if (!accessToken || !user) {
       throw new NaijaCloudError("Two-factor sign-in did not return a session.");
     }
