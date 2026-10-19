@@ -5,11 +5,38 @@
 import { NaijaCloudError, NotLoggedInError, authed, execute } from "./transport.js";
 import type { User } from "./types.js";
 
+/** `GET /v1/me` and the `user` of a session. */
+interface V1Me {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * `/v1` reports whether the email is verified rather than an account status;
+ * an unverified address is what blocks creating apps, so that is what shows.
+ */
+function toUser(me: V1Me): User {
+  const name = [me.firstName, me.lastName].filter(Boolean).join(" ").trim();
+  return {
+    id: me.id,
+    email: me.email,
+    name: name || null,
+    firstName: me.firstName,
+    lastName: me.lastName,
+    status: me.emailVerifiedAt ? "ACTIVE" : "EMAIL_NOT_VERIFIED",
+    createdAt: me.createdAt,
+  };
+}
+
 
 /** `GET /v1/me` — also doubles as the token-validation endpoint used by login/whoami. */
 export async function getCurrentUser(token?: string): Promise<User> {
-  if (token) return await execute<User>("GET", "/me", token);
-  return await authed<User>("GET", "/me");
+  if (token) return toUser(await execute<V1Me>("GET", "/me", token));
+  return toUser(await authed<V1Me>("GET", "/me"));
 }
 
 /**
@@ -38,11 +65,16 @@ export async function loginWithPassword(
   try {
     // The device id is what lets the API recognise this machine and skip the
     // "New sign-in" email after the first login from it (TGL-1171).
-    const result = await execute<LoginResult>("POST", "/auth/login", undefined, {
-      body: { email, password },
-      device: true,
-    });
-    return { ...result, twoFactor: result.twoFactor ?? null };
+    const result = await execute<{
+      accessToken: string | null;
+      user: V1Me | null;
+      twoFactor: TwoFactorChallenge | null;
+    }>("POST", "/auth/login", undefined, { body: { email, password }, device: true });
+    return {
+      accessToken: result.accessToken,
+      user: result.user ? toUser(result.user) : null,
+      twoFactor: result.twoFactor ?? null,
+    };
   } catch (error) {
     // A rejected password is a credentials problem, not a "log in again" loop.
     if (error instanceof NotLoggedInError) {
@@ -65,10 +97,12 @@ export async function verifyTwoFactorSignIn(
   code: string,
 ): Promise<{ accessToken: string; user: User }> {
   try {
-    const { accessToken, user } = await execute<{
+    const session = await execute<{
       accessToken: string | null;
-      user: User | null;
+      user: V1Me | null;
     }>("POST", "/auth/two-factor", undefined, { body: { pendingToken, code }, device: true });
+    const accessToken = session.accessToken;
+    const user = session.user ? toUser(session.user) : null;
     if (!accessToken || !user) {
       throw new NaijaCloudError("Two-factor sign-in did not return a session.");
     }

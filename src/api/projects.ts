@@ -189,6 +189,27 @@ export async function getServiceConnection(
   }
 }
 
+/**
+ * One environment by id: `GET /v1/environments/{id}`, or — against an API that
+ * does not have that route yet — the same environment found by walking the
+ * caller's workspaces and projects. The name decides which scope `env set`
+ * writes (TGL-782), so "unknown" is not an acceptable answer. Null only when
+ * the environment cannot be found at all.
+ */
+async function findEnvironment(environmentId: string): Promise<V1Environment | null> {
+  try {
+    return await authed<V1Environment>("GET", `/environments/${seg(environmentId)}`);
+  } catch (error) {
+    if (!(error instanceof NaijaCloudError) || error.code !== "API_MISMATCH") return null;
+  }
+  for (const project of await projectsAcrossTeams()) {
+    const environments = await authedList<V1Environment>(`/projects/${seg(project.id)}/environments`);
+    const match = environments.find((environment) => environment.id === environmentId);
+    if (match) return match;
+  }
+  return null;
+}
+
 export interface ServiceDetail extends ServiceSummary {
   isPreview: boolean;
   environmentId: string;
@@ -202,10 +223,7 @@ export interface ServiceDetail extends ServiceSummary {
 /** One service, used to report which environment a deploy will land in. */
 export async function getService(serviceId: string): Promise<ServiceDetail> {
   const service = await authed<V1Service>("GET", `/services/${seg(serviceId)}`);
-  const environment = await authed<V1Environment>(
-    "GET",
-    `/environments/${seg(service.environmentId)}`,
-  ).catch(() => null);
+  const environment = await findEnvironment(service.environmentId);
   return {
     ...toServiceSummary(service),
     isPreview: environment?.isPreview ?? false,

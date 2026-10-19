@@ -103,7 +103,7 @@ export interface TableStat {
 }
 
 export async function listTableStats(serviceId: string): Promise<TableStat[]> {
-  return await authedList<TableStat>(`/services/${seg(serviceId)}/database/table-stats`);
+  return await authedList<TableStat>(`/services/${seg(serviceId)}/database/tables`);
 }
 
 export interface DbColumn {
@@ -145,7 +145,6 @@ export interface ExportResult {
   url: string;
   filename: string;
   format: string;
-  objectKey: string;
   sizeBytes: number | null;
   expiresAt: string;
 }
@@ -157,7 +156,7 @@ export async function exportDatabase(
   serviceId: string,
   format?: DatabaseExportFormat,
 ): Promise<ExportResult> {
-  return await authed<ExportResult>("POST", `/services/${seg(serviceId)}/database/export`, {
+  return await authed<ExportResult>("POST", `/services/${seg(serviceId)}/database/exports`, {
     body: { format },
   });
 }
@@ -170,7 +169,7 @@ export async function exportTable(
 ): Promise<ExportResult> {
   return await authed<ExportResult>(
     "POST",
-    `/services/${seg(serviceId)}/database/tables/${seg(table)}/export`,
+    `/services/${seg(serviceId)}/database/tables/${seg(table)}/exports`,
     { body: { format, schema } },
   );
 }

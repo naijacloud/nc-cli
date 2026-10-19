@@ -52,7 +52,7 @@ export async function detectBuild(input: {
   rootDir?: string;
 }): Promise<DetectedBuild | null> {
   try {
-    return await authed<DetectedBuild>("POST", "/detect-build", { body: input });
+    return await authed<DetectedBuild>("GET", "/build-detection", { query: input });
   } catch {
     return null;
   }
