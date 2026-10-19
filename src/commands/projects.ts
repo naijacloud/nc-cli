@@ -8,7 +8,7 @@
 
 import process from "node:process";
 
-import { createProject, getProject, listProjects, listTeams } from "../api/index.js";
+import { NaijaCloudError, createProject, getProject, listProjects, listTeams } from "../api/index.js";
 import type { EnvironmentSummary, ServiceSummary, Team } from "../api/index.js";
 import { formatWhen, printDetail, printJson, printTable } from "../output.js";
 import { programName } from "../program-name.js";
@@ -165,10 +165,12 @@ export async function projectsCreate(
   try {
     project = await createProject(input);
   } catch (error) {
-    // The API's generic CONFLICT ("That conflicts with something that already
-    // exists") is a project name already used in this team: names are unique
-    // per team.
-    if (error instanceof Error && /conflicts with something that already exists/i.test(error.message)) {
+    // The API's CONFLICT ("That conflicts with something that already exists")
+    // is a project name already used in this team: names are unique per team.
+    if (
+      (error instanceof NaijaCloudError && error.code === "CONFLICT") ||
+      (error instanceof Error && /conflicts with something that already exists/i.test(error.message))
+    ) {
       throw new Error(
         `${team.name} already has a project called '${name}'. Project names are unique within a team; ` +
           `pick another name, or see it with \`${programName()} projects show ${name}\`.`,

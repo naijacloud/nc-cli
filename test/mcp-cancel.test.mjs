@@ -11,14 +11,16 @@ async function callWithDeploymentIn(status) {
   const sent = [];
   const realFetch = globalThis.fetch;
   process.env.HOSTING_API_TOKEN = "test-token";
-  globalThis.fetch = async (_url, init) => {
-    const { query } = JSON.parse(init.body);
-    sent.push(query);
-    const deployment = { id: "d1", serviceId: "s1", status, service: { id: "s1", name: "web", url: null } };
-    if (/cancelDeployment/.test(query)) {
-      return Response.json({ data: { cancelDeployment: { ...deployment, status: "CANCELLED" } } });
+  globalThis.fetch = async (input, init = {}) => {
+    const path = new URL(String(input)).pathname;
+    sent.push(`${init.method ?? "GET"} ${path}`);
+    const deploy = { id: "d1", serviceId: "s1", status, createdAt: "2026-01-01T00:00:00.000Z" };
+    if (path === "/v1/deploys/d1/cancel") return Response.json({ ...deploy, status: "CANCELLED" });
+    if (path === "/v1/deploys/d1") return Response.json(deploy);
+    if (path === "/v1/services/s1") {
+      return Response.json({ id: "s1", environmentId: "e1", name: "web", type: "WEB", status: "ACTIVE", url: null, source: {}, build: {} });
     }
-    return Response.json({ data: { getDeployment: deployment } });
+    return new Response("not stubbed", { status: 404 });
   };
   try {
     const { createServer } = await import("../build/mcp/server.js");
@@ -41,12 +43,12 @@ test("cancelling a finished deployment is refused, and nothing is sent", async (
   const { result, sent } = await callWithDeploymentIn("RUNNING");
   assert.equal(result.isError, true);
   assert.match(result.content[0].text, /is RUNNING, so there is nothing to cancel/);
-  assert.ok(!sent.some((query) => /cancelDeployment/.test(query)), "cancelDeployment was sent");
+  assert.ok(!sent.includes("POST /v1/deploys/d1/cancel"), "the cancel was sent");
 });
 
 test("cancelling an in-flight deployment cancels it", async () => {
   const { result, sent } = await callWithDeploymentIn("BUILDING");
   assert.notEqual(result.isError, true);
   assert.equal(JSON.parse(result.content[0].text).cancelled, true);
-  assert.ok(sent.some((query) => /cancelDeployment/.test(query)));
+  assert.ok(sent.includes("POST /v1/deploys/d1/cancel"));
 });

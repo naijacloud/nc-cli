@@ -7,6 +7,24 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-19
+
+### Changed
+
+- The CLI and its MCP server now use NaijaCloud's public REST API at
+  `https://api.naijacloud.com/v1` instead of GraphQL, which is now the
+  dashboard's private API (TGL-1406). Commands, flags and output are unchanged.
+  `naijacloud login` sessions and `nc_live_` API keys both work as before.
+- An error from the API now ends with its request id —
+  `(request id: 4f1c…)` — so support can find the exact request.
+- `HOSTING_API_BASE_URL` still names the API's origin; the CLI adds `/v1`.
+
+### Removed
+
+- The `graphql` development dependency. The test that used to validate every
+  GraphQL document now checks every request against the API's OpenAPI document
+  (`test/fixtures/openapi.json`).
+
 ## [1.5.1] - 2026-10-15
 
 ### Security

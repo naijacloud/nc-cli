@@ -6,7 +6,7 @@ async function failWith(fetchImpl) {
   globalThis.fetch = fetchImpl;
   try {
     const { execute } = await import("../build/api/index.js");
-    await execute("query Q { getMe { id } }", {}, "token");
+    await execute("GET", "/me", "token");
     assert.fail("expected execute to throw");
   } catch (error) {
     return error;
@@ -15,16 +15,30 @@ async function failWith(fetchImpl) {
   }
 }
 
-test("a query the API no longer accepts asks the user to update, not 'HTTP 400'", async () => {
-  const error = await failWith(async () =>
-    Response.json(
-      { errors: [{ message: 'Cannot query field "me"', extensions: { code: "GRAPHQL_VALIDATION_FAILED" } }] },
-      { status: 400 },
-    ),
-  );
+test("a route the API does not have asks the user to update, not 'HTTP 404'", async () => {
+  const error = await failWith(async () => new Response("Cannot GET /v1/me", { status: 404 }));
   assert.match(error.message, /no longer matches the NaijaCloud API/);
   assert.match(error.message, /npm install -g @naijacloud\/cli@latest/);
-  assert.doesNotMatch(error.message, /HTTP 400/);
+  assert.doesNotMatch(error.message, /HTTP 404/);
+});
+
+test("an API error shows its message and the request id to quote", async () => {
+  const error = await failWith(async () =>
+    Response.json(
+      { error: { code: "NOT_FOUND", message: "service x not found", requestId: "req-42" } },
+      { status: 404 },
+    ),
+  );
+  assert.equal(error.code, "NOT_FOUND");
+  assert.equal(error.requestId, "req-42");
+  assert.match(error.message, /service x not found \(request id: req-42\)/);
+});
+
+test("a 403 envelope is a permission problem, not a blocked network", async () => {
+  const error = await failWith(async () =>
+    Response.json({ error: { code: "FORBIDDEN", message: "no scope", requestId: "r" } }, { status: 403 }),
+  );
+  assert.match(error.message, /Permission denied by NaijaCloud: no scope/);
 });
 
 test("a timeout is reported in plain words", async () => {
@@ -51,9 +65,9 @@ test("an HTML 403 is a blocked request, not rejected credentials", async () => {
   assert.doesNotMatch(error.message, /rejected the stored credentials/);
 });
 
-test("a 401 whose GraphQL body says UNAUTHENTICATED is a login problem", async () => {
+test("a 401 whose envelope says UNAUTHENTICATED is a login problem", async () => {
   const error = await failWith(async () =>
-    Response.json({ errors: [{ message: "no", extensions: { code: "UNAUTHENTICATED" } }] }, { status: 401 }),
+    Response.json({ error: { code: "UNAUTHENTICATED", message: "no", requestId: "r" } }, { status: 401 }),
   );
   assert.equal(error.name, "NotLoggedInError");
 });
@@ -69,7 +83,7 @@ test("a connection cut mid-answer says the connection dropped", async () => {
   const error = await failWith(async () => {
     const body = new ReadableStream({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode('{"data":{"get'));
+        controller.enqueue(new TextEncoder().encode('{"id":"u'));
         controller.error(new TypeError("terminated"));
       },
     });
@@ -102,9 +116,11 @@ test("http to localhost is allowed, and a malformed base URL is called invalid",
     process.env.HOSTING_API_BASE_URL = "http://127.0.0.1:4003";
     const { execute } = await import("../build/api/index.js");
     const realFetch = globalThis.fetch;
-    globalThis.fetch = async () => Response.json({ data: { getMe: { id: "u" } } });
+    let asked = "";
+    globalThis.fetch = async (url) => ((asked = String(url)), Response.json({ id: "u" }));
     try {
-      assert.deepEqual(await execute("query Q { getMe { id } }", {}, "t"), { getMe: { id: "u" } });
+      assert.deepEqual(await execute("GET", "/me", "t"), { id: "u" });
+      assert.equal(asked, "http://127.0.0.1:4003/v1/me");
     } finally {
       globalThis.fetch = realFetch;
     }

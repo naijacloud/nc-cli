@@ -6,6 +6,8 @@
 import process from "node:process";
 
 import { NaijaCloudError, authed } from "./transport.js";
+import { seg } from "./v1.js";
+import type { V1Deploy, V1Service } from "./v1.js";
 import type { DeploymentStatus } from "./types.js";
 
 
@@ -28,14 +30,16 @@ export interface StaticSite {
   node: { appDomain: string } | null;
 }
 
-const STATIC_SITE_FIELDS = `
-  id
-  name
-  status
-  url
-  subdomain
-  node { appDomain }
-`;
+function toStaticSite(service: V1Service): StaticSite {
+  return {
+    id: service.id,
+    name: service.name,
+    status: service.status,
+    url: service.url,
+    subdomain: service.subdomain ?? null,
+    node: null,
+  };
+}
 
 /**
  * Asks for a one-time presigned PUT slot. `sizeBytes` is bound into the
@@ -46,22 +50,7 @@ export async function createStaticUpload(input: {
   contentType: string;
   sizeBytes: number;
 }): Promise<StaticUploadSlot> {
-  const data = await authed<{ createStaticUpload: StaticUploadSlot }>(
-    `
-      mutation CreateStaticUpload($input: StaticUploadInput!) {
-        createStaticUpload(StaticUploadInput: $input) {
-          uploadId
-          url
-          method
-          headers { name value }
-          maxBytes
-          expiresInSeconds
-        }
-      }
-    `,
-    { input },
-  );
-  return data.createStaticUpload;
+  return await authed<StaticUploadSlot>("POST", "/static-uploads", { body: input });
 }
 
 /**
@@ -72,7 +61,7 @@ export async function createStaticUpload(input: {
  * **no** Authorization header — the credential is in the URL, and adding a
  * bearer token on top makes the request ambiguous to the storage layer.
  *
- * Uploads get their own timeout: the GraphQL default of 30s is right for a
+ * Uploads get their own timeout: the API default of 30s is right for a
  * control-plane call and far too short for a bundle on a slow link.
  */
 export async function uploadToPresigned(slot: StaticUploadSlot, body: Buffer): Promise<void> {
@@ -113,20 +102,13 @@ export async function deployStaticSite(input: {
   indexPath?: string;
   spaFallback?: boolean;
 }): Promise<{ site: StaticSite; deployment: { id: string; status: DeploymentStatus } }> {
-  const data = await authed<{
-    deployStaticSite: { site: StaticSite; deployment: { id: string; status: DeploymentStatus } };
-  }>(
-    `
-      mutation DeployStaticSite($input: DeployStaticSiteInput!) {
-        deployStaticSite(DeployStaticSiteInput: $input) {
-          site { ${STATIC_SITE_FIELDS} }
-          deployment { id status }
-        }
-      }
-    `,
-    { input },
-  );
-  return data.deployStaticSite;
+  const result = await authed<{ site: V1Service; deploy: V1Deploy }>("POST", "/static-sites", {
+    body: input,
+  });
+  return {
+    site: toStaticSite(result.site),
+    deployment: { id: result.deploy.id, status: result.deploy.status },
+  };
 }
 
 /**
@@ -139,35 +121,23 @@ export async function redeployStaticSite(input: {
   indexPath?: string;
   spaFallback?: boolean;
 }): Promise<{ id: string; status: DeploymentStatus }> {
-  const data = await authed<{ redeployStaticSite: { id: string; status: DeploymentStatus } }>(
-    `
-      mutation RedeployStaticSite($input: RedeployStaticSiteInput!) {
-        redeployStaticSite(RedeployStaticSiteInput: $input) { id status }
-      }
-    `,
-    { input },
-  );
-  return data.redeployStaticSite;
+  const { serviceId, ...body } = input;
+  const deploy = await authed<V1Deploy>("POST", `/services/${seg(serviceId)}/static-deploys`, {
+    body,
+  });
+  return { id: deploy.id, status: deploy.status };
 }
 
 export async function getStaticSite(serviceId: string): Promise<StaticSite> {
-  const data = await authed<{ getService: StaticSite }>(
-    `query StaticSite($id: ID!) { getService(id: $id) { ${STATIC_SITE_FIELDS} } }`,
-    { id: serviceId },
-  );
-  return data.getService;
+  return toStaticSite(await authed<V1Service>("GET", `/services/${seg(serviceId)}`));
 }
 
 /** Light deployment read used while polling; `getDeployment` is the full record. */
 export async function getDeploymentStatus(
   deploymentId: string,
 ): Promise<{ id: string; status: DeploymentStatus; error: string | null }> {
-  const data = await authed<{
-    getDeployment: { id: string; status: DeploymentStatus; error: string | null };
-  }>(`query StaticDeployment($id: ID!) { getDeployment(id: $id) { id status error } }`, {
-    id: deploymentId,
-  });
-  return data.getDeployment;
+  const deploy = await authed<V1Deploy>("GET", `/deploys/${seg(deploymentId)}`);
+  return { id: deploy.id, status: deploy.status, error: deploy.error };
 }
 
 /**

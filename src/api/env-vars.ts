@@ -3,7 +3,9 @@
  * masking is the caller's job.
  */
 
-import { authed, authedAllPages, pageSelection } from "./transport.js";
+import { authed, authedList } from "./transport.js";
+import { listProjectServices } from "./fields.js";
+import { seg } from "./v1.js";
 import type {
   EnvVarInput,
   EnvVarMutationResult,
@@ -13,42 +15,26 @@ import type {
 
 
 export async function listEnvVarsByService(serviceId: string): Promise<ServiceEnvVar[]> {
-  return await authedAllPages<ServiceEnvVar, { getServiceEnvVars: { items: ServiceEnvVar[]; pageInfo: { hasNextPage: boolean } } }>(
-    `query ServiceEnvVars($serviceId: ID!, $page: OffsetPaginationArgs) { getServiceEnvVars(serviceId: $serviceId, OffsetPaginationArgs: $page) { ${pageSelection("key value scope secret linked")} } }`,
-    { serviceId },
-    (data) => data.getServiceEnvVars,
-  );
+  return await authedList<ServiceEnvVar>(`/services/${seg(serviceId)}/env-vars`);
 }
 
 /**
- * Project-wide listing uses `Service.envVarKeys`, which returns key names only
- * — no values ever leave the platform for this call.
+ * Project-wide listing reads each service's variables and keeps the key names
+ * only, so no value reaches the caller from this call.
  */
 export async function listEnvVarKeysByProject(
   projectId: string,
 ): Promise<{ serviceId: string; serviceName: string; environmentName: string; keys: string[] }[]> {
-  const data = await authed<{
-    getProject: {
-      environments: { name: string; services: { id: string; name: string; envVarKeys: string[] }[] }[];
-    };
-  }>(
-    `
-      query ProjectEnvVarKeys($id: ID!) {
-        getProject(id: $id) {
-          environments { name services { id name envVarKeys } }
-        }
-      }
-    `,
-    { id: projectId },
-  );
-
-  return data.getProject.environments.flatMap((environment) =>
-    environment.services.map((service) => ({
-      serviceId: service.id,
-      serviceName: service.name,
-      environmentName: environment.name,
-      keys: service.envVarKeys,
-    })),
+  const tree = await listProjectServices(projectId);
+  return await Promise.all(
+    tree.flatMap(({ environment, services }) =>
+      services.map(async (service) => ({
+        serviceId: service.id,
+        serviceName: service.name,
+        environmentName: environment.name,
+        keys: (await listEnvVarsByService(service.id)).map((variable) => variable.key),
+      })),
+    ),
   );
 }
 
@@ -71,28 +57,18 @@ export async function setEnvVars(
     throw new Error("No variables to set.");
   }
 
-  const data = await authed<{ setEnvVars: EnvVarMutationResult }>(
-    `
-      mutation SetEnvVars($serviceId: ID!, $vars: [EnvVarInput!]!) {
-        setEnvVars(serviceId: $serviceId, EnvVarInput: $vars) {
-          needsRedeploy
-          warnings
-          envVars { key value scope secret linked }
-        }
-      }
-    `,
-    // Spread so an undefined `secret` is dropped rather than sent as null; the
-    // platform treats an explicit null as "not a secret", not as "unspecified".
-    { serviceId, vars: vars.map((variable) => ({ ...variable })) },
-  );
-  return data.setEnvVars;
+  // Spread so an undefined `secret` is dropped rather than sent as null; the
+  // platform treats an explicit null as "not a secret", not as "unspecified".
+  return await authed<EnvVarMutationResult>("PATCH", `/services/${seg(serviceId)}/env-vars`, {
+    body: { envVars: vars.map((variable) => ({ ...variable })) },
+  });
 }
 
 /**
  * Creates or updates a single variable.
  *
- * A thin call through `setEnvVars`, which is the only mutation the platform
- * offers for writing them — there is no single-variable form to prefer.
+ * A thin call through `setEnvVars`, which is the only write the platform
+ * offers for them — there is no single-variable form to prefer.
  */
 export async function setEnvVar(
   serviceId: string,
@@ -117,17 +93,8 @@ export async function deleteEnvVar(
   serviceId: string,
   key: string,
 ): Promise<EnvVarMutationResult> {
-  const data = await authed<{ deleteEnvVar: EnvVarMutationResult }>(
-    `
-      mutation DeleteEnvVar($serviceId: ID!, $key: String!) {
-        deleteEnvVar(serviceId: $serviceId, key: $key) {
-          needsRedeploy
-          warnings
-          envVars { key value scope secret linked }
-        }
-      }
-    `,
-    { serviceId, key },
+  return await authed<EnvVarMutationResult>(
+    "DELETE",
+    `/services/${seg(serviceId)}/env-vars/${seg(key)}`,
   );
-  return data.deleteEnvVar;
 }

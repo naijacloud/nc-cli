@@ -7,52 +7,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { fail, list, run, v1Deploy, v1Service } from "./rest-stub.mjs";
+
 const SERVICE = "11111111-1111-4111-8111-111111111111";
 
-/** Runs `fn` with fetch answered by `answer(query)`, capturing stdout and stderr. */
-async function run(answer, fn) {
-  const realFetch = globalThis.fetch;
-  const realOut = process.stdout.write;
-  const realErr = process.stderr.write;
-  const out = [];
-  const err = [];
-  const sent = [];
-  process.env.HOSTING_API_TOKEN = "test-token";
-  globalThis.fetch = async (_url, init) => {
-    const { query, variables } = JSON.parse(init.body);
-    sent.push({ query, variables });
-    return Response.json({ data: answer(query, variables) });
-  };
-  process.stdout.write = (chunk) => (out.push(String(chunk)), true);
-  process.stderr.write = (chunk) => (err.push(String(chunk)), true);
-  let error;
-  try {
-    await fn();
-  } catch (caught) {
-    error = caught;
-  } finally {
-    globalThis.fetch = realFetch;
-    process.stdout.write = realOut;
-    process.stderr.write = realErr;
-  }
-  return { out: out.join(""), err: err.join(""), sent, error };
-}
-
-const page = (items) => ({ items, pageInfo: { hasNextPage: false } });
 const mutation = { needsRedeploy: false, warnings: [], envVars: [] };
 
 test("env rm of a key the service does not have is an error, not 'removed'", async () => {
   const { envRemove } = await import("../build/commands/env.js");
   const result = await run(
-    (query) =>
-      /getServiceEnvVars/.test(query)
-        ? { getServiceEnvVars: page([{ key: "REAL", value: "v", scope: "PROD", secret: false, linked: false }]) }
-        : { deleteEnvVar: mutation },
+    [
+      ["GET", /\/env-vars$/, list([{ key: "REAL", value: "v", scope: "PROD", secret: false, linked: false }])],
+      ["DELETE", /\/env-vars\//, mutation],
+    ],
     () => envRemove("TYPO", { service: SERVICE, yes: true, json: false }),
   );
   assert.ok(result.error, "expected an error");
   assert.match(result.error.message, /No variable called TYPO/);
-  assert.ok(!result.sent.some(({ query }) => /deleteEnvVar/.test(query)), "deleteEnvVar was sent");
+  assert.ok(!result.sent.some(({ method }) => method === "DELETE"), "the delete was sent");
 });
 
 test("env import --yes still reports the lines it could not read", async () => {
@@ -61,7 +33,7 @@ test("env import --yes still reports the lines it could not read", async () => {
   const file = path.join(dir, "test.env");
   fs.writeFileSync(file, "GOOD=1\nNOT A VALID LINE\n");
   const result = await run(
-    () => ({ setEnvVars: mutation }),
+    [["PATCH", /\/env-vars$/, mutation]],
     () => envImport(file, { service: SERVICE, env: undefined, scope: "prod", secret: false, yes: true, json: false }),
   );
   assert.equal(result.error, undefined);
@@ -81,7 +53,7 @@ test("domains ls shows the CNAME target it tells you to create, not an A record"
     dnsTarget: { cname: "naijacloud.app", aRecord: "192.0.2.1", isApex: false },
   };
   const result = await run(
-    () => ({ getCustomDomains: page([domain]) }),
+    [["GET", /\/custom-domains$/, list([domain])]],
     () => domainsList({ service: SERVICE, project: undefined, limit: undefined, json: false }),
   );
   assert.equal(result.error, undefined);
@@ -92,7 +64,7 @@ test("domains ls shows the CNAME target it tells you to create, not an A record"
 test("whoami --json prints JSON", async () => {
   const { whoami } = await import("../build/commands/auth.js");
   const result = await run(
-    () => ({ getMe: { id: "u1", email: "a@example.com", name: "A", firstName: null, lastName: null, status: "ACTIVE", createdAt: "2026-01-01" } }),
+    [["GET", /^\/me$/, { id: "u1", email: "a@example.com", name: "A", firstName: null, lastName: null, status: "ACTIVE", createdAt: "2026-01-01" }]],
     () => whoami({ json: true }),
   );
   assert.equal(result.error, undefined);
@@ -103,29 +75,20 @@ test("whoami --json prints JSON", async () => {
 
 test("redeploy works with a key that may deploy but not read services", async () => {
   const { redeploy } = await import("../build/commands/deployments.js");
-  const realFetch = globalThis.fetch;
-  const sent = [];
   process.env.HOSTING_API_TOKEN = "nc_live_test";
-  globalThis.fetch = async (_url, init) => {
-    const { query } = JSON.parse(init.body);
-    sent.push(query);
-    if (/getService/.test(query)) {
-      return Response.json({
-        errors: [{ message: "This API key does not have the PLATFORM_API scope.", extensions: { code: "FORBIDDEN" } }],
-        data: null,
-      });
-    }
-    return Response.json({ data: { triggerDeploy: { id: "dep1", serviceId: SERVICE, status: "QUEUED" } } });
-  };
-  const realErr = process.stderr.write;
-  process.stderr.write = () => true;
-  try {
-    await redeploy({ service: SERVICE, wait: false, json: false });
-  } finally {
-    globalThis.fetch = realFetch;
-    process.stderr.write = realErr;
-  }
-  assert.ok(sent.some((query) => /triggerDeploy/.test(query)), "triggerDeploy was never sent");
+  const result = await run(
+    [
+      ["GET", /^\/services\//, fail(403, "FORBIDDEN", "This API key does not have the PLATFORM_API scope.")],
+      ["POST", /\/deploys$/, { status: 202, body: v1Deploy() }],
+    ],
+    () => redeploy({ service: SERVICE, wait: false, json: false }),
+  );
+  process.env.HOSTING_API_TOKEN = "test-token";
+  assert.equal(result.error, undefined);
+  assert.ok(
+    result.sent.some(({ method, path }) => method === "POST" && path === `/services/${SERVICE}/deploys`),
+    "the deploy was never triggered",
+  );
 });
 
 // TGL-1166: on a direct (PUBLIC_A) region the API checks for an A record at
@@ -149,15 +112,15 @@ test("domains add prints the records the API asks for, not a guessed CNAME", asy
     },
   };
   const result = await run(
-    (query) => (/addCustomDomain/.test(query) ? { addCustomDomain: domain } : {}),
+    [["POST", /\/custom-domains$/, { status: 201, body: domain }]],
     () => domainsAdd("qa.example.com", { service: SERVICE, json: false }),
   );
   assert.equal(result.error, undefined);
   assert.match(result.err, /A\s+qa\.example\.com\s+→\s+2\.24\.131\.222/);
   assert.doesNotMatch(result.err, /CNAME\s+qa\.example\.com\s+→\s+naijacloud\.app/);
   assert.match(result.err, /Remove these existing records first[\s\S]*old\.host/);
-  const sent = result.sent.find(({ query }) => /addCustomDomain/.test(query)).query;
-  assert.match(sent, /records \{ type name value purpose \}/);
+  const sent = result.sent.find(({ method }) => method === "POST");
+  assert.deepEqual(sent.body, { domain: "qa.example.com" });
 });
 
 test("domains verify exits non-zero while the domain is still PENDING", async () => {
@@ -173,7 +136,7 @@ test("domains verify exits non-zero while the domain is still PENDING", async ()
   };
   process.exitCode = undefined;
   const result = await run(
-    () => ({ verifyCustomDomain: pending }),
+    [["POST", /\/verify$/, pending]],
     () => domainsVerify(pending.id, { service: SERVICE, json: true }),
   );
   assert.equal(result.error, undefined);
@@ -185,7 +148,10 @@ test("domains verify exits non-zero while the domain is still PENDING", async ()
 test("cancel on a finished deployment points at rollback, not 'no rollback'", async () => {
   const { deploymentsCancel } = await import("../build/commands/deployments.js");
   const result = await run(
-    () => ({ getDeployment: { id: "dep1", serviceId: SERVICE, status: "RUNNING", branch: "main" } }),
+    [
+      ["GET", /^\/deploys\/dep1$/, v1Deploy({ status: "RUNNING" })],
+      ["GET", /^\/services\//, v1Service()],
+    ],
     () => deploymentsCancel("dep1", { yes: true, json: false }),
   );
   assert.ok(result.error);
@@ -196,42 +162,38 @@ test("cancel on a finished deployment points at rollback, not 'no rollback'", as
 test("rollback calls rollbackDeployment", async () => {
   const { rollback } = await import("../build/commands/deployments.js");
   const result = await run(
-    (query) =>
-      /rollbackDeployment/.test(query)
-        ? { rollbackDeployment: { id: "dep2", serviceId: SERVICE, status: "QUEUED" } }
-        : { getDeployment: { id: "dep1", serviceId: SERVICE, status: "SUPERSEDED", commitSha: "abcdef123456" } },
+    [
+      ["POST", /^\/deploys\/dep1\/rollback$/, { status: 202, body: v1Deploy({ id: "dep2" }) }],
+      ["GET", /^\/deploys\/dep1$/, v1Deploy({ status: "SUPERSEDED", commitSha: "abcdef123456" })],
+      ["GET", /^\/services\//, v1Service()],
+    ],
     () => rollback("dep1", { yes: true, json: false, wait: false }),
   );
   assert.equal(result.error, undefined);
-  assert.ok(result.sent.some(({ query }) => /rollbackDeployment\(deploymentId: \$deploymentId\)/.test(query)));
+  assert.ok(result.sent.some(({ method, path }) => method === "POST" && path === "/deploys/dep1/rollback"));
   assert.match(result.out, /dep2 QUEUED/);
 });
 
 test("a taken project name says so, instead of the API's generic conflict", async () => {
   const { projectsCreate } = await import("../build/commands/projects.js");
-  const realFetch = globalThis.fetch;
-  process.env.HOSTING_API_TOKEN = "test-token";
-  globalThis.fetch = async (_url, init) => {
-    const { query } = JSON.parse(init.body);
-    if (/getMyTeams/.test(query)) {
-      return Response.json({ data: { getMyTeams: { items: [{ id: "t1", name: "Acme", defaultRegion: null }], pageInfo: { hasNextPage: false } } } });
-    }
-    return Response.json({ data: null, errors: [{ message: "That conflicts with something that already exists. (reference abc)", extensions: { code: "CONFLICT" } }] });
-  };
-  try {
-    await assert.rejects(projectsCreate("shop", { json: false }), /Acme already has a project called 'shop'/);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
+  const result = await run(
+    [
+      ["GET", /^\/workspaces$/, list([{ id: "t1", name: "Acme", defaultRegion: null }])],
+      ["POST", /^\/workspaces\/t1\/projects$/, fail(409, "CONFLICT", "That conflicts with something that already exists.")],
+    ],
+    () => projectsCreate("shop", { json: false }),
+  );
+  assert.match(result.error?.message ?? "", /Acme already has a project called 'shop'/);
 });
 
 test("db describe of a missing table fails instead of 'no columns'", async () => {
   const { dbDescribe } = await import("../build/commands/db.js");
   const result = await run(
-    (query) =>
-      /getTableColumns/.test(query)
-        ? { getTableColumns: { name: "nope", schema: "public", primaryKey: [], columns: [] } }
-        : { getService: { id: SERVICE, name: "db", type: "POSTGRES", status: "ACTIVE", environment: { id: "e", name: "dev" } } },
+    [
+      ["GET", /\/database\/tables\/nope\/columns$/, { name: "nope", schema: "public", primaryKey: [], columns: [] }],
+      ["GET", /^\/services\//, v1Service({ name: "db", type: "POSTGRES" })],
+      ["GET", /^\/environments\//, { id: "env-1", projectId: "p1", name: "dev", isPreview: false }],
+    ],
     () => dbDescribe("nope", { service: SERVICE, json: false, maxRows: undefined, schema: undefined, format: undefined, yes: false }),
   );
   assert.ok(result.error);

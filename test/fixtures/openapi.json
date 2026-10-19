@@ -1,0 +1,6426 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/auth/login": {
+      "post": {
+        "description": "Returns a session token for `Authorization: Bearer`. On an account with two-factor on, `accessToken` is null and `twoFactor.pendingToken` goes to POST /v1/auth/two-factor. Throttled to 10 a minute; failures count towards the account lockout.",
+        "operationId": "Auth_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1LoginBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sign in with email and password",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/v1/auth/two-factor": {
+      "post": {
+        "description": "Each code works once; five wrong codes lock the account for 15 minutes.",
+        "operationId": "Auth_twoFactor",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1TwoFactorBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Finish a sign-in that asked for a two-factor code",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/v1/backups/{backupId}/restore": {
+      "post": {
+        "description": "Destructive: replaces the live data, after taking a safety backup first (its id is on the restore). Requires ADMIN.",
+        "operationId": "Backups_restore",
+        "parameters": [
+          {
+            "name": "backupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Restore"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Restore a backup over its database",
+        "tags": [
+          "Backups"
+        ]
+      }
+    },
+    "/v1/build-detection": {
+      "get": {
+        "description": "Best effort: fields come back null when the repo cannot be inspected. The same detection runs again when the service is created.",
+        "operationId": "Services_detect",
+        "parameters": [
+          {
+            "name": "gitUrl",
+            "required": false,
+            "in": "query",
+            "description": "A public HTTPS git URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repoFullName",
+            "required": false,
+            "in": "query",
+            "description": "owner/name of a repo our GitHub App can see.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "installationId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rootDir",
+            "required": false,
+            "in": "query",
+            "description": "A folder inside the repo, e.g. \"apps/api\".",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DetectedBuild"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview the build settings a repo would get",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/build-detection/apps": {
+      "get": {
+        "description": "The members of a monorepo, a frontend next to a backend, or just the root app, each with its proposed build settings.",
+        "operationId": "Services_detectApps",
+        "parameters": [
+          {
+            "name": "gitUrl",
+            "required": false,
+            "in": "query",
+            "description": "A public HTTPS git URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repoFullName",
+            "required": false,
+            "in": "query",
+            "description": "owner/name of a repo our GitHub App can see.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "installationId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rootDir",
+            "required": false,
+            "in": "query",
+            "description": "A folder inside the repo, e.g. \"apps/api\".",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DetectedRepoApps"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Find the deployable apps in a repo",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/cron-runs/{runId}": {
+      "get": {
+        "operationId": "CronJobs_getRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CronRun"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a cron run",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/cron-runs/{runId}/logs": {
+      "get": {
+        "operationId": "CronJobs_logs",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CronRunLogList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A cron run's output, oldest line first",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/custom-domains/{domainId}": {
+      "delete": {
+        "description": "A redeploy drops the route, so the domain stops serving.",
+        "operationId": "CustomDomains_remove",
+        "parameters": [
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detach a custom domain",
+        "tags": [
+          "Custom domains"
+        ]
+      }
+    },
+    "/v1/custom-domains/{domainId}/verify": {
+      "post": {
+        "operationId": "CustomDomains_verify",
+        "parameters": [
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CustomDomain"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Re-check a custom domain's DNS now",
+        "tags": [
+          "Custom domains"
+        ]
+      }
+    },
+    "/v1/deploys/{deployId}": {
+      "get": {
+        "operationId": "Deploys_get",
+        "parameters": [
+          {
+            "name": "deployId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Deploy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a deploy",
+        "tags": [
+          "Deploys"
+        ]
+      }
+    },
+    "/v1/deploys/{deployId}/cancel": {
+      "post": {
+        "description": "The version already live keeps serving.",
+        "operationId": "Deploys_cancel",
+        "parameters": [
+          {
+            "name": "deployId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Deploy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel a deploy that has not gone live",
+        "tags": [
+          "Deploys"
+        ]
+      }
+    },
+    "/v1/deploys/{deployId}/logs": {
+      "get": {
+        "description": "Readable once the build has finished.",
+        "operationId": "DeployLogs_list",
+        "parameters": [
+          {
+            "name": "deployId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DeployLogList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A deploy's build log, oldest line first",
+        "tags": [
+          "Deploys"
+        ]
+      }
+    },
+    "/v1/deploys/{deployId}/rollback": {
+      "post": {
+        "description": "Replays the stored image rather than rebuilding. Only a deploy that went live can be rolled back to.",
+        "operationId": "Deploys_rollback",
+        "parameters": [
+          {
+            "name": "deployId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Deploy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Roll back to a previous deploy's image",
+        "tags": [
+          "Deploys"
+        ]
+      }
+    },
+    "/v1/environments/{environmentId}": {
+      "delete": {
+        "description": "Irreversible: tears down every service in it, data included. Requires ADMIN.",
+        "operationId": "Environments_remove",
+        "parameters": [
+          {
+            "name": "environmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an environment and everything in it",
+        "tags": [
+          "Environments"
+        ]
+      }
+    },
+    "/v1/environments/{environmentId}/services": {
+      "get": {
+        "operationId": "Services_list",
+        "parameters": [
+          {
+            "name": "environmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ServiceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the services in an environment",
+        "tags": [
+          "Services"
+        ]
+      },
+      "post": {
+        "description": "A web service, static site, cron job or database. Subject to the compute gate and to your balance for paid sizes.",
+        "operationId": "Services_create",
+        "parameters": [
+          {
+            "name": "environmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateServiceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Service"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a service and queue its first deploy",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "Auth_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The signed-in person (or the owner of the API key)",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}": {
+      "get": {
+        "operationId": "Projects_get",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Project"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a project, with its environments",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "patch": {
+        "operationId": "Projects_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1UpdateProjectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Project"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change a project's name, display name or description",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "delete": {
+        "description": "Irreversible: tears down every service in every environment, data included. Requires ADMIN.",
+        "operationId": "Projects_remove",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a project and everything in it",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/environments": {
+      "post": {
+        "operationId": "Environments_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateEnvironmentBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Environment"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create an environment in a project",
+        "tags": [
+          "Environments"
+        ]
+      },
+      "get": {
+        "operationId": "Projects_environments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1EnvironmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a project's environments",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/v1/restores/{restoreId}": {
+      "get": {
+        "operationId": "Backups_getRestore",
+        "parameters": [
+          {
+            "name": "restoreId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Restore"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a restore",
+        "tags": [
+          "Backups"
+        ]
+      }
+    },
+    "/v1/services": {
+      "get": {
+        "description": "A flat list (id, name, project, type), ordered by project. `search` matches the service and project name.",
+        "operationId": "Services_listMine",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ServiceSummaryList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Every service across your workspaces",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}": {
+      "get": {
+        "operationId": "Services_get",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Service"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a service",
+        "tags": [
+          "Services"
+        ]
+      },
+      "patch": {
+        "description": "Each part is optional and applied in order: name, build, source. Build and source changes apply on the next deploy unless `source.redeploy` is true.",
+        "operationId": "Services_update",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1UpdateServiceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Service"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rename a service, or change its build settings or source",
+        "tags": [
+          "Services"
+        ]
+      },
+      "delete": {
+        "description": "Irreversible: removes its containers, volumes, DNS and secrets — a database's data goes with it. Requires ADMIN.",
+        "operationId": "Services_remove",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a service",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/backups": {
+      "get": {
+        "operationId": "Backups_list",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1BackupList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a database's backups, newest first",
+        "tags": [
+          "Backups"
+        ]
+      },
+      "post": {
+        "description": "Returns the backup in PENDING; poll it until COMPLETED.",
+        "operationId": "Backups_create",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Backup"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Back a database up now",
+        "tags": [
+          "Backups"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/connection": {
+      "get": {
+        "description": "The password is empty for a read-only role. 404 for a service that is not a database, or not provisioned yet.",
+        "operationId": "Services_connection",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Connection"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A database's connection details",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/cron": {
+      "patch": {
+        "description": "Takes effect from the next scheduled run.",
+        "operationId": "CronJobs_update",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1UpdateCronBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CronSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change a cron job's schedule or command",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/cron/resume": {
+      "post": {
+        "operationId": "CronJobs_resume",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resume scheduled runs",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/cron/suspend": {
+      "post": {
+        "description": "Manual runs still work while paused.",
+        "operationId": "CronJobs_suspend",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pause scheduled runs",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/custom-domains": {
+      "get": {
+        "operationId": "CustomDomains_list",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CustomDomainList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a service's custom domains, oldest first",
+        "tags": [
+          "Custom domains"
+        ]
+      },
+      "post": {
+        "description": "Create the records in `dnsTarget` at your DNS provider, then verify. The route and certificate apply on a redeploy that starts automatically.",
+        "operationId": "CustomDomains_add",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1AddCustomDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CustomDomain"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attach a custom domain to a web service",
+        "tags": [
+          "Custom domains"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/exports": {
+      "post": {
+        "operationId": "DbConsole_exportDatabase",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1DatabaseExportBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Export"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export the whole database to a download link",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/objects": {
+      "get": {
+        "operationId": "DbConsole_objects",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DatabaseObjectList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tables and views (SQL) or collections (MongoDB)",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/query": {
+      "post": {
+        "description": "Runs as the service's own database user: it can write and drop as well as read.",
+        "operationId": "DbConsole_query",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1DatabaseQueryBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1QueryResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run a statement and get the result grid",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/tables": {
+      "get": {
+        "operationId": "DbConsole_tables",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1TableStatList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tables with estimated row counts",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/tables/{table}/columns": {
+      "get": {
+        "operationId": "DbConsole_columns",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "schema",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1TableSchema"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A table's columns and primary key",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/database/tables/{table}/exports": {
+      "post": {
+        "operationId": "DbConsole_exportTable",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1TableExportBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Export"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export one table as CSV, JSON or SQL to a download link",
+        "tags": [
+          "Database console"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/deploys": {
+      "get": {
+        "operationId": "Deploys_list",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DeployList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a service's deploys, newest first",
+        "tags": [
+          "Deploys"
+        ]
+      },
+      "post": {
+        "description": "Builds the tracked branch (or pulls the image) and rolls it out. Also how to restart a service. Poll the deploy until it is RUNNING or FAILED.",
+        "operationId": "Deploys_trigger",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Deploy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Deploy a service now",
+        "tags": [
+          "Deploys"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/env-vars": {
+      "get": {
+        "description": "Values are blanked for a read-only role. Linked values come from a sibling database.",
+        "operationId": "Services_envVars",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1EnvVarList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a service's environment variables, by key",
+        "tags": [
+          "Services"
+        ]
+      },
+      "patch": {
+        "description": "Upserts by key. Keys not listed are left as they are.",
+        "operationId": "Services_setEnvVars",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1SetEnvVarsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1EnvVarChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or replace environment variables",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/env-vars/{key}": {
+      "delete": {
+        "operationId": "Services_deleteEnvVar",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1EnvVarChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove one environment variable",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/resume": {
+      "post": {
+        "operationId": "Services_resume",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Service"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bring a suspended service back on the same URL",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/runs": {
+      "get": {
+        "operationId": "CronJobs_runs",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CronRunList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a cron job's runs, newest first",
+        "tags": [
+          "Cron jobs"
+        ]
+      },
+      "post": {
+        "description": "Needs a built image: deploy the job first.",
+        "operationId": "CronJobs_run",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CronRun"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run a cron job now",
+        "tags": [
+          "Cron jobs"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/secret-files": {
+      "get": {
+        "description": "Contents are blanked for a read-only role.",
+        "operationId": "Services_secretFiles",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1SecretFileList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a service's secret files",
+        "tags": [
+          "Services"
+        ]
+      },
+      "put": {
+        "description": "Mounted into the container on the next deploy.",
+        "operationId": "Services_setSecretFile",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1SecretFileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1SecretFileChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create or replace one secret file",
+        "tags": [
+          "Services"
+        ]
+      },
+      "delete": {
+        "operationId": "Services_deleteSecretFile",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1SecretFileChange"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove one secret file by path",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/static-deploys": {
+      "post": {
+        "description": "In place, on the same URL. Returns the new deploy.",
+        "operationId": "StaticSites_redeploy",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1RedeployStaticSiteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Deploy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace a static site's content from a fresh upload",
+        "tags": [
+          "Static sites"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/suspend": {
+      "post": {
+        "description": "Variables, domains, build settings, history and volumes are kept. Compute stops being billed.",
+        "operationId": "Services_suspend",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Service"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop a service, keeping everything else",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/v1/static-sites": {
+      "post": {
+        "operationId": "StaticSites_create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateStaticSiteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StaticSite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish an uploaded artifact as a new static site",
+        "tags": [
+          "Static sites"
+        ]
+      }
+    },
+    "/v1/static-uploads": {
+      "post": {
+        "operationId": "StaticSites_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1StaticUploadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StaticUpload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reserve an upload for a .zip or .html artifact",
+        "tags": [
+          "Static sites"
+        ]
+      }
+    },
+    "/v1/workspaces": {
+      "get": {
+        "operationId": "Workspaces_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1WorkspaceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the workspaces you belong to",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}": {
+      "get": {
+        "operationId": "Workspaces_get",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Workspace"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a workspace",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/github/branches": {
+      "get": {
+        "operationId": "Github_branches",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "required": true,
+            "in": "query",
+            "description": "owner/name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1BranchList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A repository's branch names",
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/github/install-url": {
+      "get": {
+        "operationId": "Github_installUrl",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1GithubInstallUrl"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The link that installs the GitHub App for this workspace",
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/github/repositories": {
+      "get": {
+        "operationId": "Github_repositories",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1RepositoryList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Repositories the workspace's GitHub App installations can see",
+        "tags": [
+          "GitHub"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/projects": {
+      "get": {
+        "operationId": "Projects_list",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a workspace's projects, newest first",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "post": {
+        "operationId": "Projects_create",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateProjectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Project"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a project",
+        "tags": [
+          "Projects"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Naijacloud API",
+    "description": "The public REST API. Authenticate with `Authorization: Bearer nc_live_…` (create a key in the dashboard under Settings → API keys). Conventions — pagination, errors, idempotency, rate limits, versioning — are described at https://naijacloud.com/docs/api.",
+    "version": "v1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://api.naijacloud.com"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "nc_live_…",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "BackupFailureReason": {
+        "type": "string",
+        "enum": [
+          "DATABASE_NOT_RUNNING",
+          "DATABASE_NOT_FOUND",
+          "NOT_PROVISIONED",
+          "NOT_SUPPORTED",
+          "DUMP_FAILED",
+          "RESTORE_FAILED",
+          "DISK_FULL",
+          "OUT_OF_MEMORY",
+          "UPLOAD_FAILED",
+          "DOWNLOAD_FAILED",
+          "BACKUP_FILE_MISSING",
+          "STORAGE_NOT_CONFIGURED",
+          "SERVER_UNREACHABLE",
+          "TIMEOUT",
+          "SERVER_NEEDS_UPDATE",
+          "ALREADY_RUNNING",
+          "NO_LONGER_EXISTS",
+          "SAFETY_BACKUP_FAILED",
+          "UNKNOWN"
+        ]
+      },
+      "BackupStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ]
+      },
+      "BackupTrigger": {
+        "type": "string",
+        "enum": [
+          "HOURLY",
+          "DAILY",
+          "WEEKLY",
+          "MANUAL",
+          "PRE_RESTORE"
+        ]
+      },
+      "CronLogStream": {
+        "type": "string",
+        "enum": [
+          "OUTPUT",
+          "SYSTEM"
+        ]
+      },
+      "CronRunStatus": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED",
+          "TIMED_OUT",
+          "SKIPPED"
+        ]
+      },
+      "CronRunTrigger": {
+        "type": "string",
+        "enum": [
+          "SCHEDULED",
+          "MANUAL"
+        ]
+      },
+      "CustomDomainStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACTIVE"
+        ]
+      },
+      "DatabaseExportFormat": {
+        "type": "string",
+        "enum": [
+          "SQL",
+          "ARCHIVE"
+        ]
+      },
+      "DeployErrorCode": {
+        "type": "string",
+        "enum": [
+          "MISSING_SCRIPT",
+          "COMMAND_NOT_FOUND",
+          "MODULE_NOT_FOUND",
+          "BUILD_FAILED",
+          "CRASH",
+          "OOM",
+          "PORT_NOT_LISTENING",
+          "HEALTH_TIMEOUT",
+          "IMAGE_REJECTED",
+          "BUILD_OOM",
+          "NODE_BUSY",
+          "NODE_LOW_DISK",
+          "DATA_SERVICE_ON_OTHER_NODE",
+          "UNKNOWN"
+        ]
+      },
+      "DeployStatus": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "BUILDING",
+          "TESTING",
+          "DEPLOYING",
+          "RUNNING",
+          "FAILED",
+          "CANCELLED",
+          "REPLACED",
+          "SUPERSEDED"
+        ]
+      },
+      "DeployTrigger": {
+        "type": "string",
+        "enum": [
+          "PUSH",
+          "MANUAL",
+          "ROLLBACK",
+          "FIRST_DEPLOY",
+          "SYSTEM"
+        ],
+        "description": "What started it: a push, a person, a rollback, …"
+      },
+      "EnvVarScope": {
+        "type": "string",
+        "enum": [
+          "ALL",
+          "PROD",
+          "UAT",
+          "DEV"
+        ],
+        "description": "When the variable is available. Defaults to build and runtime."
+      },
+      "LogLevel": {
+        "type": "string",
+        "enum": [
+          "INFO",
+          "WARN",
+          "ERROR"
+        ]
+      },
+      "LogStream": {
+        "type": "string",
+        "enum": [
+          "STDOUT",
+          "STDERR",
+          "SYSTEM"
+        ]
+      },
+      "MonorepoStrategy": {
+        "type": "string",
+        "enum": [
+          "ISOLATED",
+          "WORKSPACE"
+        ]
+      },
+      "RepoScanStatus": {
+        "type": "string",
+        "enum": [
+          "OK",
+          "RATE_LIMITED",
+          "NOT_FOUND",
+          "NOT_GITHUB",
+          "FAILED"
+        ],
+        "description": "Why a scan came back empty, when it did."
+      },
+      "RestoreStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED"
+        ]
+      },
+      "ServiceHealth": {
+        "type": "string",
+        "enum": [
+          "HEALTHY",
+          "CRASH_LOOPING",
+          "STOPPED",
+          "MISSING",
+          "UNKNOWN"
+        ]
+      },
+      "ServiceStatus": {
+        "type": "string",
+        "enum": [
+          "PROVISIONING",
+          "ACTIVE",
+          "ERROR"
+        ]
+      },
+      "ServiceSuspension": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "USER",
+          "BILLING",
+          "ABUSE"
+        ],
+        "description": "Why nothing is running, if anything: NONE, USER (suspended by a person), BILLING or ABUSE."
+      },
+      "ServiceTier": {
+        "type": "string",
+        "enum": [
+          "FREE",
+          "STARTER",
+          "STANDARD",
+          "PRO"
+        ]
+      },
+      "ServiceType": {
+        "type": "string",
+        "enum": [
+          "WEB",
+          "STATIC",
+          "CRON",
+          "POSTGRES",
+          "MYSQL",
+          "MARIADB",
+          "MONGODB",
+          "REDIS",
+          "VALKEY"
+        ]
+      },
+      "SourceType": {
+        "type": "string",
+        "enum": [
+          "GITHUB_APP",
+          "PUBLIC_GIT",
+          "DOCKER_IMAGE"
+        ]
+      },
+      "TableExportFormat": {
+        "type": "string",
+        "enum": [
+          "CSV",
+          "JSON",
+          "SQL"
+        ]
+      },
+      "V1AddCustomDomainBody": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "example": "www.example.com"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "V1Backup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BackupStatus"
+              }
+            ]
+          },
+          "trigger": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BackupTrigger"
+              }
+            ]
+          },
+          "sizeBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "region": {
+            "type": "string",
+            "nullable": true,
+            "description": "Storage region, e.g. \"eu\"."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorCode": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BackupFailureReason"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When retention deletes it."
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "status",
+          "trigger",
+          "sizeBytes",
+          "region",
+          "error",
+          "errorCode",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "expiresAt"
+        ]
+      },
+      "V1BackupList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Backup"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Branch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "V1BranchList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Branch"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Column": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "default": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPrimaryKey": {
+            "type": "boolean"
+          },
+          "references": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1ForeignKey"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "nullable",
+          "default",
+          "isPrimaryKey",
+          "references"
+        ]
+      },
+      "V1Connection": {
+        "type": "object",
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "example": "postgresql"
+          },
+          "host": {
+            "type": "string",
+            "description": "Host reachable from your other services."
+          },
+          "port": {
+            "type": "number"
+          },
+          "database": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "Empty for a read-only role: it may see where the database is, not log in."
+          },
+          "url": {
+            "type": "string",
+            "description": "Internal connection URL."
+          },
+          "externalUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public URL, when external access is on."
+          }
+        },
+        "required": [
+          "scheme",
+          "host",
+          "port",
+          "database",
+          "username",
+          "password",
+          "url",
+          "externalUrl"
+        ]
+      },
+      "V1CreateEnvironmentBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "staging"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "V1CreateProjectBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "shop"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string",
+            "example": "af-west",
+            "description": "Region key. New services in the project are placed there unless they name another."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "V1CreateServiceBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "api"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          },
+          "region": {
+            "type": "string",
+            "example": "eu-west"
+          },
+          "tier": {
+            "description": "Instance size. FREE uses the workspace free slot.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTier"
+              }
+            ]
+          },
+          "sourceType": {
+            "description": "Optional: inferred from image, gitUrl or repoFullName when omitted.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SourceType"
+              }
+            ]
+          },
+          "repoFullName": {
+            "type": "string",
+            "example": "acme/shop"
+          },
+          "gitUrl": {
+            "type": "string",
+            "example": "https://github.com/acme/shop"
+          },
+          "image": {
+            "type": "string",
+            "example": "ghcr.io/acme/api:1.2.3"
+          },
+          "imageCommand": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string",
+            "example": "main"
+          },
+          "rootDir": {
+            "type": "string",
+            "example": "apps/api"
+          },
+          "monorepoStrategy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonorepoStrategy"
+              }
+            ]
+          },
+          "watchPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "port": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "healthCheckPath": {
+            "type": "string",
+            "example": "/healthz"
+          },
+          "buildCommand": {
+            "type": "string"
+          },
+          "startCommand": {
+            "type": "string"
+          },
+          "runtimeVersion": {
+            "type": "string"
+          },
+          "staticOutputDir": {
+            "type": "string",
+            "example": "dist"
+          },
+          "staticSpa": {
+            "type": "boolean"
+          },
+          "staticUploadId": {
+            "type": "string"
+          },
+          "staticIndexPath": {
+            "type": "string"
+          },
+          "subdomain": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string",
+            "description": "CRON only: a five-field cron expression, in UTC."
+          },
+          "command": {
+            "type": "string",
+            "description": "CRON only: the command each run executes."
+          },
+          "envVars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1EnvVarInput"
+            }
+          },
+          "secretFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1SecretFileInput"
+            }
+          },
+          "dbName": {
+            "type": "string"
+          },
+          "dbUser": {
+            "type": "string"
+          },
+          "dbPassword": {
+            "type": "string"
+          },
+          "connectionEnvName": {
+            "type": "string"
+          },
+          "injectConnectionUrl": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      },
+      "V1CreateStaticSiteBody": {
+        "type": "object",
+        "properties": {
+          "indexPath": {
+            "type": "string",
+            "description": "The page to serve at \"/\" when it is not index.html."
+          },
+          "spaFallback": {
+            "type": "boolean",
+            "description": "Serve the index page for unknown paths (single-page apps)."
+          },
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The environment to create the site in. Omitted, it lands in the workspace's static-sites project."
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId"
+        ]
+      },
+      "V1CronRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "number",
+            "nullable": true,
+            "description": "Run number for this job, from 1."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronRunStatus"
+              }
+            ]
+          },
+          "trigger": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronRunTrigger"
+              }
+            ]
+          },
+          "exitCode": {
+            "type": "number",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "commitSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "seq",
+          "status",
+          "trigger",
+          "exitCode",
+          "error",
+          "commitSha",
+          "createdAt",
+          "startedAt",
+          "finishedAt"
+        ]
+      },
+      "V1CronRunList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1CronRun"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1CronRunLogLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "line": {
+            "type": "string"
+          },
+          "stream": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronLogStream"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "line",
+          "stream",
+          "createdAt"
+        ]
+      },
+      "V1CronRunLogList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1CronRunLogLine"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1CronSettings": {
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schedule": {
+            "type": "string",
+            "nullable": true,
+            "example": "0 3 * * *"
+          },
+          "command": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "Scheduled runs are paused."
+          }
+        },
+        "required": [
+          "serviceId",
+          "schedule",
+          "command",
+          "suspended"
+        ]
+      },
+      "V1CustomDomain": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domain": {
+            "type": "string",
+            "example": "www.example.com"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CustomDomainStatus"
+              }
+            ]
+          },
+          "lastCheck": {
+            "type": "string",
+            "nullable": true,
+            "description": "What the last DNS check found."
+          },
+          "dnsTarget": {
+            "$ref": "#/components/schemas/V1DnsTarget"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "domain",
+          "status",
+          "lastCheck",
+          "dnsTarget",
+          "verifiedAt",
+          "createdAt"
+        ]
+      },
+      "V1CustomDomainList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1CustomDomain"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DatabaseExportBody": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "default": "SQL",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DatabaseExportFormat"
+              }
+            ]
+          }
+        }
+      },
+      "V1DatabaseObject": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "description": "table, view or collection"
+          }
+        },
+        "required": [
+          "name",
+          "schema",
+          "kind"
+        ]
+      },
+      "V1DatabaseObjectList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DatabaseObject"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DatabaseQueryBody": {
+        "type": "object",
+        "properties": {
+          "statement": {
+            "type": "string",
+            "description": "SQL (Postgres/MySQL/MariaDB) or a mongosh expression (MongoDB). Runs as the service's own database user, so it can write and drop as well as read."
+          },
+          "maxRows": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "statement"
+        ]
+      },
+      "V1Deploy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeployStatus"
+              }
+            ]
+          },
+          "trigger": {
+            "nullable": true,
+            "description": "What started it: a push, a person, a rollback, …",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeployTrigger"
+              }
+            ]
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "commitSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "commitMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "startCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why it failed, written for you."
+          },
+          "errorCode": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeployErrorCode"
+              }
+            ]
+          },
+          "durationMs": {
+            "type": "number",
+            "nullable": true,
+            "description": "From the start of work (not queueing) to the end, in ms."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "status",
+          "trigger",
+          "branch",
+          "commitSha",
+          "commitMessage",
+          "authorName",
+          "buildCommand",
+          "startCommand",
+          "error",
+          "errorCode",
+          "durationMs",
+          "createdAt",
+          "startedAt",
+          "finishedAt"
+        ]
+      },
+      "V1DeployList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Deploy"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DeployLogLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "line": {
+            "type": "string"
+          },
+          "stream": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LogStream"
+              }
+            ]
+          },
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LogLevel"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "line",
+          "stream",
+          "level",
+          "createdAt"
+        ]
+      },
+      "V1DeployLogList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DeployLogLine"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DetectedApp": {
+        "type": "object",
+        "properties": {
+          "rootDir": {
+            "type": "string",
+            "description": "The folder, \".\" for the repo root."
+          },
+          "name": {
+            "type": "string"
+          },
+          "deployable": {
+            "type": "boolean"
+          },
+          "build": {
+            "$ref": "#/components/schemas/V1DetectedBuild"
+          }
+        },
+        "required": [
+          "rootDir",
+          "name",
+          "deployable",
+          "build"
+        ]
+      },
+      "V1DetectedBuild": {
+        "type": "object",
+        "properties": {
+          "runtime": {
+            "type": "string",
+            "nullable": true
+          },
+          "runtimeVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "framework": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageManager": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "startCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "port": {
+            "type": "number",
+            "nullable": true
+          },
+          "staticOutputDir": {
+            "type": "string",
+            "nullable": true
+          },
+          "staticSpa": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "monorepoStrategy": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonorepoStrategy"
+              }
+            ]
+          },
+          "workspaceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "watchPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "runtime",
+          "runtimeVersion",
+          "framework",
+          "packageManager",
+          "buildCommand",
+          "startCommand",
+          "port",
+          "staticOutputDir",
+          "staticSpa",
+          "monorepoStrategy",
+          "workspaceName",
+          "watchPaths"
+        ]
+      },
+      "V1DetectedRepoApps": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Why a scan came back empty, when it did.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RepoScanStatus"
+              }
+            ]
+          },
+          "workspace": {
+            "type": "boolean",
+            "description": "Whether the repo is a workspace monorepo."
+          },
+          "orchestrator": {
+            "type": "string",
+            "nullable": true
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DetectedApp"
+            }
+          }
+        },
+        "required": [
+          "status",
+          "workspace",
+          "orchestrator",
+          "truncated",
+          "apps"
+        ]
+      },
+      "V1DnsRecord": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "CNAME"
+          },
+          "name": {
+            "type": "string",
+            "example": "www"
+          },
+          "value": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "value",
+          "purpose"
+        ]
+      },
+      "V1DnsTarget": {
+        "type": "object",
+        "properties": {
+          "cname": {
+            "type": "string",
+            "description": "CNAME target for a subdomain."
+          },
+          "aRecord": {
+            "type": "string",
+            "nullable": true,
+            "description": "A-record address, when an apex domain cannot use a CNAME."
+          },
+          "isApex": {
+            "type": "boolean"
+          },
+          "records": {
+            "description": "Records to create.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DnsRecord"
+            }
+          },
+          "conflicts": {
+            "description": "Existing records that block verification; remove them.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DnsRecord"
+            }
+          }
+        },
+        "required": [
+          "cname",
+          "aRecord",
+          "isApex",
+          "records",
+          "conflicts"
+        ]
+      },
+      "V1EnvVar": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "DATABASE_URL"
+          },
+          "value": {
+            "type": "string",
+            "description": "Blanked for read-only roles. Linked values are read-only."
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnvVarScope"
+              }
+            ]
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "linked": {
+            "type": "boolean",
+            "description": "Linked in from a sibling database's connection string; change it there."
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "scope",
+          "secret",
+          "linked"
+        ]
+      },
+      "V1EnvVarChange": {
+        "type": "object",
+        "properties": {
+          "envVars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1EnvVar"
+            }
+          },
+          "needsRedeploy": {
+            "type": "boolean",
+            "description": "True when a redeploy is needed for the change to apply."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "envVars",
+          "needsRedeploy",
+          "warnings"
+        ]
+      },
+      "V1EnvVarInput": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "API_URL"
+          },
+          "value": {
+            "type": "string"
+          },
+          "scope": {
+            "description": "When the variable is available. Defaults to build and runtime.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnvVarScope"
+              }
+            ]
+          },
+          "secret": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "V1EnvVarList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1EnvVar"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Environment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "production"
+          },
+          "isPreview": {
+            "type": "boolean",
+            "description": "True for a pull-request preview environment."
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "True while this environment is paused on its own. A paused project stops it too without setting this."
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "isPreview",
+          "paused",
+          "pausedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "V1EnvironmentList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Environment"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1ErrorBody": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/V1ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "V1ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NOT_FOUND",
+            "description": "Stable and derived from the status: BAD_REQUEST, UNAUTHENTICATED, PAYMENT_REQUIRED, FORBIDDEN, NOT_FOUND, CONFLICT, IDEMPOTENCY_KEY_REUSED, RATE_LIMITED, INTERNAL_SERVER_ERROR."
+          },
+          "message": {
+            "type": "string",
+            "description": "Written for you to read, or a generic sentence with a reference."
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Equals the x-request-id response header. Quote it to support."
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ]
+      },
+      "V1Export": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "A short-lived presigned download URL."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "url",
+          "filename",
+          "format",
+          "sizeBytes",
+          "expiresAt"
+        ]
+      },
+      "V1ForeignKey": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "nullable": true
+          },
+          "table": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "table",
+          "column"
+        ]
+      },
+      "V1GithubInstallUrl": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Open in a browser to install the Naijacloud GitHub App for this workspace."
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "V1LoginBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "V1Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "emailVerifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the email address was confirmed; null until then."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName",
+          "emailVerifiedAt",
+          "createdAt"
+        ]
+      },
+      "V1Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "shop"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultRegion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Region new services in this project are placed in, e.g. \"af-west\"."
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "environments": {
+            "description": "Included when one project is fetched; omitted from lists.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Environment"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "displayName",
+          "description",
+          "defaultRegion",
+          "paused",
+          "pausedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "V1ProjectList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Project"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1QueryResult": {
+        "type": "object",
+        "properties": {
+          "engine": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "description": "One array per row, cells in column order; null is SQL NULL.",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "rowCount": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More rows matched than were returned."
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "executionMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "engine",
+          "columns",
+          "rows",
+          "rowCount",
+          "truncated",
+          "message",
+          "notices",
+          "executionMs"
+        ]
+      },
+      "V1RedeployStaticSiteBody": {
+        "type": "object",
+        "properties": {
+          "indexPath": {
+            "type": "string",
+            "description": "The page to serve at \"/\" when it is not index.html."
+          },
+          "spaFallback": {
+            "type": "boolean",
+            "description": "Serve the index page for unknown paths (single-page apps)."
+          },
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "uploadId"
+        ]
+      },
+      "V1Region": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "eu-west"
+          },
+          "label": {
+            "type": "string",
+            "example": "Europe"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ]
+      },
+      "V1Repository": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "description": "owner/name"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "defaultBranch": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "string",
+            "description": "Pass with repoFullName when creating a service."
+          }
+        },
+        "required": [
+          "fullName",
+          "private",
+          "defaultBranch",
+          "installationId"
+        ]
+      },
+      "V1RepositoryList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Repository"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Restore": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "backupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "safetyBackupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The backup taken of the database just before restoring, to undo with."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RestoreStatus"
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorCode": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BackupFailureReason"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "backupId",
+          "safetyBackupId",
+          "status",
+          "error",
+          "errorCode",
+          "createdAt",
+          "startedAt",
+          "completedAt"
+        ]
+      },
+      "V1SecretFile": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "config/credentials.json"
+          },
+          "content": {
+            "type": "string",
+            "description": "Blanked for read-only roles."
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ]
+      },
+      "V1SecretFileChange": {
+        "type": "object",
+        "properties": {
+          "secretFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1SecretFile"
+            }
+          },
+          "needsRedeploy": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "secretFiles",
+          "needsRedeploy"
+        ]
+      },
+      "V1SecretFileInput": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "config/credentials.json"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ]
+      },
+      "V1SecretFileList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1SecretFile"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Service": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "api"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              }
+            ]
+          },
+          "tier": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTier"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://api-shop.naijacloud.app",
+            "description": "The platform URL. Null for databases and before placement."
+          },
+          "region": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1Region"
+              }
+            ]
+          },
+          "runtime": {
+            "type": "string",
+            "nullable": true,
+            "example": "node"
+          },
+          "framework": {
+            "type": "string",
+            "nullable": true,
+            "example": "nextjs"
+          },
+          "isStatic": {
+            "type": "boolean"
+          },
+          "port": {
+            "type": "number",
+            "nullable": true
+          },
+          "healthCheckPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "memoryMb": {
+            "type": "number"
+          },
+          "cpuMillicores": {
+            "type": "number"
+          },
+          "storageLimitMb": {
+            "type": "number",
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/V1ServiceSource"
+          },
+          "build": {
+            "$ref": "#/components/schemas/V1ServiceBuild"
+          },
+          "cron": {
+            "nullable": true,
+            "description": "Set for CRON services only.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1ServiceCron"
+              }
+            ]
+          },
+          "suspension": {
+            "description": "Why nothing is running, if anything: NONE, USER (suspended by a person), BILLING or ABUSE.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceSuspension"
+              }
+            ]
+          },
+          "health": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceHealth"
+              }
+            ]
+          },
+          "lastDeployedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "environmentId",
+          "name",
+          "type",
+          "status",
+          "tier",
+          "url",
+          "region",
+          "runtime",
+          "framework",
+          "isStatic",
+          "port",
+          "healthCheckPath",
+          "memoryMb",
+          "cpuMillicores",
+          "storageLimitMb",
+          "source",
+          "build",
+          "cron",
+          "suspension",
+          "health",
+          "lastDeployedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "V1ServiceBuild": {
+        "type": "object",
+        "properties": {
+          "buildCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "startCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "runtimeVersion": {
+            "type": "string",
+            "nullable": true,
+            "example": "22"
+          },
+          "staticOutputDir": {
+            "type": "string",
+            "nullable": true
+          },
+          "staticSpa": {
+            "type": "boolean"
+          },
+          "monorepoStrategy": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonorepoStrategy"
+              }
+            ]
+          },
+          "watchPaths": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "buildCommand",
+          "startCommand",
+          "runtimeVersion",
+          "staticOutputDir",
+          "staticSpa",
+          "monorepoStrategy",
+          "watchPaths"
+        ]
+      },
+      "V1ServiceCron": {
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "type": "string",
+            "nullable": true,
+            "example": "*/15 * * * *"
+          },
+          "command": {
+            "type": "string",
+            "nullable": true
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "Scheduled runs are paused."
+          }
+        },
+        "required": [
+          "schedule",
+          "command",
+          "suspended"
+        ]
+      },
+      "V1ServiceList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Service"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1ServiceSource": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SourceType"
+              }
+            ]
+          },
+          "repoFullName": {
+            "type": "string",
+            "nullable": true,
+            "example": "acme/shop"
+          },
+          "gitUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "branch": {
+            "type": "string",
+            "nullable": true
+          },
+          "rootDir": {
+            "type": "string",
+            "nullable": true
+          },
+          "image": {
+            "type": "string",
+            "nullable": true,
+            "description": "The public image a DOCKER_IMAGE service runs."
+          },
+          "imageCommand": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type",
+          "repoFullName",
+          "gitUrl",
+          "branch",
+          "rootDir",
+          "image",
+          "imageCommand"
+        ]
+      },
+      "V1ServiceSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "projectName",
+          "type"
+        ]
+      },
+      "V1ServiceSummaryList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1ServiceSummary"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1Session": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1Me"
+              }
+            ]
+          },
+          "twoFactor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1TwoFactorChallenge"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accessToken",
+          "user",
+          "twoFactor"
+        ]
+      },
+      "V1SetEnvVarsBody": {
+        "type": "object",
+        "properties": {
+          "envVars": {
+            "description": "Created or replaced by key. Keys not listed are kept.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1EnvVarInput"
+            }
+          }
+        },
+        "required": [
+          "envVars"
+        ]
+      },
+      "V1StaticSite": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "$ref": "#/components/schemas/V1Service"
+          },
+          "deploy": {
+            "$ref": "#/components/schemas/V1Deploy"
+          }
+        },
+        "required": [
+          "site",
+          "deploy"
+        ]
+      },
+      "V1StaticUpload": {
+        "type": "object",
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "A presigned URL; it expires."
+          },
+          "method": {
+            "type": "string",
+            "example": "PUT"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1UploadHeader"
+            }
+          },
+          "maxBytes": {
+            "type": "number"
+          },
+          "expiresInSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "uploadId",
+          "url",
+          "method",
+          "headers",
+          "maxBytes",
+          "expiresInSeconds"
+        ]
+      },
+      "V1StaticUploadBody": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "e.g. \"site.zip\" or \"index.html\"."
+          },
+          "contentType": {
+            "type": "string",
+            "description": "e.g. \"application/zip\" or \"text/html\"."
+          },
+          "sizeBytes": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "filename",
+          "contentType",
+          "sizeBytes"
+        ]
+      },
+      "V1TableExportBody": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TableExportFormat"
+              }
+            ]
+          },
+          "schema": {
+            "type": "string",
+            "description": "Postgres schema, if not public."
+          }
+        }
+      },
+      "V1TableSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string",
+            "nullable": true
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Column"
+            }
+          },
+          "primaryKey": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "schema",
+          "columns",
+          "primaryKey"
+        ]
+      },
+      "V1TableStat": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string",
+            "nullable": true
+          },
+          "estimatedRows": {
+            "type": "number",
+            "nullable": true,
+            "description": "The planner's estimate, never a live count."
+          }
+        },
+        "required": [
+          "name",
+          "schema",
+          "estimatedRows"
+        ]
+      },
+      "V1TableStatList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1TableStat"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1TwoFactorBody": {
+        "type": "object",
+        "properties": {
+          "pendingToken": {
+            "type": "string",
+            "description": "The `pendingToken` the sign-in returned."
+          },
+          "code": {
+            "type": "string",
+            "description": "A 6-digit authenticator code, or a one-time recovery code."
+          }
+        },
+        "required": [
+          "pendingToken",
+          "code"
+        ]
+      },
+      "V1TwoFactorChallenge": {
+        "type": "object",
+        "properties": {
+          "pendingToken": {
+            "type": "string",
+            "description": "Send to POST /v1/auth/two-factor with a code."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "pendingToken",
+          "expiresAt"
+        ]
+      },
+      "V1UpdateCronBody": {
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "type": "string",
+            "example": "0 3 * * *",
+            "description": "Five-field cron expression, in UTC."
+          },
+          "command": {
+            "type": "string",
+            "description": "The command each run executes."
+          }
+        }
+      },
+      "V1UpdateProjectBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "V1UpdateServiceBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A label only."
+          },
+          "build": {
+            "$ref": "#/components/schemas/V1UpdateServiceBuild"
+          },
+          "source": {
+            "$ref": "#/components/schemas/V1UpdateServiceSource"
+          }
+        }
+      },
+      "V1UpdateServiceBuild": {
+        "type": "object",
+        "properties": {
+          "buildCommand": {
+            "type": "string"
+          },
+          "startCommand": {
+            "type": "string"
+          },
+          "runtimeVersion": {
+            "type": "string"
+          },
+          "rootDir": {
+            "type": "string"
+          },
+          "port": {
+            "type": "number"
+          },
+          "healthCheckPath": {
+            "type": "string"
+          },
+          "monorepoStrategy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MonorepoStrategy"
+              }
+            ]
+          },
+          "staticOutputDir": {
+            "type": "string"
+          },
+          "staticSpa": {
+            "type": "boolean"
+          },
+          "watchPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "V1UpdateServiceSource": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SourceType"
+              }
+            ]
+          },
+          "repoFullName": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "string"
+          },
+          "gitUrl": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "imageCommand": {
+            "type": "string"
+          },
+          "redeploy": {
+            "type": "boolean",
+            "description": "Deploy from the new source straight away."
+          }
+        }
+      },
+      "V1UploadHeader": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ]
+      },
+      "V1Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "defaultRegion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Region new projects are placed in, e.g. \"eu-west\"."
+          },
+          "role": {
+            "nullable": true,
+            "description": "The caller's role in this workspace.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceRole"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "defaultRegion",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "V1WorkspaceList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Workspace"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "WorkspaceRole": {
+        "type": "string",
+        "enum": [
+          "OWNER",
+          "ADMIN",
+          "MEMBER"
+        ],
+        "description": "The caller's role in this workspace."
+      }
+    }
+  }
+}

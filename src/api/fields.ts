@@ -1,60 +1,36 @@
 /**
- * Field selections shared between operations, so a projection lives in one
- * place instead of drifting between the query that lists a resource and the
- * mutation that creates it.
+ * Shared lookups over the resource tree, so a projection lives in one place
+ * instead of drifting between the commands that list a resource.
  */
 
+import { authedList } from "./transport.js";
+import { seg, toServiceSummary } from "./v1.js";
+import type { V1Environment, V1Service } from "./v1.js";
+import type { ServiceSummary } from "./types.js";
 
-export const SERVICE_FIELDS = `
-  id
-  name
-  type
-  status
-  health
-  url
-  branch
-  repoFullName
-  isStatic
-`;
+/** A project's environments, in the order the dashboard shows them. */
+export async function listProjectEnvironments(projectId: string): Promise<V1Environment[]> {
+  return await authedList<V1Environment>(`/projects/${seg(projectId)}/environments`);
+}
 
-export const DEPLOYMENT_FIELDS = `
-  id
-  serviceId
-  status
-  branch
-  commitSha
-  commitMessage
-  authorName
-  buildMethod
-  error
-  errorCode
-  createdAt
-  updatedAt
-`;
+/** The services in one environment. */
+export async function listEnvironmentServices(environmentId: string): Promise<V1Service[]> {
+  return await authedList<V1Service>(`/environments/${seg(environmentId)}/services`);
+}
 
-export const DOMAIN_FIELDS = `
-  id
-  domain
-  serviceId
-  status
-  verifiedAt
-  lastCheck
-  dnsTarget {
-    cname
-    aRecord
-    isApex
-    records { type name value purpose }
-    conflicts { type name value purpose }
-  }
-`;
-
-export const PROJECT_FIELDS = `
-  id
-  name
-  displayName
-  description
-  teamId
-  region
-  createdAt
-  updatedAt
-`;
+/**
+ * Every service in a project, with the environment it lives in. One request
+ * for the environments, then one per environment, in parallel.
+ */
+export async function listProjectServices(
+  projectId: string,
+): Promise<{ environment: V1Environment; services: ServiceSummary[] }[]> {
+  const environments = await listProjectEnvironments(projectId);
+  const services = await Promise.all(
+    environments.map((environment) => listEnvironmentServices(environment.id)),
+  );
+  return environments.map((environment, index) => ({
+    environment,
+    services: (services[index] ?? []).map(toServiceSummary),
+  }));
+}

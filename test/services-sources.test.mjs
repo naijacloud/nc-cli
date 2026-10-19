@@ -1,23 +1,24 @@
 // TGL-1177: `services create` only took a GitHub-App repository, so without the
 // app the CLI could not deploy an app at all. It now takes the dashboard's
 // three sources: --repo (GitHub App), --git (public URL), --image (Docker).
-// The variables sent are validated against the API schema's input types.
+// The body sent is checked against the REST API's documented create body.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { buildSchema, getVariableValues, parse } from "graphql";
-
-const schema = buildSchema(
-  fs.readFileSync(fileURLToPath(new URL("./fixtures/schema.gql", import.meta.url)), "utf8"),
+const openapi = JSON.parse(
+  fs.readFileSync(fileURLToPath(new URL("./fixtures/openapi.json", import.meta.url)), "utf8"),
 );
+const CREATE_BODY = openapi.components.schemas.V1CreateServiceBody;
 const ENVIRONMENT = "22222222-2222-4222-8222-222222222222";
 
-function checkVariables(query, variables) {
-  const operation = parse(query).definitions[0];
-  const { errors } = getVariableValues(schema, operation.variableDefinitions ?? [], variables);
-  assert.equal(errors, undefined, errors?.map((e) => e.message).join("; "));
+/** Every key is one the API documents, and every required key is there. */
+function checkBody(body) {
+  const unknown = Object.keys(body).filter((key) => !(key in CREATE_BODY.properties));
+  assert.deepEqual(unknown, [], `fields the API does not take: ${unknown.join(", ")}`);
+  const missing = (CREATE_BODY.required ?? []).filter((key) => body[key] === undefined);
+  assert.deepEqual(missing, [], `required fields missing: ${missing.join(", ")}`);
 }
 
 async function create(options, reply = {}) {
@@ -27,16 +28,28 @@ async function create(options, reply = {}) {
   const realOut = process.stdout.write;
   const sent = [];
   process.env.HOSTING_API_TOKEN = "test-token";
-  globalThis.fetch = async (_url, init) => {
-    const { query, variables } = JSON.parse(init.body);
-    sent.push({ query, variables });
-    if (/createService/.test(query)) {
-      if (reply.createError) return Response.json({ data: null, errors: [{ message: reply.createError }] });
-      return Response.json({ data: { createService: { id: "s1", name: "web", type: "WEB", status: "ACTIVE" } } });
+  globalThis.fetch = async (input, init = {}) => {
+    const path = new URL(String(input)).pathname;
+    const method = init.method ?? "GET";
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    sent.push({ method, path, body });
+    if (method === "POST" && path === `/v1/environments/${ENVIRONMENT}/services`) {
+      if (reply.createError) {
+        return Response.json({ error: { code: "BAD_REQUEST", message: reply.createError, requestId: "r" } }, { status: 400 });
+      }
+      return Response.json(
+        { id: "s1", environmentId: ENVIRONMENT, name: "web", type: "WEB", status: "ACTIVE", url: null, isStatic: false, source: {}, build: {}, health: "UNKNOWN" },
+        { status: 201 },
+      );
     }
-    if (/getGithubAppInstallUrl/.test(query)) return Response.json({ data: { getGithubAppInstallUrl: "https://github.com/apps/naijacloud/installations/new?state=x" } });
-    if (/getServiceDeployments|getDeployments/.test(query)) return Response.json({ data: { getDeployments: { items: [], pageInfo: { hasNextPage: false } } } });
-    return Response.json({ data: null, errors: [{ message: "unexpected" }] });
+    if (/\/github\/install-url$/.test(path)) {
+      return Response.json({ url: "https://github.com/apps/naijacloud/installations/new?state=x" });
+    }
+    if (/\/deploys$/.test(path)) return Response.json({ data: [], nextCursor: null });
+    if (path === `/v1/environments/${ENVIRONMENT}`) {
+      return Response.json({ id: ENVIRONMENT, projectId: "p1", name: "dev", isPreview: false });
+    }
+    return Response.json({ error: { code: "NOT_FOUND", message: "unexpected", requestId: "r" } }, { status: 404 });
   };
   process.stderr.write = () => true;
   process.stdout.write = () => true;
@@ -56,9 +69,9 @@ async function create(options, reply = {}) {
     process.stderr.write = realErr;
     process.stdout.write = realOut;
   }
-  const call = sent.find(({ query }) => /createService/.test(query));
-  if (call) checkVariables(call.query, call.variables);
-  return { input: call?.variables.input, error, sent };
+  const call = sent.find(({ method, path }) => method === "POST" && path.endsWith("/services"));
+  if (call) checkBody(call.body);
+  return { input: call?.body, error, sent };
 }
 
 test("--git sends a public git source, exactly as the dashboard does", async () => {

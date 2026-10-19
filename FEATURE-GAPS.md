@@ -12,6 +12,10 @@ was read from those files, not guessed.
 
 Legend: ✅ covered · 🟡 partial · 🔴 absent.
 
+> Since 1.6.0 (TGL-1406) the CLI talks to the public REST API at `/v1`, not
+> GraphQL. The operation names below are the GraphQL ones this map was written
+> against; each `/v1` route names its GraphQL twin in `src/api-v1/openapi.json`.
+
 ---
 
 ## 1. Where the CLI stands
