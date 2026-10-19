@@ -29,14 +29,10 @@ before(async () => {
     let body = "";
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
-      requests.push({ authorization: req.headers.authorization, body });
+      requests.push({ authorization: req.headers.authorization, body, url: req.url });
       res.setHeader("content-type", "application/json");
       res.end(
-        JSON.stringify({
-          data: {
-            getMe: { id: "u1", email: "ada@kudipay.ng", name: "Ada", status: "ACTIVE", createdAt: "2026-01-01" },
-          },
-        }),
+        JSON.stringify({ id: "u1", email: "ada@kudipay.ng", name: "Ada", status: "ACTIVE", createdAt: "2026-01-01" }),
       );
     });
   });

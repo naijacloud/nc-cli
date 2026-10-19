@@ -20,31 +20,42 @@ const realFetch = globalThis.fetch;
 let auth;
 let calls = [];
 
-/** Answers by operation name; `script` can override any of them per test. */
+/** The REST calls the sign-in flow makes, named as the steps they are. */
+const OPS = {
+  "POST /v1/auth/login": "Login",
+  "POST /v1/auth/two-factor": "VerifyTwoFactorSignIn",
+  "GET /v1/me": "CurrentUser",
+};
+
+/** An error answer in the `/v1` envelope. */
+const fail = (status, code, message) => ({ status, error: { code, message, requestId: "r" } });
+
+/**
+ * Answers by step; `script` can override any of them per test with a body, a
+ * {@link fail}, or a function of the request body returning either.
+ */
 function stub(script = {}) {
   calls = [];
-  globalThis.fetch = async (_url, init) => {
-    const { query, variables } = JSON.parse(init.body);
-    const op = /(?:mutation|query)\s+(\w+)/.exec(query)?.[1];
-    calls.push({ op, variables, authorization: init.headers.authorization });
-    const answer = script[op];
-    if (typeof answer === "function") return Response.json(answer(variables));
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const op = OPS[`${init.method} ${url.pathname}`] ?? `${init.method} ${url.pathname}`;
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    calls.push({ op, body, authorization: init.headers.authorization });
+    let answer = script[op];
+    if (typeof answer === "function") answer = answer(body);
+    if (answer?.error) return Response.json({ error: answer.error }, { status: answer.status });
     if (answer) return Response.json(answer);
     if (op === "CurrentUser") {
-      return Response.json({ data: { getMe: { id: "u1", email: "ada@kudipay.ng", name: "Ada", status: "ACTIVE" } } });
+      return Response.json({ id: "u1", email: "ada@kudipay.ng", name: "Ada", status: "ACTIVE" });
     }
-    return Response.json({ errors: [{ message: `unexpected ${op}` }] });
+    return new Response(`unexpected ${op}`, { status: 404 });
   };
 }
 
 const CHALLENGE = {
-  data: {
-    login: {
-      accessToken: null,
-      user: null,
-      twoFactor: { pendingToken: "pending-1", expiresAt: "2026-10-07T10:00:00Z" },
-    },
-  },
+  accessToken: null,
+  user: null,
+  twoFactor: { pendingToken: "pending-1", expiresAt: "2026-10-07T10:00:00Z" },
 };
 
 const stored = () =>
@@ -70,9 +81,9 @@ after(() => {
 test("a two-factor account trades the pending token and --code for the session", async () => {
   stub({
     Login: CHALLENGE,
-    VerifyTwoFactorSignIn: (v) => {
-      assert.deepEqual(v.input, { pendingToken: "pending-1", code: "123456" });
-      return { data: { verifyTwoFactorSignIn: { accessToken: "session-2fa", user: { id: "u1", email: "ada@kudipay.ng" } } } };
+    VerifyTwoFactorSignIn: (body) => {
+      assert.deepEqual(body, { pendingToken: "pending-1", code: "123456" });
+      return { accessToken: "session-2fa", user: { id: "u1", email: "ada@kudipay.ng" } };
     },
   });
   await auth.login({ email: "ada@kudipay.ng", password: "pw", code: " 123456 " });
@@ -86,9 +97,7 @@ test("a wrong --code saves nothing and says why", async () => {
   fs.rmSync(path.join(home, ".naijacloud"), { recursive: true, force: true });
   stub({
     Login: CHALLENGE,
-    VerifyTwoFactorSignIn: {
-      errors: [{ message: "That code isn’t right. Check your authenticator app and try again.", extensions: { code: "BAD_REQUEST" } }],
-    },
+    VerifyTwoFactorSignIn: fail(400, "BAD_REQUEST", "That code isn’t right. Check your authenticator app and try again."),
   });
   await assert.rejects(
     auth.login({ email: "ada@kudipay.ng", password: "pw", code: "000000" }),
@@ -100,9 +109,7 @@ test("a wrong --code saves nothing and says why", async () => {
 test("a timed-out pending sign-in asks to start over", async () => {
   stub({
     Login: CHALLENGE,
-    VerifyTwoFactorSignIn: {
-      errors: [{ message: "Your sign-in timed out.", extensions: { code: "UNAUTHENTICATED" } }],
-    },
+    VerifyTwoFactorSignIn: fail(401, "UNAUTHENTICATED", "Your sign-in timed out."),
   });
   await assert.rejects(
     auth.login({ email: "ada@kudipay.ng", password: "pw", code: "123456" }),
@@ -121,7 +128,7 @@ test("without --code and without a terminal, it says how to pass the code", asyn
 
 test("an account without two-factor logs in as before", async () => {
   stub({
-    Login: { data: { login: { accessToken: "session-plain", user: { id: "u1", email: "ada@kudipay.ng" }, twoFactor: null } } },
+    Login: { accessToken: "session-plain", user: { id: "u1", email: "ada@kudipay.ng" }, twoFactor: null },
   });
   await auth.login({ email: "ada@kudipay.ng", password: "pw" });
   assert.deepEqual(calls.map((c) => c.op), ["Login", "CurrentUser"]);
@@ -137,28 +144,26 @@ test("--token (an API key) never meets two-factor", async () => {
 
 // TGL-1171: without a device cookie every password login looked like a new
 // device and emailed "New sign-in to your account".
-test("password logins send the same nc.device cookie every time, across logout", async () => {
-  const cookies = [];
-  globalThis.fetch = async (_url, init) => {
-    const { query } = JSON.parse(init.body);
-    const op = /(?:mutation|query)\s+(\w+)/.exec(query)?.[1];
-    if (op === "Login") {
-      cookies.push(init.headers.cookie);
+test("password logins send the same device id every time, across logout", async () => {
+  const devices = [];
+  globalThis.fetch = async (input, init) => {
+    if (new URL(String(input)).pathname === "/v1/auth/login") {
+      devices.push(init.headers["x-device-id"]);
       return Response.json(
-        { data: { login: { accessToken: "s", user: { id: "u1", email: "a@b.c" }, twoFactor: null } } },
-        { headers: { "set-cookie": `${init.headers.cookie}; Path=/; HttpOnly` } },
+        { accessToken: "s", user: { id: "u1", email: "a@b.c" }, twoFactor: null },
+        { headers: { "x-device-id": init.headers["x-device-id"] } },
       );
     }
-    return Response.json({ data: { getMe: { id: "u1", email: "a@b.c", status: "ACTIVE" } } });
+    return Response.json({ id: "u1", email: "a@b.c", status: "ACTIVE" });
   };
   await auth.login({ email: "a@b.c", password: "pw" });
   auth.logout();
   await auth.login({ email: "a@b.c", password: "pw" });
-  assert.equal(cookies.length, 2);
-  assert.match(cookies[0], /^nc\.device=[0-9a-f]{64}$/);
-  assert.equal(cookies[1], cookies[0]);
+  assert.equal(devices.length, 2);
+  assert.match(devices[0], /^[0-9a-f]{64}$/);
+  assert.equal(devices[1], devices[0]);
   const file = path.join(home, ".naijacloud", "device");
-  assert.equal(`nc.device=${fs.readFileSync(file, "utf8").trim()}`, cookies[0]);
+  assert.equal(fs.readFileSync(file, "utf8").trim(), devices[0]);
   if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
@@ -169,7 +174,7 @@ test("an empty --token is refused before any request", async () => {
 });
 
 test("a rejected --token says so once, without telling you to run login", async () => {
-  stub({ CurrentUser: { errors: [{ message: "Unauthorized", extensions: { code: "UNAUTHENTICATED" } }] } });
+  stub({ CurrentUser: fail(401, "UNAUTHENTICATED", "Unauthorized") });
   await assert.rejects(auth.login({ token: "nc_live_bad" }), (err) =>
     /did not accept the token/.test(err.message) && !/Run 'naijacloud login'/.test(err.message),
   );
@@ -178,7 +183,7 @@ test("a rejected --token says so once, without telling you to run login", async 
 // TGL-1174: a stored login is never sent to a base URL other than the one it
 // came from. The request is refused before fetch is called.
 test("a saved login used against a different base URL is refused, not sent", async () => {
-  stub({ Login: { data: { login: { accessToken: "s1", user: { id: "u1", email: "a@b.c" }, twoFactor: null } } } });
+  stub({ Login: { accessToken: "s1", user: { id: "u1", email: "a@b.c" }, twoFactor: null } });
   await auth.login({ email: "a@b.c", password: "pw" });
   const { getCurrentUser } = await import("../build/api/index.js");
   calls = [];
