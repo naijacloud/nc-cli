@@ -214,6 +214,23 @@ test("env set in a dev environment writes DEV, not PROD", async () => {
   assert.match(result.out, /FEATURE_FLAG set \(DEV, from environment dev\)/);
 });
 
+test("env set still writes DEV when the API has no GET /environments/{id} yet", async () => {
+  const { envSet } = await import("../build/commands/env.js");
+  const result = await run(
+    [
+      ["GET", new RegExp(`^/services/${SERVICE}$`), v1Service({ id: SERVICE, environmentId: ENVIRONMENT })],
+      ["GET", /^\/workspaces$/, list([{ id: "t1", name: "Acme", defaultRegion: null }])],
+      ["GET", /^\/workspaces\/t1\/projects$/, list([{ id: "p1", workspaceId: "t1", name: "shop" }])],
+      ["GET", /^\/projects\/p1\/environments$/, list([{ id: ENVIRONMENT, projectId: "p1", name: "dev", isPreview: false }])],
+      SET_VARS,
+    ],
+    () => envSet("FEATURE_FLAG", "on", { service: SERVICE, scope: undefined, secret: false, json: false }),
+  );
+  assert.equal(result.error, undefined);
+  const write = result.sent.find(({ method }) => method === "PATCH");
+  assert.equal(write.body.envVars[0].scope, "DEV");
+});
+
 test("env set --scope still overrides, without reading the service", async () => {
   const { envSet } = await import("../build/commands/env.js");
   const result = await run(
