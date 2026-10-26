@@ -73,6 +73,15 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
     ],
   ],
   [
+    "Argus",
+    [
+      ["argus sourcemaps upload", "Upload a build's source maps for a release"],
+      ["argus deploys new", "Record a deploy, so errors show which release"],
+      ["argus test", "Send a test event to check a DSN"],
+      ["argus whoami", "Show which source an upload token belongs to"],
+    ],
+  ],
+  [
     "Other",
     [
       ["mcp", "Run the MCP server over stdio"],
@@ -237,6 +246,24 @@ Db options
   with psql -c; --yes skips the question.
   \`db dump\`/\`db export\` print an expiring download URL on stdout.
 
+Argus options
+  --release <version>          The release your app's SDK reports (or ARGUS_RELEASE)
+  --url-prefix <prefix>        sourcemaps: where the files are served (default ~/)
+  --dry-run                    sourcemaps: list what would be uploaded, send nothing
+  --environment <name>         deploys: default ARGUS_ENVIRONMENT, then production
+  --commit <sha>               deploys: the commit that was deployed
+  --url <link>                 deploys: a link to the deploy
+  --dsn <dsn>                  test: the DSN to check (or ARGUS_DSN / SENTRY_DSN)
+
+  sourcemaps, deploys and whoami authenticate with an upload token in
+  ARGUS_UPLOAD_TOKEN (argus_up_…), not your login, so they run in CI. Create one
+  in Argus on the source, under Upload tokens; it can only upload maps and
+  record deploys for that source. test needs only the DSN.
+
+  Each .map under <dir> is named after its file: dist/assets/app.js.map from
+  dist is ~/assets/app.js, which matches https://your-site/assets/app.js. Use
+  the same --release as the SDK, or Argus cannot match the maps to errors.
+
 Login options
   --email <email>              Email, instead of being prompted
   --password <password>        Password, instead of being prompted
@@ -286,6 +313,8 @@ Environment
   HOSTING_API_TIMEOUT_MS       Per-request timeout in ms (default 30000)
   HOSTING_UPLOAD_TIMEOUT_MS    Upload timeout in ms (default 600000)
   NAIJACLOUD_DEPLOY_TIMEOUT_MS Deploy wait timeout in ms (default 900000)
+  ARGUS_UPLOAD_TOKEN           Argus upload token (argus_up_…) for argus commands
+  ARGUS_API_URL                Argus API (default https://argus-api.naijacloud.com)
 
 Help and exit codes
   ${program} <command> --help  Help for one command (also: ${program} help <command>)
@@ -460,6 +489,15 @@ const COMMANDS: Record<string, CommandSpec> = {
     synopsis:
       "db query <sql> | shell | tables | describe <table> | dump | export <table>   [--service <s>]",
     sections: ["Resource options", "Db options"],
+  },
+  argus: {
+    booleans: ["json", "dry-run"],
+    values: ["release", "url-prefix", "environment", "commit", "url", "dsn"],
+    maxPositionals: 3,
+    synopsis:
+      "argus sourcemaps upload <dir> | deploys new | test | whoami   [--release <v>]\n\n" +
+      "  Source maps and deploy markers for Argus, from a build or CI job.",
+    sections: ["Argus options"],
   },
   schema: {
     values: ["write"],
@@ -1162,6 +1200,47 @@ async function main(): Promise<void> {
             "dump",
             "export",
           ]);
+      }
+    }
+
+    case "argus": {
+      const { flags, positionals } = parsed;
+      const { argusDeploysNew, argusSourcemapsUpload, argusTest, argusWhoami } = await import(
+        "./commands/argus.js"
+      );
+      const json = flags.has("json");
+      const release = value(flags, "release");
+
+      switch (positionals[0]) {
+        case "sourcemaps":
+          if (positionals[1] !== "upload") {
+            throw unknownSubcommand("argus sourcemaps", positionals[1], ["upload"]);
+          }
+          await argusSourcemapsUpload(
+            required(positionals[2], "A folder", "argus sourcemaps upload ./dist --release 1.4.2"),
+            { release, urlPrefix: value(flags, "url-prefix"), dryRun: flags.has("dry-run"), json },
+          );
+          return;
+        case "deploys":
+          if (positionals[1] !== "new") {
+            throw unknownSubcommand("argus deploys", positionals[1], ["new"]);
+          }
+          await argusDeploysNew({
+            release,
+            environment: value(flags, "environment"),
+            commit: value(flags, "commit"),
+            url: value(flags, "url"),
+            json,
+          });
+          return;
+        case "test":
+          await argusTest({ dsn: value(flags, "dsn"), json });
+          return;
+        case "whoami":
+          await argusWhoami(json);
+          return;
+        default:
+          throw unknownSubcommand("argus", positionals[0], ["sourcemaps", "deploys", "test", "whoami"]);
       }
     }
 

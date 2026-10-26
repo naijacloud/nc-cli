@@ -7,6 +7,19 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `naijacloud argus`, for Argus from a build or CI job (TGL-1780):
+  - `argus sourcemaps upload <dir> --release <v>` uploads every `.map` under the
+    folder, named after its minified file (`--url-prefix`, `--dry-run`);
+  - `argus deploys new --release <v>` records a deploy (`--environment`,
+    `--commit`, `--url`);
+  - `argus test [--dsn <dsn>]` sends a test event to check a DSN;
+  - `argus whoami` shows which source an upload token belongs to.
+
+  They authenticate with an Argus upload token in `ARGUS_UPLOAD_TOKEN`, not the
+  CLI login, so they work in CI. `ARGUS_API_URL` overrides the Argus API.
+
 ## [1.6.0] - 2026-10-19
 
 ### Changed
