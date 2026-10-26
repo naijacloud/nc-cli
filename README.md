@@ -824,6 +824,56 @@ is derived from `--env`, or from the service's own environment, the same way as
 
 ---
 
+## Argus: source maps and deploys from CI
+
+`naijacloud argus` is the build-time half of [Argus](https://www.naijacloud.com/products/argus).
+It uploads your source maps, so browser errors show your own code instead of
+minified code, and marks deploys, so Argus can say which release an error
+started in.
+
+These commands don't use your login. They take an **upload token**
+(`argus_up_…`) from `ARGUS_UPLOAD_TOKEN`, so they run in CI with nothing else set
+up. Create one in Argus: **Sources → the source → Upload tokens**. A token can
+only upload source maps and record deploys for that one source; it can't read
+anything.
+
+```bash
+export ARGUS_UPLOAD_TOKEN=argus_up_…       # a CI secret, never a flag
+
+naijacloud argus whoami                     # which source the token uploads for
+naijacloud argus sourcemaps upload ./dist --release 1.4.2 --dry-run
+naijacloud argus sourcemaps upload ./dist --release 1.4.2
+naijacloud argus deploys new --release 1.4.2 --commit "$GITHUB_SHA"
+naijacloud argus test --dsn "$ARGUS_DSN"    # no token needed: checks the DSN
+```
+
+- **Release:** pass the same release your app's SDK reports, or Argus can't
+  match the maps to its errors. `ARGUS_RELEASE` works instead of `--release`.
+- **Names:** each `.map` is named after its minified file relative to the
+  folder: `dist/assets/index-a1.js.map` becomes `~/assets/index-a1.js`, which
+  matches `https://your-site.ng/assets/index-a1.js`. Served from a sub-path? Add
+  `--url-prefix ~/static`. `node_modules` and hidden folders are skipped.
+- **Re-uploading** the same release and name replaces the map.
+- **Deploys:** `--environment` defaults to `ARGUS_ENVIRONMENT`, then
+  `production`; `--url` can link to the CI run.
+
+In GitHub Actions:
+
+```yaml
+- run: npm run build                 # with source maps on
+- run: npx @naijacloud/cli argus sourcemaps upload ./dist --release "$GITHUB_SHA"
+  env:
+    ARGUS_UPLOAD_TOKEN: ${{ secrets.ARGUS_UPLOAD_TOKEN }}
+- run: npx @naijacloud/cli argus deploys new --release "$GITHUB_SHA" --commit "$GITHUB_SHA"
+  env:
+    ARGUS_UPLOAD_TOKEN: ${{ secrets.ARGUS_UPLOAD_TOKEN }}
+```
+
+`ARGUS_API_URL` points the commands at another Argus (default
+`https://argus-api.naijacloud.com`). Every command takes `--json`.
+
+---
+
 ## Register with Claude Code
 
 Log in **first**, then add the server:
@@ -973,6 +1023,7 @@ Three places where the requested tool shape and the platform genuinely disagree,
     │   ├── env-import.ts   # env import, and the shared "hand me your .env" step
     │   ├── domains.ts      # domains ls | add | verify | rm
     │   ├── db.ts           # the SQL console and its confirmation rules
+    │   ├── argus.ts        # argus sourcemaps|deploys|test|whoami (upload token)
     │   ├── resolve.ts      # name or id → the UUID the API wants
     │   ├── wait.ts         # polling a deployment to a terminal state
     │   └── schema.ts       # JSON Schema generation + the `schema` command
