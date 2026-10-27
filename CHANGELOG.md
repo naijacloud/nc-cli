@@ -7,6 +7,8 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-27
+
 ### Added
 
 - `naijacloud argus`, for Argus from a build or CI job (TGL-1780):
@@ -200,7 +202,9 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/naijacloud/nc-cli/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/naijacloud/nc-cli/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/naijacloud/nc-cli/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/naijacloud/nc-cli/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/naijacloud/nc-cli/compare/v1.3.0...v1.4.0
