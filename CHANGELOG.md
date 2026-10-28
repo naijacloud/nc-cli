@@ -7,6 +7,24 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-28
+
+### Added
+
+- `naijacloud functions`, for Functions: one TypeScript or JavaScript file (or
+  folder) exporting a fetch handler, Deno.serve or Node-style, with its own
+  HTTPS URL (TGL-1758):
+  - `functions deploy <name> --project <p>` zips `--file` (or `./<name>.ts`,
+    `./supabase/functions/<name>/`, `./functions/<name>/`, `./<name>/`),
+    uploads it and waits for it to go live, printing each step with ✓ or ✗.
+    A bad name or code over 20 MB is refused before anything is sent. A failed
+    deploy prints the reason and the build log tail, says which version is
+    still live, and exits 1;
+  - `functions list` shows status, calls and errors in 24 hours, and the URL;
+  - `functions logs <name>` links the live logs and prints the build log;
+  - `functions delete <name>` asks first (`--yes` skips it).
+- MCP tools `list_functions`, `deploy_function` and `delete_function`.
+
 ## [1.7.0] - 2026-10-27
 
 ### Added

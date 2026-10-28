@@ -874,6 +874,68 @@ In GitHub Actions:
 
 ---
 
+## Functions: one file, one URL
+
+A function is a TypeScript or JavaScript file (or folder) exporting a fetch
+handler, Deno.serve or Node-style. It gets its own HTTPS URL and reads the
+project's variables. Supabase Edge Functions code runs unchanged, so
+`supabase functions deploy hello` becomes `naijacloud functions deploy hello`.
+
+```ts
+// hello.ts
+Deno.serve(() => Response.json({ hello: "world" }));
+
+// or Node-style, with npm packages from a package.json beside it
+export default async function handler(req: Request): Promise<Response> {
+  return Response.json({ path: new URL(req.url).pathname });
+}
+```
+
+```bash
+naijacloud functions deploy hello --project shop
+naijacloud functions list --project shop
+naijacloud functions logs hello --project shop
+naijacloud functions delete hello --project shop
+```
+
+```
+  ✓ Logged in as ada@acmelabs.ng
+  ✓ Found hello.ts (1 file, 0.4 KB)
+  ✓ Bundled (3.1 KB)
+  ✓ Uploaded version 1
+  ✓ Live in eu-west
+
+  https://shop-fn.naijacloud.app/functions/v1/hello
+
+  Next: naijacloud functions logs hello --project shop
+```
+
+- **Where the code is:** `--file` names a `.ts`, `.js` or `.mjs` file or a
+  folder. Without it, deploy looks for `./<name>.ts`, then
+  `./supabase/functions/<name>/`, `./functions/<name>/` and `./<name>/`. A file
+  is deployed as `index.<ext>`. A folder needs `index.ts`, `index.js` or
+  `index.mjs` at its top level, or `--entry <file>`. Its `package.json`,
+  `package-lock.json`, `deno.json` and `tsconfig.json` go with it, and the
+  build installs the dependencies; `node_modules`, `.git`, `.env` files and
+  other dotfiles stay behind.
+- **Names** use lower-case letters, numbers and dashes, up to 40 characters.
+  A bad name is refused before anything is sent.
+- **Limits:** 20 MB of code per deploy (checked before uploading), 256 MB of
+  memory, 150 seconds per call on Free and 400 seconds on paid sizes.
+- **A failed deploy** prints the reason and the last 20 build log lines, and
+  the previous version stays live. The exit code is 1, so CI can gate on it.
+- **Environments:** `--env <name>` picks one inside the project; without it,
+  functions go to `production`.
+- **Logs:** live logs are in the dashboard, where each line a function prints
+  starts with `[fn:<name>`. `functions logs` prints that page's link and the
+  newest build log (`--limit <n>` for the last n lines).
+- `delete` asks first; `--yes` skips the question. The URL stops working at
+  once, and the function's logs are removed with it.
+
+Every command takes `--json`.
+
+---
+
 ## Register with Claude Code
 
 Log in **first**, then add the server:
@@ -917,7 +979,7 @@ The Inspector opens a browser UI where you can list the tools and call them indi
 
 ## Tools
 
-All twelve tools, as the agent sees them:
+All fifteen tools, as the agent sees them:
 
 | Tool                  | Parameters                                                   | Notes                                                                                                |
 | --------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -933,6 +995,9 @@ All twelve tools, as the agent sees them:
 | `create_service`      | `environmentId`, `name`, one of `repoFullName`/`gitUrl`/`image`, `type?`, … , `confirm` | Creates a web service or cron job (Free by default) and queues its build. Requires `confirm: true`. |
 | `list_env_vars`       | `serviceId` \| `projectId`                                   | **Values always masked.** Read-only.                                                                 |
 | `set_env_var`         | `serviceId`, `key`, `value`, `target?`, `secret?`, `confirm` | Upserts one variable. Requires `confirm: true`.                                                      |
+| `list_functions`      | `projectId`, `environmentId?`                                | A project's functions with status, URL and 24-hour calls and errors. Read-only.                      |
+| `deploy_function`     | `projectId`, `name`, `path?`, `environmentId?`, `entrypoint?` | Zips local code, deploys it and waits; returns the URL, or the error and build log tail.            |
+| `delete_function`     | `functionId`, `confirm`                                      | URL stops at once, logs go with it. Requires `confirm: true`.                                        |
 
 The MCP surface is deliberately narrower than the CLI's. Static deploys read and
 write the local filesystem, and the database console runs write-capable SQL

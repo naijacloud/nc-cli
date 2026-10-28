@@ -20,6 +20,8 @@ import {
   dnsRecordsFor,
   CANCELLABLE_STATUSES,
   cancelDeployment,
+  deleteCloudFunction,
+  getCloudFunction,
   getDeployment,
   getDeploymentLogs,
   getProject,
@@ -27,6 +29,7 @@ import {
   listDeploymentsByProject,
   listDeploymentsByService,
   listDomainsByProject,
+  listCloudFunctions,
   listDomainsByService,
   listEnvVarKeysByProject,
   listEnvVarsByService,
@@ -41,6 +44,7 @@ import {
 } from "../api/index.js";
 import type { EnvTarget, ServiceEnvVar } from "../api/index.js";
 import { scopeForService } from "../commands/env.js";
+import { deployFunction } from "../commands/functions.js";
 import { pickSource } from "../commands/services.js";
 import { appTierOrFree } from "../tiers.js";
 
@@ -693,6 +697,101 @@ export function createServer(): McpServer {
             : "Change is live; no redeploy required.",
           envVars: result.envVars.map(maskEnvVar),
         });
+      }),
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /* Functions                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  server.registerTool(
+    "list_functions",
+    {
+      title: "List functions",
+      description:
+        "List a project's functions: name, status (DEPLOYING, LIVE, SLEEPING, FAILED, " +
+        "ERRORING, STOPPED), URL, calls and errors in the last 24 hours, and the live " +
+        "and latest versions. Pass environmentId to narrow to one environment. Read-only.",
+      inputSchema: {
+        projectId: z.string().min(1).describe("Project id, from list_projects."),
+        environmentId: z.string().min(1).optional().describe("Only this environment's functions."),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ projectId, environmentId }) =>
+      await run(async () => {
+        const functions = await listCloudFunctions(projectId, { environmentId });
+        return ok({ count: functions.length, functions });
+      }),
+  );
+
+  server.registerTool(
+    "deploy_function",
+    {
+      title: "Deploy a function",
+      description:
+        "Deploy a function from local code: one .ts/.js/.mjs file or a folder with " +
+        "index.ts (Supabase-compatible: Deno.serve(handler) or export default handler). " +
+        "Without path it looks for ./<name>.ts, ./supabase/functions/<name>/, " +
+        "./functions/<name>/ and ./<name>/ under the server's working directory. Creates " +
+        "the function on first deploy, a new version after. Waits for the build and " +
+        "returns the URL, or ok: false with the error and the build log tail; a failed " +
+        "deploy leaves the previous version live. Name: lower-case letters, numbers and " +
+        "dashes, up to 40 characters. Code limit 20 MB.",
+      inputSchema: {
+        projectId: z.string().min(1).describe("Project id, from list_projects."),
+        name: z.string().min(1).describe("Function name, e.g. send-receipt."),
+        path: z.string().min(1).optional().describe("File or folder holding the code."),
+        environmentId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Environment id. Omit for the project's production environment."),
+        entrypoint: z.string().min(1).optional().describe("A folder's entry file, if not index.ts."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ projectId, name, path, environmentId, entrypoint }) =>
+      await run(async () => {
+        const outcome = await deployFunction({
+          name,
+          project: projectId,
+          env: environmentId,
+          file: path,
+          entry: entrypoint,
+          cwd: process.cwd(),
+          command: `naijacloud functions deploy ${name} --project ${projectId} (MCP)`,
+        });
+        return outcome.ok ? ok(outcome) : { ...ok(outcome), isError: true };
+      }),
+  );
+
+  server.registerTool(
+    "delete_function",
+    {
+      title: "Delete a function",
+      description:
+        "Delete a function by id (from list_functions). Its URL stops working at once and " +
+        "its logs are removed with it. Destructive and irreversible: requires confirm=true.",
+      inputSchema: {
+        functionId: z.string().min(1).describe("Function id, from list_functions."),
+        confirm: z
+          .boolean()
+          .describe("Must be true. Set it only after the user agreed to delete this function."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    },
+    async ({ functionId, confirm }) =>
+      await run(async () => {
+        const fn = await getCloudFunction(functionId);
+        if (confirm !== true) {
+          return fail(
+            `Refusing to delete ${fn.name}: its URL stops working at once. Confirm with ` +
+              "the user, then call delete_function again with confirm: true.",
+          );
+        }
+        await deleteCloudFunction(functionId);
+        return ok({ deleted: true, id: fn.id, name: fn.name });
       }),
   );
 

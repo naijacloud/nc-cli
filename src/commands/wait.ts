@@ -47,10 +47,12 @@ export interface Settled {
 export async function waitForDeployment(
   deploymentId: string,
   initial: DeploymentStatus,
+  /** How each state change is shown; `functions deploy` draws its own steps. */
+  report: (status: DeploymentStatus) => void = (status) => write(`  ${status}\n`),
 ): Promise<Settled> {
   let status = initial;
   let error: string | null = null;
-  write(`  ${status}\n`);
+  report(status);
 
   const deadline = Date.now() + deployTimeoutMs();
 
@@ -68,7 +70,7 @@ export async function waitForDeployment(
 
     if (current.status !== status) {
       status = current.status;
-      write(`  ${status}\n`);
+      report(status);
     }
     error = current.error;
   }

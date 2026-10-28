@@ -40,8 +40,24 @@ const ROUTES = Object.entries(openapi.paths).map(([route, operations]) => ({
  * soon as its route is in the OpenAPI snapshot; the test below fails on a
  * stale entry so that cannot be forgotten.
  */
-const PENDING = new Set(["GET /pricing", "GET /environments/{id}"]);
-const pendingKey = (method, route) => `${method} ${route.replace(/^\/environments\/[^/]+$/, "/environments/{id}")}`;
+const PENDING = new Set([
+  "GET /pricing",
+  "GET /environments/{id}",
+  // Functions (TGL-1758): the control plane's getCloudFunctions,
+  // getCloudFunction, createCloudFunctionUpload, deployCloudFunction and
+  // deleteCloudFunction, as /v1 routes. No fallback: until they ship,
+  // `functions` commands report the API mismatch.
+  "GET /projects/{id}/functions",
+  "GET /functions/{id}",
+  "DELETE /functions/{id}",
+  "POST /function-uploads",
+  "POST /functions",
+]);
+const pendingKey = (method, route) =>
+  `${method} ${route
+    .replace(/^\/environments\/[^/]+$/, "/environments/{id}")
+    .replace(/^\/functions\/[^/]+$/, "/functions/{id}")
+    .replace(/^\/projects\/[^/]+\/functions$/, "/projects/{id}/functions")}`;
 
 /** Answers that let a multi-step function get past its first request. */
 const CANNED = [

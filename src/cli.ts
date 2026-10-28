@@ -73,6 +73,15 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
     ],
   ],
   [
+    "Functions",
+    [
+      ["functions deploy <name>", "Deploy one file or folder to an HTTPS URL"],
+      ["functions list", "A project's functions, calls and errors"],
+      ["functions logs <name>", "Where its logs are, and its build log"],
+      ["functions delete <name>", "Delete a function and its URL"],
+    ],
+  ],
+  [
     "Argus",
     [
       ["argus sourcemaps upload", "Upload a build's source maps for a release"],
@@ -245,6 +254,31 @@ Db options
   cannot read (an unclosed quote, a DO block). Without a terminal they run, as
   with psql -c; --yes skips the question.
   \`db dump\`/\`db export\` print an expiring download URL on stdout.
+
+Functions options
+  --project <name|id>          Project the function belongs to (required)
+  --env <environment>          Environment in the project (default production)
+  --file <path>                deploy: a .ts/.js/.mjs file, or a folder
+  --entry <file>               deploy: the folder's entry file (default index.ts,
+                               then index.js, index.mjs)
+  --limit <n>                  logs: only the last n build log lines
+  --yes                        delete: skip the confirmation
+  --json                       Machine-readable result on stdout
+
+  A function is a TypeScript or JavaScript file (or folder) exporting a fetch
+  handler, Deno.serve or Node-style (export default async function handler(req)).
+  A folder's package.json dependencies are installed at build time.
+
+  Without --file, deploy looks for ./<name>.ts, then the Supabase layout
+  ./supabase/functions/<name>/, then ./functions/<name>/ and ./<name>/. A file
+  is deployed as index.<ext>. A folder is zipped with its package.json,
+  deno.json and tsconfig.json, without node_modules, .git, .env files or other
+  dotfiles. Code is limited to 20 MB per deploy.
+
+  Names use lower-case letters, numbers and dashes, up to 40 characters. Each
+  function gets https://<project>-fn.naijacloud.app/functions/v1/<name>, and
+  reads the project's variables. A failed deploy leaves the previous version
+  live. Live logs are in the dashboard; logs prints the newest build log.
 
 Argus options
   --release <version>          The release your app's SDK reports (or ARGUS_RELEASE)
@@ -489,6 +523,15 @@ const COMMANDS: Record<string, CommandSpec> = {
     synopsis:
       "db query <sql> | shell | tables | describe <table> | dump | export <table>   [--service <s>]",
     sections: ["Resource options", "Db options"],
+  },
+  functions: {
+    booleans: ["json", "yes"],
+    values: ["project", "env", "file", "entry", "limit"],
+    maxPositionals: 2,
+    synopsis:
+      "functions deploy <name> | list | logs <name> | delete <name>   --project <p>\n\n" +
+      "  One TypeScript or JavaScript file or folder, one HTTPS URL.",
+    sections: ["Functions options"],
   },
   argus: {
     booleans: ["json", "dry-run"],
@@ -1203,6 +1246,59 @@ async function main(): Promise<void> {
       }
     }
 
+    case "functions": {
+      const { flags, positionals } = parsed;
+      const { functionsDelete, functionsDeploy, functionsList, functionsLogs } = await import(
+        "./commands/functions.js"
+      );
+      const json = flags.has("json");
+      const env = value(flags, "env");
+      const project = (example: string): string =>
+        required(value(flags, "project"), "--project", example);
+
+      switch (positionals[0]) {
+        case "deploy": {
+          const name = required(positionals[1], "A function name", "functions deploy <name> --project <p>");
+          await functionsDeploy(name, {
+            project: project(`functions deploy ${name} --project <p>`),
+            env,
+            file: value(flags, "file"),
+            entry: value(flags, "entry"),
+            json,
+            args: rest,
+          });
+          return;
+        }
+        case "ls":
+        case "list":
+          await functionsList({ project: project("functions list --project <p>"), env, json });
+          return;
+        case "logs": {
+          const name = required(positionals[1], "A function name", "functions logs <name> --project <p>");
+          await functionsLogs(name, {
+            project: project(`functions logs ${name} --project <p>`),
+            env,
+            limit: count(flags, "limit"),
+            json,
+          });
+          return;
+        }
+        case "delete":
+        case "rm": {
+          const name = required(positionals[1], "A function name", "functions delete <name> --project <p>");
+          await functionsDelete(name, {
+            project: project(`functions delete ${name} --project <p>`),
+            env,
+            yes: flags.has("yes"),
+            json,
+          });
+          return;
+        }
+        default:
+          throw unknownSubcommand("functions", positionals[0], ["deploy", "list", "logs", "delete"]);
+      }
+    }
+
     case "argus": {
       const { flags, positionals } = parsed;
       const { argusDeploysNew, argusSourcemapsUpload, argusTest, argusWhoami } = await import(
@@ -1278,6 +1374,11 @@ main().catch((error: unknown) => {
   // tell a finished run from an abandoned one.
   if (isCancelled(error)) {
     process.exitCode = 130;
+    return;
+  }
+  // Already printed in the command's own form (functions deploy's ✗ steps).
+  if (error instanceof Error && (error as { reported?: unknown }).reported === true) {
+    process.exitCode = 1;
     return;
   }
   const message = error instanceof Error ? error.message : String(error);
