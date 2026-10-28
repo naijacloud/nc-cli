@@ -30,6 +30,12 @@ are described by their GitHub release notes.
 
 ### Changed
 
+- `--project` now narrows `--service`: with both, the service is looked up in
+  that project only, so `env set KEY --service functions-runtime --project shop`
+  works. On `env ls|set|rm`, `--env <environment>` narrows it to one
+  environment of the project. Where `--project` alone lists a whole project
+  (`env ls`, `domains ls`, `deployments ls`), passing `--service` too used to
+  be refused; it now lists that one service. `project/name` still works.
 - `services ls --project` leaves out the functions runtime; its functions are
   under `functions list`.
 - The OpenAPI snapshot in `test/fixtures` is refreshed; no route the CLI calls

@@ -62,16 +62,78 @@ function ambiguous(reference: string, candidates: MyService[]): Error {
 }
 
 /**
+ * Where to look for a service name: `--project`, and `--env` inside it.
+ * `--env` is a name or id in the project, or `project/environment`.
+ */
+export interface ServiceScope {
+  project?: string | undefined;
+  env?: string | undefined;
+}
+
+/**
+ * A service name looked up inside one project (and one environment of it, with
+ * `env`). Reads the project tree, because the account-wide service list does
+ * not say which environment a service is in.
+ */
+async function resolveServiceInProject(
+  name: string,
+  projectReference: string,
+  env: string | undefined,
+): Promise<string> {
+  const tree = await getProjectTree(await resolveProjectId(projectReference));
+  const environments = (tree.environments ?? []).filter(
+    (environment) =>
+      env === undefined ||
+      (looksLikeId(env) ? environment.id === env.trim() : matches(environment.name, env)),
+  );
+  if (env !== undefined && environments.length === 0) {
+    const known = (tree.environments ?? []).map((environment) => environment.name).join(", ");
+    throw new Error(
+      `${tree.name} has no environment called '${env}'.` + (known ? ` It has: ${known}.` : ""),
+    );
+  }
+
+  const found = environments.flatMap((environment) =>
+    environment.services
+      .filter((service) => matches(service.name, name))
+      .map((service) => ({ id: service.id, where: `${tree.name}/${environment.name}` })),
+  );
+  if (found.length === 1) return found[0]!.id;
+  if (found.length > 1) {
+    const lines = found.map((service) => `  ${service.id}  ${service.where}/${name}`).join("\n");
+    throw new Error(
+      `'${name}' matches ${found.length} services in ${tree.name}. Use the id, or name the ` +
+        `environment with --env:\n${lines}`,
+    );
+  }
+  throw new Error(
+    `No service called '${name}' in ${tree.name}${env !== undefined ? `/${env}` : ""}. ` +
+      `Run \`${programName()} services ls --project ${projectReference}\` to see them.`,
+  );
+}
+
+/**
  * Resolves a service reference to an id.
  *
- * Costs one `myServices` call for a name and nothing at all for an id.
+ * Costs one `myServices` call for a name and nothing at all for an id. With a
+ * project — `project/name`, `--project`, or the project part of a
+ * `project/environment` `--env` — the name is looked up in that project only,
+ * and in `--env`'s environment when one is given.
  */
-export async function resolveServiceId(reference: string): Promise<string> {
+export async function resolveServiceId(reference: string, scope: ServiceScope = {}): Promise<string> {
   const trimmed = reference.trim();
   if (trimmed === "") throw new Error("A service is required.");
   if (looksLikeId(trimmed)) return trimmed;
 
   const { project, name } = split(trimmed);
+
+  const env = scope.env?.trim() || undefined;
+  const envParts = env !== undefined && !looksLikeId(env) ? split(env) : undefined;
+  const inProject = project ?? (scope.project?.trim() || undefined) ?? envParts?.project;
+  if (inProject !== undefined && (scope.project?.trim() || env !== undefined)) {
+    return await resolveServiceInProject(name, inProject, envParts ? envParts.name : env);
+  }
+
   const services = await listMyServices();
 
   const found = services.filter(
@@ -262,8 +324,9 @@ export async function requireService(
   cwd: string,
   what: string,
   example: string,
+  scope: ServiceScope = {},
 ): Promise<string> {
-  if (reference) return await resolveServiceId(reference);
+  if (reference) return await resolveServiceId(reference, scope);
 
   const linked = serviceIdFromManifest(cwd);
   if (linked) return linked;

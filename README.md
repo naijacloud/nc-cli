@@ -928,10 +928,10 @@ naijacloud functions delete hello --project shop
   every command works on the project's production environment (`production`,
   else `prod`, else its oldest). `list` shows one environment at a time.
 - **Variables** are the functions runtime's, a service called
-  `functions-runtime`. Name it with its project, since every project with
-  functions has one: `naijacloud env set KEY --service shop/functions-runtime`.
-  With several environments in the project, use the service id from the
-  error that lists them.
+  `functions-runtime`. Every project with functions has one, so say which
+  project: `naijacloud env set KEY --service functions-runtime --project shop`
+  (or `--service shop/functions-runtime`). With functions in several of the
+  project's environments, add `--env prod` to pick one.
 - **Size:** all of an environment's functions run in one functions runtime.
   `--tier <free|starter|pro|pro-max>` sets its size on the first deploy;
   without it the runtime is Free while your workspace has its one free

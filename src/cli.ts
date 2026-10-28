@@ -128,7 +128,9 @@ Resource options
   --limit <n>                  Cap how many rows are returned
 
   Services and projects are named or referenced by id. Where one name matches
-  two services, qualify it as project/name.
+  two services, qualify it as project/name, or add --project (and, for env,
+  --env <environment>) to look for --service there only:
+    ${program} env set GREETING --service functions-runtime --project shop
 
 Launch options
   --dotenv <path>              Seed the new service from this .env
@@ -1123,6 +1125,7 @@ async function main(): Promise<void> {
           await envList({
             service,
             project: value(flags, "project"),
+            env: value(flags, "env"),
             reveal: flags.has("reveal"),
             json,
           });
@@ -1133,13 +1136,22 @@ async function main(): Promise<void> {
             // Absent on purpose is a supported case: envSet then reads the
             // value from a hidden prompt or from stdin.
             positionals[2],
-            { service, scope: value(flags, "scope"), secret: flags.has("secret"), json },
+            {
+              service,
+              project: value(flags, "project"),
+              env: value(flags, "env"),
+              scope: value(flags, "scope"),
+              secret: flags.has("secret"),
+              json,
+            },
           );
           return;
         case "rm":
         case "remove":
           await envRemove(required(positionals[1], "A variable name", "env rm KEY"), {
             service,
+            project: value(flags, "project"),
+            env: value(flags, "env"),
             yes: flags.has("yes"),
             json,
           });
@@ -1148,6 +1160,7 @@ async function main(): Promise<void> {
           const { envImport } = await import("./commands/env-import.js");
           await envImport(positionals[1], {
             service,
+            project: value(flags, "project"),
             env: value(flags, "env"),
             scope: value(flags, "scope"),
             secret: flags.has("secret"),
@@ -1177,20 +1190,20 @@ async function main(): Promise<void> {
         case "add":
           await domainsAdd(
             required(positionals[1], "A domain", "domains add app.example.com"),
-            { service, json },
+            { service, project: value(flags, "project"), json },
           );
           return;
         case "verify":
           await domainsVerify(
             required(positionals[1], "A domain", "domains verify app.example.com"),
-            { service, json },
+            { service, project: value(flags, "project"), json },
           );
           return;
         case "rm":
         case "remove":
           await domainsRemove(
             required(positionals[1], "A domain", "domains rm app.example.com"),
-            { service, json, yes: flags.has("yes") },
+            { service, project: value(flags, "project"), json, yes: flags.has("yes") },
           );
           return;
         default:

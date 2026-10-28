@@ -62,11 +62,8 @@ export interface DomainsListOptions {
 }
 
 export async function domainsList(options: DomainsListOptions): Promise<void> {
-  if (options.service && options.project) {
-    throw new Error("Pass either --service or --project, not both.");
-  }
-
-  const byProject = options.project !== undefined;
+  // --project alone lists the whole project; with --service it only says where to look.
+  const byProject = options.project !== undefined && !options.service;
   const domains = byProject
     ? await listDomainsByProject(await resolveProjectId(options.project!))
     : await listDomainsByService(
@@ -75,6 +72,7 @@ export async function domainsList(options: DomainsListOptions): Promise<void> {
           process.cwd(),
           "Listing domains",
           "domains ls --service <name|id>",
+          { project: options.project },
         ),
       );
 
@@ -110,6 +108,8 @@ export async function domainsList(options: DomainsListOptions): Promise<void> {
 
 export interface DomainTargetOptions {
   service: string | undefined;
+  /** Where to find --service. */
+  project?: string | undefined;
   json: boolean;
 }
 
@@ -125,10 +125,11 @@ async function resolveDomain(
   service: string | undefined,
   what: string,
   example: string,
+  project?: string | undefined,
 ): Promise<{ id: string; domain: CustomDomain | null }> {
   if (looksLikeId(reference)) return { id: reference, domain: null };
 
-  const serviceId = await requireService(service, process.cwd(), what, example);
+  const serviceId = await requireService(service, process.cwd(), what, example, { project });
   const domains = await listDomainsByService(serviceId);
   const wanted = reference.trim().toLowerCase();
   const found = domains.find((domain) => domain.domain.toLowerCase() === wanted);
@@ -154,6 +155,7 @@ export async function domainsAdd(domain: string, options: DomainTargetOptions): 
     process.cwd(),
     "Adding a domain",
     `domains add ${domain} --service <name|id>`,
+    { project: options.project },
   );
   const added = await addDomain(serviceId, domain);
 
@@ -192,6 +194,7 @@ export async function domainsVerify(
     options.service,
     "Verifying a domain",
     `domains verify ${reference} --service <name|id>`,
+    options.project,
   );
   const domain = await verifyDomain(id);
 
@@ -230,6 +233,7 @@ export async function domainsRemove(
     options.service,
     "Removing a domain",
     `domains rm ${reference} --service <name|id>`,
+    options.project,
   );
   const label = domain?.domain ?? id;
 
