@@ -77,6 +77,8 @@ export interface V1Service {
   url: string | null;
   subdomain?: string | null;
   isStatic: boolean;
+  /** The hidden service a project environment's functions run in. */
+  functionsRuntime?: boolean;
   source: V1ServiceSource;
   build: V1ServiceBuild;
   health: string;
@@ -148,6 +150,7 @@ export function toServiceSummary(service: V1Service): ServiceSummary {
     branch: service.source?.branch ?? null,
     repoFullName: service.source?.repoFullName ?? null,
     isStatic: service.isStatic,
+    functionsRuntime: service.functionsRuntime === true,
   };
 }
 

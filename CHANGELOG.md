@@ -20,10 +20,20 @@ are described by their GitHub release notes.
     A bad name or code over 20 MB is refused before anything is sent. A failed
     deploy prints the reason and the build log tail, says which version is
     still live, and exits 1;
-  - `functions list` shows status, calls and errors in 24 hours, and the URL;
+  - `--tier` sizes the functions runtime on the first deploy; without it the
+    runtime is Free while the workspace has its one free runtime;
+  - `functions list` shows one environment's functions (production unless
+    `--env`): status, calls and errors in 24 hours, and the URL;
   - `functions logs <name>` links the live logs and prints the build log;
   - `functions delete <name>` asks first (`--yes` skips it).
 - MCP tools `list_functions`, `deploy_function` and `delete_function`.
+
+### Changed
+
+- `services ls --project` leaves out the functions runtime; its functions are
+  under `functions list`.
+- The OpenAPI snapshot in `test/fixtures` is refreshed; no route the CLI calls
+  is pending any more.
 
 ## [1.7.0] - 2026-10-27
 

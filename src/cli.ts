@@ -257,10 +257,15 @@ Db options
 
 Functions options
   --project <name|id>          Project the function belongs to (required)
-  --env <environment>          Environment in the project (default production)
+  --env <environment>          Environment in the project (default production;
+                               list shows one environment at a time)
   --file <path>                deploy: a .ts/.js/.mjs file, or a folder
   --entry <file>               deploy: the folder's entry file (default index.ts,
                                then index.js, index.mjs)
+  --tier <free|starter|pro|pro-max>
+                               deploy: size of the functions runtime, used on
+                               the first deploy; without it the runtime is Free
+                               while your workspace has its one free runtime
   --limit <n>                  logs: only the last n build log lines
   --yes                        delete: skip the confirmation
   --json                       Machine-readable result on stdout
@@ -526,7 +531,7 @@ const COMMANDS: Record<string, CommandSpec> = {
   },
   functions: {
     booleans: ["json", "yes"],
-    values: ["project", "env", "file", "entry", "limit"],
+    values: ["project", "env", "file", "entry", "limit", "tier"],
     maxPositionals: 2,
     synopsis:
       "functions deploy <name> | list | logs <name> | delete <name>   --project <p>\n\n" +
@@ -1264,6 +1269,7 @@ async function main(): Promise<void> {
             env,
             file: value(flags, "file"),
             entry: value(flags, "entry"),
+            tier: value(flags, "tier"),
             json,
             args: rest,
           });

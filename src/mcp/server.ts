@@ -46,7 +46,7 @@ import type { EnvTarget, ServiceEnvVar } from "../api/index.js";
 import { scopeForService } from "../commands/env.js";
 import { deployFunction } from "../commands/functions.js";
 import { pickSource } from "../commands/services.js";
-import { appTierOrFree } from "../tiers.js";
+import { appTierOrFree, parseTier } from "../tiers.js";
 
 const SERVER_NAME = "naijacloud";
 const SERVER_VERSION = CLIENT_VERSION;
@@ -709,12 +709,13 @@ export function createServer(): McpServer {
     {
       title: "List functions",
       description:
-        "List a project's functions: name, status (DEPLOYING, LIVE, SLEEPING, FAILED, " +
+        "List one environment's functions (the project's production environment unless " +
+          "environmentId names another): name, status (DEPLOYING, LIVE, SLEEPING, FAILED, " +
         "ERRORING, STOPPED), URL, calls and errors in the last 24 hours, and the live " +
-        "and latest versions. Pass environmentId to narrow to one environment. Read-only.",
+        "and latest versions. Read-only.",
       inputSchema: {
         projectId: z.string().min(1).describe("Project id, from list_projects."),
-        environmentId: z.string().min(1).optional().describe("Only this environment's functions."),
+        environmentId: z.string().min(1).optional().describe("Environment id. Omit for the project's production environment."),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -748,10 +749,17 @@ export function createServer(): McpServer {
           .optional()
           .describe("Environment id. Omit for the project's production environment."),
         entrypoint: z.string().min(1).optional().describe("A folder's entry file, if not index.ts."),
+        tier: z
+          .enum(["free", "starter", "pro", "pro-max"])
+          .optional()
+          .describe(
+            "Size of the functions runtime, used only when this deploy creates it. Without it " +
+              "the runtime is Free while the workspace has its one free runtime.",
+          ),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    async ({ projectId, name, path, environmentId, entrypoint }) =>
+    async ({ projectId, name, path, environmentId, entrypoint, tier }) =>
       await run(async () => {
         const outcome = await deployFunction({
           name,
@@ -759,6 +767,7 @@ export function createServer(): McpServer {
           env: environmentId,
           file: path,
           entry: entrypoint,
+          tier: tier === undefined ? undefined : parseTier(tier, "compute"),
           cwd: process.cwd(),
           command: `naijacloud functions deploy ${name} --project ${projectId} (MCP)`,
         });

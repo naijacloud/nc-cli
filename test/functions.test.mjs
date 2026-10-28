@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { list, run } from "./rest-stub.mjs";
+import { list, run, v1Service } from "./rest-stub.mjs";
 
 const source = await import("../build/commands/function-source.js");
 const CLI = fileURLToPath(new URL("../build/cli.js", import.meta.url));
@@ -189,7 +189,7 @@ const slot = {
   expiresInSeconds: 600,
 };
 
-async function deployIn(dir, routes) {
+async function deployIn(dir, routes, extra = {}) {
   const { functionsDeploy } = await import("../build/commands/functions.js");
   const cwd = process.cwd();
   process.chdir(dir);
@@ -200,8 +200,10 @@ async function deployIn(dir, routes) {
         env: undefined,
         file: undefined,
         entry: undefined,
+        tier: undefined,
         json: false,
         args: ["deploy", "hello", "--project", PROJECT],
+        ...extra,
       }),
     );
   } finally {
@@ -280,6 +282,41 @@ test("a failed deploy shows the reason, the build log and the version still live
   assert.equal(result.out, "");
 });
 
+test("--tier is sent as the runtime's size, and a bad one is refused before any request", async () => {
+  const dir = tempDir({ "hello.ts": "x" });
+  const routes = [
+    ["GET", /^\/me$/, { id: "u", email: "a@b.ng", createdAt: "x" }],
+    ["POST", /^\/function-uploads$/, slot],
+    ["PUT", /^\/upload\/u1$/, undefined],
+    ["POST", /^\/functions$/, { function: cloudFunction(), version: version(1), deploy: { id: "d1", serviceId: "rt1", status: "RUNNING" } }],
+  ];
+  const sized = await deployIn(dir, routes, { tier: "starter" });
+  assert.equal(sized.error, undefined, sized.err);
+  assert.equal(sized.sent.find((r) => r.method === "POST" && r.path === "/functions").body.tier, "STARTER");
+
+  const plain = await deployIn(dir, routes);
+  assert.equal(plain.sent.find((r) => r.method === "POST" && r.path === "/functions").body.tier, undefined);
+
+  const bad = await deployIn(dir, routes, { tier: "huge" });
+  assert.equal(bad.error?.name, "ReportedError");
+  assert.match(bad.err, /✗ --tier must be/);
+  assert.equal(bad.sent.length, 0);
+});
+
+test("the API's free-runtime refusal is printed as it is", async () => {
+  const dir = tempDir({ "hello.ts": "x" });
+  const message =
+    "Your workspace already runs functions on its free runtime. Add --tier starter to deploy here.";
+  const result = await deployIn(dir, [
+    ["GET", /^\/me$/, { id: "u", email: "a@b.ng", createdAt: "x" }],
+    ["POST", /^\/function-uploads$/, slot],
+    ["PUT", /^\/upload\/u1$/, undefined],
+    ["POST", /^\/functions$/, { status: 409, body: { error: { code: "CONFLICT", message } } }],
+  ]);
+  assert.equal(result.error?.name, "ReportedError");
+  assert.match(result.err.replace(/\n    /g, " "), new RegExp(`✗ ${message.replace(/\./g, "\\.")}`));
+});
+
 test("list shows name, status, calls, errors, last deployed and URL", async () => {
   const { functionsList } = await import("../build/commands/functions.js");
   const result = await run(
@@ -303,6 +340,25 @@ test("delete --yes finds the function by name and deletes it by id", async () =>
   assert.equal(result.error, undefined, result.err);
   assert.ok(result.sent.some((r) => r.method === "DELETE" && r.path === "/functions/f1"));
   assert.match(result.out, /Deleted hello\./);
+});
+
+test("services ls --project leaves out the functions runtime", async () => {
+  const { servicesList } = await import("../build/commands/services.js");
+  const result = await run(
+    [
+      ["GET", /^\/projects\/[^/]+$/, { id: PROJECT, workspaceId: "t1", name: "shop", displayName: null, description: null, defaultRegion: null, createdAt: "x", updatedAt: "x" }],
+      ["GET", /^\/projects\/[^/]+\/environments$/, list([{ id: "e1", projectId: PROJECT, name: "production", isPreview: false }])],
+      [
+        "GET",
+        /^\/environments\/e1\/services$/,
+        list([v1Service(), v1Service({ id: "rt1", name: "shop-fn", functionsRuntime: true })]),
+      ],
+    ],
+    () => servicesList({ json: false, project: PROJECT }),
+  );
+  assert.equal(result.error, undefined, result.err);
+  assert.match(result.out, /\bapi\b/);
+  assert.doesNotMatch(result.out, /shop-fn/);
 });
 
 /* ------------------------------------------------------------------------ */

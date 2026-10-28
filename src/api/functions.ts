@@ -61,7 +61,7 @@ export interface CloudFunction {
   region: string | null;
   tier: ServiceTier;
   /** The hidden web service the function runs in (logs, variables). */
-  runtimeServiceId: string;
+  runtimeServiceId: string | null;
   environmentId: string;
   liveVersion: CloudFunctionVersion | null;
   latestVersion: CloudFunctionVersion | null;
@@ -82,7 +82,10 @@ export interface DeployCloudFunctionResult {
   deploy: V1Deploy;
 }
 
-/** A project's functions; every environment's unless `environmentId` narrows it. */
+/**
+ * One environment's functions: the project's `production` environment, or the
+ * one `environmentId` names. It never lists every environment at once.
+ */
 export async function listCloudFunctions(
   projectId: string,
   options: { environmentId?: string | undefined; search?: string | undefined } = {},
@@ -119,6 +122,8 @@ export async function deployCloudFunction(input: {
   uploadId: string;
   entrypoint?: string | undefined;
   command?: string | undefined;
+  /** Size of the functions runtime; only used when this deploy creates it. */
+  tier?: ServiceTier | undefined;
 }): Promise<DeployCloudFunctionResult> {
   return await authed<DeployCloudFunctionResult>("POST", "/functions", {
     body: input,

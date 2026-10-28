@@ -46,8 +46,12 @@ export async function servicesList(options: ServicesOptions): Promise<void> {
   // project tree instead and reports more per row.
   if (options.project !== undefined) {
     const project = await getProject(await resolveProjectId(options.project));
+    // The functions runtime is how functions run, not a service anyone made;
+    // `functions list` is where they show.
     const rows = (project.environments ?? []).flatMap((environment) =>
-      environment.services.map((service) => ({ ...service, environment: environment.name })),
+      environment.services
+        .filter((service) => !service.functionsRuntime)
+        .map((service) => ({ ...service, environment: environment.name })),
     );
 
     if (options.json) {

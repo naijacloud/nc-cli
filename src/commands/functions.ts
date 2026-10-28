@@ -26,7 +26,9 @@ import type {
   CloudFunction,
   CloudFunctionVersion,
   DeploymentStatus,
+  ServiceTier,
 } from "../api/index.js";
+import { parseTier } from "../tiers.js";
 import { formatWhen, printJson, printTable } from "../output.js";
 import type { Column } from "../output.js";
 import { programName } from "../program-name.js";
@@ -134,7 +136,9 @@ function dashboardOrigin(): string {
 
 /** The page of the service the project's functions run in: logs, variables, metrics. */
 export function runtimePageUrl(fn: CloudFunction, projectId: string): string {
-  return `${dashboardOrigin()}/services/${encodeURIComponent(fn.runtimeServiceId)}?p=${encodeURIComponent(projectId)}`;
+  return fn.runtimeServiceId
+    ? `${dashboardOrigin()}/services/${encodeURIComponent(fn.runtimeServiceId)}?p=${encodeURIComponent(projectId)}`
+    : dashboardOrigin();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -148,7 +152,7 @@ async function environmentId(project: string, env: string | undefined): Promise<
   return (await resolveEnvironment(reference)).id;
 }
 
-/** Finds one function by name, refusing to guess between environments. */
+/** Finds one function by name in one environment (production unless `--env`). */
 async function findFunction(
   name: string,
   projectId: string,
@@ -158,16 +162,11 @@ async function findFunction(
   const found = (await listCloudFunctions(projectId, { environmentId: envId, search: name })).filter(
     (fn) => fn.name === name,
   );
-  if (found.length === 1) return found[0] as CloudFunction;
-  if (found.length > 1) {
-    throw new Error(
-      `${name} exists in ${found.length} environments of ${project}. Name one with --env <environment>.`,
-    );
-  }
+  if (found[0]) return found[0];
   throw new Error(
-    `${project} has no function called ${name}` +
-      `${envId ? " in that environment" : ""}. ` +
-      `Run \`${programName()} functions list --project ${project}\` to see them.`,
+    `${project} has no function called ${name} in ${envId ? "that environment" : "production"}. ` +
+      `Run \`${programName()} functions list --project ${project}\` to see them` +
+      `${envId ? "" : ", and pass --env for another environment"}.`,
   );
 }
 
@@ -182,6 +181,8 @@ export interface DeployFunctionInput {
   env?: string | undefined;
   file?: string | undefined;
   entry?: string | undefined;
+  /** Runtime size, used only when this deploy creates the runtime. */
+  tier?: ServiceTier | undefined;
   cwd: string;
   /** Recorded on the version, so the dashboard can show how it was deployed. */
   command: string;
@@ -262,6 +263,7 @@ export async function deployFunction(
     uploadId: slot.uploadId,
     entrypoint: bundle.entrypoint,
     command: input.command,
+    tier: input.tier,
   });
   reporter.uploaded?.(result.version);
 
@@ -311,6 +313,8 @@ export interface FunctionsDeployOptions {
   env: string | undefined;
   file: string | undefined;
   entry: string | undefined;
+  /** `--tier` as typed: free, starter, pro or pro-max. */
+  tier: string | undefined;
   json: boolean;
   /** The arguments after `functions`, as typed, for the recorded command. */
   args: readonly string[];
@@ -330,6 +334,12 @@ export async function functionsDeploy(name: string, options: FunctionsDeployOpti
 
   write("\n");
   if (!isValidFunctionName(name)) refuse(invalidNameMessage(name));
+  let tier: ServiceTier | undefined;
+  try {
+    tier = options.tier === undefined ? undefined : parseTier(options.tier, "compute");
+  } catch (error) {
+    refuse((error as Error).message);
+  }
 
   let outcome: DeployFunctionOutcome;
   try {
@@ -340,6 +350,7 @@ export async function functionsDeploy(name: string, options: FunctionsDeployOpti
         env: options.env,
         file: options.file,
         entry: options.entry,
+        tier,
         cwd: process.cwd(),
         command: commandLine(options.args),
       },
@@ -411,6 +422,7 @@ export async function functionsList(options: {
   json: boolean;
 }): Promise<void> {
   const projectId = await resolveProjectId(options.project);
+  // One environment per listing: production unless --env names another.
   const functions = await listCloudFunctions(projectId, {
     environmentId: await environmentId(options.project, options.env),
   });
@@ -434,7 +446,7 @@ export async function functionsList(options: {
   printTable(
     functions,
     columns,
-    `No functions in ${options.project} yet. Deploy one:\n` +
+    `No functions in ${options.project} (${options.env ?? "production"}) yet. Deploy one:\n` +
       `  ${programName()} functions deploy hello --project ${options.project}`,
   );
 }

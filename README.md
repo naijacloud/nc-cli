@@ -925,7 +925,11 @@ naijacloud functions delete hello --project shop
 - **A failed deploy** prints the reason and the last 20 build log lines, and
   the previous version stays live. The exit code is 1, so CI can gate on it.
 - **Environments:** `--env <name>` picks one inside the project; without it,
-  functions go to `production`.
+  every command works on `production`. `list` shows one environment at a time.
+- **Size:** all of an environment's functions run in one functions runtime.
+  `--tier <free|starter|pro|pro-max>` sets its size on the first deploy;
+  without it the runtime is Free while your workspace has its one free
+  runtime. A Free runtime sleeps when idle and wakes on the next call.
 - **Logs:** live logs are in the dashboard, where each line a function prints
   starts with `[fn:<name>`. `functions logs` prints that page's link and the
   newest build log (`--limit <n>` for the last n lines).
@@ -995,8 +999,8 @@ All fifteen tools, as the agent sees them:
 | `create_service`      | `environmentId`, `name`, one of `repoFullName`/`gitUrl`/`image`, `type?`, … , `confirm` | Creates a web service or cron job (Free by default) and queues its build. Requires `confirm: true`. |
 | `list_env_vars`       | `serviceId` \| `projectId`                                   | **Values always masked.** Read-only.                                                                 |
 | `set_env_var`         | `serviceId`, `key`, `value`, `target?`, `secret?`, `confirm` | Upserts one variable. Requires `confirm: true`.                                                      |
-| `list_functions`      | `projectId`, `environmentId?`                                | A project's functions with status, URL and 24-hour calls and errors. Read-only.                      |
-| `deploy_function`     | `projectId`, `name`, `path?`, `environmentId?`, `entrypoint?` | Zips local code, deploys it and waits; returns the URL, or the error and build log tail.            |
+| `list_functions`      | `projectId`, `environmentId?`                                | One environment's (default production) functions with status, URL and 24-hour calls and errors. Read-only.                      |
+| `deploy_function`     | `projectId`, `name`, `path?`, `environmentId?`, `entrypoint?`, `tier?` | Zips local code, deploys it and waits; returns the URL, or the error and build log tail.            |
 | `delete_function`     | `functionId`, `confirm`                                      | URL stops at once, logs go with it. Requires `confirm: true`.                                        |
 
 The MCP surface is deliberately narrower than the CLI's. Static deploys read and
