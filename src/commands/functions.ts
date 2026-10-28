@@ -152,7 +152,7 @@ async function environmentId(project: string, env: string | undefined): Promise<
   return (await resolveEnvironment(reference)).id;
 }
 
-/** Finds one function by name in one environment (production unless `--env`). */
+/** Finds one function by name in one environment (the project's production one unless `--env`). */
 async function findFunction(
   name: string,
   projectId: string,
@@ -164,7 +164,7 @@ async function findFunction(
   );
   if (found[0]) return found[0];
   throw new Error(
-    `${project} has no function called ${name} in ${envId ? "that environment" : "production"}. ` +
+    `${project} has no function called ${name} in ${envId ? "that environment" : "its production environment (prod)"}. ` +
       `Run \`${programName()} functions list --project ${project}\` to see them` +
       `${envId ? "" : ", and pass --env for another environment"}.`,
   );
@@ -422,7 +422,7 @@ export async function functionsList(options: {
   json: boolean;
 }): Promise<void> {
   const projectId = await resolveProjectId(options.project);
-  // One environment per listing: production unless --env names another.
+  // One environment per listing: the project's production one unless --env names another.
   const functions = await listCloudFunctions(projectId, {
     environmentId: await environmentId(options.project, options.env),
   });
@@ -446,7 +446,7 @@ export async function functionsList(options: {
   printTable(
     functions,
     columns,
-    `No functions in ${options.project} (${options.env ?? "production"}) yet. Deploy one:\n` +
+    `No functions in ${options.project} (${options.env ?? "production environment"}) yet. Deploy one:\n` +
       `  ${programName()} functions deploy hello --project ${options.project}`,
   );
 }

@@ -257,8 +257,9 @@ Db options
 
 Functions options
   --project <name|id>          Project the function belongs to (required)
-  --env <environment>          Environment in the project (default production;
-                               list shows one environment at a time)
+  --env <environment>          Environment in the project (default: the
+                               project's production environment, else prod,
+                               else its oldest; list shows one at a time)
   --file <path>                deploy: a .ts/.js/.mjs file, or a folder
   --entry <file>               deploy: the folder's entry file (default index.ts,
                                then index.js, index.mjs)

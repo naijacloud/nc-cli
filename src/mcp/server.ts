@@ -709,13 +709,13 @@ export function createServer(): McpServer {
     {
       title: "List functions",
       description:
-        "List one environment's functions (the project's production environment unless " +
+        "List one environment's functions (the project's production environment — production, else prod, else its oldest — unless " +
           "environmentId names another): name, status (DEPLOYING, LIVE, SLEEPING, FAILED, " +
         "ERRORING, STOPPED), URL, calls and errors in the last 24 hours, and the live " +
         "and latest versions. Read-only.",
       inputSchema: {
         projectId: z.string().min(1).describe("Project id, from list_projects."),
-        environmentId: z.string().min(1).optional().describe("Environment id. Omit for the project's production environment."),
+        environmentId: z.string().min(1).optional().describe("Environment id. Omit for the project's production environment (production, else prod, else its oldest)."),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -747,7 +747,7 @@ export function createServer(): McpServer {
           .string()
           .min(1)
           .optional()
-          .describe("Environment id. Omit for the project's production environment."),
+          .describe("Environment id. Omit for the project's production environment (production, else prod, else its oldest)."),
         entrypoint: z.string().min(1).optional().describe("A folder's entry file, if not index.ts."),
         tier: z
           .enum(["free", "starter", "pro", "pro-max"])

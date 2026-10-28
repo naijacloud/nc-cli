@@ -22,8 +22,8 @@ are described by their GitHub release notes.
     still live, and exits 1;
   - `--tier` sizes the functions runtime on the first deploy; without it the
     runtime is Free while the workspace has its one free runtime;
-  - `functions list` shows one environment's functions (production unless
-    `--env`): status, calls and errors in 24 hours, and the URL;
+  - `functions list` shows one environment's functions (the project's
+    production environment, else prod, unless `--env`): status, calls and errors in 24 hours, and the URL;
   - `functions logs <name>` links the live logs and prints the build log;
   - `functions delete <name>` asks first (`--yes` skips it).
 - MCP tools `list_functions`, `deploy_function` and `delete_function`.

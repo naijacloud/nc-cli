@@ -83,8 +83,8 @@ export interface DeployCloudFunctionResult {
 }
 
 /**
- * One environment's functions: the project's `production` environment, or the
- * one `environmentId` names. It never lists every environment at once.
+ * One environment's functions: the one `environmentId` names, else the
+ * project's production environment (`production`, else `prod`, else its oldest). It never lists every environment at once.
  */
 export async function listCloudFunctions(
   projectId: string,
@@ -103,7 +103,8 @@ export async function getCloudFunction(functionId: string): Promise<CloudFunctio
 /**
  * Reserves a presigned PUT for the function's zip. `sizeBytes` is bound into
  * the signature, so the zip must be final before this is called. Omitting
- * `environmentId` means the project's `production` environment.
+ * `environmentId` means the project's production environment (`production`,
+ * else `prod`, else its oldest).
  */
 export async function createCloudFunctionUpload(input: {
   projectId: string;
