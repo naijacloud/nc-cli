@@ -164,7 +164,7 @@ async function findFunction(
   );
   if (found[0]) return found[0];
   throw new Error(
-    `${project} has no function called ${name} in ${envId ? "that environment" : "its production environment (prod)"}. ` +
+    `${project} has no function called ${name} in ${envId ? "that environment" : "its default environment (production, else prod, else the oldest)"}. ` +
       `Run \`${programName()} functions list --project ${project}\` to see them` +
       `${envId ? "" : ", and pass --env for another environment"}.`,
   );
@@ -446,7 +446,7 @@ export async function functionsList(options: {
   printTable(
     functions,
     columns,
-    `No functions in ${options.project} (${options.env ?? "production environment"}) yet. Deploy one:\n` +
+    `No functions in ${options.project} (${options.env ?? "default environment"}) yet. Deploy one:\n` +
       `  ${programName()} functions deploy hello --project ${options.project}`,
   );
 }
