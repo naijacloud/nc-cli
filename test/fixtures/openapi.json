@@ -733,7 +733,399 @@
         ]
       }
     },
+    "/v1/dns-records/{recordId}": {
+      "patch": {
+        "operationId": "Domains_updateRecord",
+        "parameters": [
+          {
+            "name": "recordId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1DnsRecordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsRecord"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace a record",
+        "tags": [
+          "Domains & DNS"
+        ]
+      },
+      "delete": {
+        "operationId": "Domains_deleteRecord",
+        "parameters": [
+          {
+            "name": "recordId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a record",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/dns-zones/{zoneId}": {
+      "delete": {
+        "operationId": "Domains_deleteZone",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop hosting a zone, with all its records",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/dns-zones/{zoneId}/export": {
+      "get": {
+        "operationId": "Domains_exportZone",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The zone as a BIND zone file",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/dns-zones/{zoneId}/records": {
+      "get": {
+        "operationId": "Domains_records",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsRecordList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A zone's records",
+        "tags": [
+          "Domains & DNS"
+        ]
+      },
+      "post": {
+        "operationId": "Domains_addRecord",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1DnsRecordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsRecord"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a record; published straight away",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/dns-zones/{zoneId}/verify": {
+      "post": {
+        "operationId": "Domains_verifyZone",
+        "parameters": [
+          {
+            "name": "zoneId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsZone"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Check ownership now and publish when proven",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
     "/v1/environments/{environmentId}": {
+      "get": {
+        "description": "The same membership and project-scope check as listing the project. `kind` is DEV, UAT or PROD when the name is exactly that tier.",
+        "operationId": "Environments_get",
+        "parameters": [
+          {
+            "name": "environmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1EnvironmentDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get an environment, with its project and tier",
+        "tags": [
+          "Environments"
+        ]
+      },
       "delete": {
         "description": "Irreversible: tears down every service in it, data included. Requires ADMIN.",
         "operationId": "Environments_remove",
@@ -883,6 +1275,241 @@
         ]
       }
     },
+    "/v1/function-uploads": {
+      "post": {
+        "operationId": "Functions_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1FunctionUploadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StaticUpload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reserve an upload for a function's code (a .zip, up to 20 MB)",
+        "tags": [
+          "Functions"
+        ]
+      }
+    },
+    "/v1/functions": {
+      "post": {
+        "description": "Creates the function on its first deploy. The previous version keeps serving until the new one is live, and stays if the deploy fails.",
+        "operationId": "Functions_deploy",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1DeployFunctionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DeployFunctionResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Deploy an uploaded zip as the next version of a function",
+        "tags": [
+          "Functions"
+        ]
+      }
+    },
+    "/v1/functions/{functionId}": {
+      "get": {
+        "operationId": "Functions_get",
+        "parameters": [
+          {
+            "name": "functionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1Function"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a function, with its live and newest versions",
+        "tags": [
+          "Functions"
+        ]
+      },
+      "delete": {
+        "description": "Its URL stops answering and its logs go with it.",
+        "operationId": "Functions_remove",
+        "parameters": [
+          {
+            "name": "functionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a function",
+        "tags": [
+          "Functions"
+        ]
+      }
+    },
+    "/v1/invoices/{invoiceId}": {
+      "get": {
+        "operationId": "Billing_invoice",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1InvoiceView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One invoice with its line items",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
     "/v1/me": {
       "get": {
         "operationId": "Auth_me",
@@ -917,6 +1544,133 @@
         "summary": "The signed-in person (or the owner of the API key)",
         "tags": [
           "Account"
+        ]
+      }
+    },
+    "/v1/previews/{previewId}": {
+      "get": {
+        "operationId": "PrPreviews_get",
+        "parameters": [
+          {
+            "name": "previewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1PrPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One preview",
+        "tags": [
+          "Previews"
+        ]
+      },
+      "delete": {
+        "operationId": "PrPreviews_teardown",
+        "parameters": [
+          {
+            "name": "previewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1PrPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tear a preview down now",
+        "tags": [
+          "Previews"
+        ]
+      }
+    },
+    "/v1/pricing": {
+      "get": {
+        "operationId": "Pricing_catalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1PricingCatalog"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Instance tiers, unit rates and free allowances",
+        "tags": [
+          "Catalogue"
         ]
       }
     },
@@ -1164,6 +1918,351 @@
         "summary": "List a project's environments",
         "tags": [
           "Projects"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/functions": {
+      "get": {
+        "operationId": "Functions_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Only rows whose name contains this. Send the same value with every page of one walk.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environmentId",
+            "required": false,
+            "in": "query",
+            "description": "Defaults to the project's production environment.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1FunctionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List a project environment's functions by name",
+        "tags": [
+          "Functions"
+        ]
+      }
+    },
+    "/v1/projects/{projectId}/usage": {
+      "get": {
+        "operationId": "Metrics_project",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ProjectUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A project's resource use, per service",
+        "tags": [
+          "Metrics"
+        ]
+      }
+    },
+    "/v1/regions": {
+      "get": {
+        "description": "`freeTier` says whether the Free size can be placed there; `isDefault` marks the default.",
+        "operationId": "Regions_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DeployLocationList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The regions a service can be created in",
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/registered-domains/{domainId}": {
+      "patch": {
+        "operationId": "Domains_update",
+        "parameters": [
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1UpdateDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1RegisteredDomain"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn auto-renew on or off, or change the nameservers",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/registered-domains/{domainId}/renewal-quote": {
+      "get": {
+        "operationId": "Domains_renewalQuote",
+        "parameters": [
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "years",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainRenewalQuote"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What renewing would cost, and the new expiry",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/registered-domains/{domainId}/renewals": {
+      "post": {
+        "operationId": "Domains_renew",
+        "parameters": [
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1RenewDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainCheckout"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start renewing a domain; returns a checkout link",
+        "tags": [
+          "Domains & DNS"
         ]
       }
     },
@@ -2545,6 +3644,176 @@
         ]
       }
     },
+    "/v1/services/{serviceId}/metrics": {
+      "get": {
+        "operationId": "Metrics_series",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "range",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MetricRange"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MetricSeries"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A service's resource time series",
+        "tags": [
+          "Metrics"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/previews": {
+      "get": {
+        "operationId": "PrPreviews_list",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1PrPreviewList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A service's pull-request previews",
+        "tags": [
+          "Previews"
+        ]
+      }
+    },
+    "/v1/services/{serviceId}/previews-enabled": {
+      "put": {
+        "operationId": "PrPreviews_setEnabled",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1PreviewsSettingBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn pull-request previews on or off",
+        "tags": [
+          "Previews"
+        ]
+      }
+    },
     "/v1/services/{serviceId}/resume": {
       "post": {
         "operationId": "Services_resume",
@@ -2998,6 +4267,52 @@
         ]
       }
     },
+    "/v1/services/{serviceId}/usage": {
+      "get": {
+        "operationId": "Metrics_service",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ServiceUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A service's latest resource sample",
+        "tags": [
+          "Metrics"
+        ]
+      }
+    },
     "/v1/static-sites": {
       "post": {
         "operationId": "StaticSites_create",
@@ -3204,6 +4519,986 @@
         "summary": "Get a workspace",
         "tags": [
           "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/api-keys": {
+      "get": {
+        "operationId": "ApiTokens_list",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ApiTokenList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's API keys (hints only, never the key)",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/balance": {
+      "get": {
+        "operationId": "Wallet_balance",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1WalletBalance"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The wallet balance paid services run on, in kobo",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/buckets": {
+      "get": {
+        "operationId": "Storage_list",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StorageBucketList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's buckets in one region",
+        "tags": [
+          "Storage"
+        ]
+      },
+      "post": {
+        "operationId": "Storage_create",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateBucketBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StorageBucket"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a bucket",
+        "tags": [
+          "Storage"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/buckets/{bucket}": {
+      "delete": {
+        "description": "Refused while it holds objects unless `force=true`, which deletes them too.",
+        "operationId": "Storage_remove",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a bucket",
+        "tags": [
+          "Storage"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/buckets/{bucket}/cors": {
+      "get": {
+        "operationId": "Storage_cors",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1CorsRuleList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A bucket's CORS rules",
+        "tags": [
+          "Storage"
+        ]
+      },
+      "put": {
+        "operationId": "Storage_setCors",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V1CorsRuleInput"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace a bucket's CORS rules",
+        "tags": [
+          "Storage"
+        ]
+      },
+      "delete": {
+        "operationId": "Storage_deleteCors",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a bucket's CORS rules",
+        "tags": [
+          "Storage"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/buckets/{bucket}/policy": {
+      "get": {
+        "operationId": "Storage_policy",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1BucketPolicy"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A bucket's policy document, or null",
+        "tags": [
+          "Storage"
+        ]
+      },
+      "put": {
+        "operationId": "Storage_setPolicy",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1BucketPolicyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Replace a bucket's policy",
+        "tags": [
+          "Storage"
+        ]
+      },
+      "delete": {
+        "operationId": "Storage_deletePolicy",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bucket",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": false,
+            "in": "query",
+            "description": "The bucket's region; the workspace default when omitted.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a bucket's policy (makes it private)",
+        "tags": [
+          "Storage"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/dns-zones": {
+      "get": {
+        "operationId": "Domains_zones",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsZoneList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's DNS zones",
+        "tags": [
+          "Domains & DNS"
+        ]
+      },
+      "post": {
+        "description": "The zone stays unpublished until ownership is proven: add `verificationRecord`, or point the nameservers at us, then verify.",
+        "operationId": "Domains_createZone",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateDnsZoneBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DnsZone"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Host a domain’s DNS with us",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/domain-availability": {
+      "get": {
+        "operationId": "Domains_availability",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domains",
+            "required": true,
+            "in": "query",
+            "description": "Up to 20 full names, e.g. domains=acme.ng&domains=acme.com",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainSearchRowList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether exact names can be bought, and for how much",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/domain-orders": {
+      "get": {
+        "operationId": "Domains_orders",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainOrderList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Domain purchases and renewals, newest first",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/domain-search": {
+      "get": {
+        "operationId": "Domains_search",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "acme",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainSearchResults"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search for a domain to buy, with prices in kobo",
+        "tags": [
+          "Domains & DNS"
         ]
       }
     },
@@ -3414,6 +5709,558 @@
         ]
       }
     },
+    "/v1/workspaces/{workspaceId}/invites": {
+      "get": {
+        "operationId": "Members_pending",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1InviteList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pending invites (without their join links)",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/invoices": {
+      "get": {
+        "operationId": "Billing_invoices",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1InvoiceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's monthly invoices, newest first",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/mail/domains": {
+      "get": {
+        "operationId": "Mail_domains",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MailDomainList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's sending domains",
+        "tags": [
+          "Email"
+        ]
+      },
+      "post": {
+        "description": "Returns the DNS records to publish, then verify it.",
+        "operationId": "Mail_create",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1CreateMailDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MailDomainDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a sending domain",
+        "tags": [
+          "Email"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/mail/domains/{domainId}": {
+      "get": {
+        "operationId": "Mail_get",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MailDomainDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A sending domain with its DNS records",
+        "tags": [
+          "Email"
+        ]
+      },
+      "delete": {
+        "operationId": "Mail_remove",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a sending domain",
+        "tags": [
+          "Email"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/mail/domains/{domainId}/verify": {
+      "post": {
+        "operationId": "Mail_verify",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MailDomainDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Check a sending domain's DNS records now",
+        "tags": [
+          "Email"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/mail/keys": {
+      "get": {
+        "operationId": "Mail_keys",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MailApiKeyList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's mail keys (hints only, never the key)",
+        "tags": [
+          "Email"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/members": {
+      "get": {
+        "operationId": "Members_members",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Rows per page. Ignored when a cursor is given.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "The `nextCursor` of the previous page, unchanged.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1MemberList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's members",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
     "/v1/workspaces/{workspaceId}/projects": {
       "get": {
         "operationId": "Projects_list",
@@ -3543,6 +6390,254 @@
           "Projects"
         ]
       }
+    },
+    "/v1/workspaces/{workspaceId}/registered-domains": {
+      "get": {
+        "operationId": "Domains_owned",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1RegisteredDomainList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Domains this workspace owns through us",
+        "tags": [
+          "Domains & DNS"
+        ]
+      },
+      "post": {
+        "description": "Returns a checkout link; the domain is registered once it is paid. The price is our catalogue price for the term.",
+        "operationId": "Domains_purchase",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Any unique string (1–255 printable characters). A retry with the same key and body returns the first response instead of acting twice, for 24 hours.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1PurchaseDomainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1DomainCheckout"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start buying a domain",
+        "tags": [
+          "Domains & DNS"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/roles": {
+      "get": {
+        "operationId": "Members_teamRoles",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1TeamRoleList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A workspace's named roles",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/storage/access-keys": {
+      "get": {
+        "operationId": "Storage_accessKeys",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1StorageAccessKeyList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The workspace's storage access keys (IDs only, never secrets)",
+        "tags": [
+          "Storage"
+        ]
+      }
+    },
+    "/v1/workspaces/{workspaceId}/usage": {
+      "get": {
+        "operationId": "Billing_usage",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1WorkspaceUsageMeters"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Any failure: always this envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V1ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "This month's metered usage against the free allowances",
+        "tags": [
+          "Billing"
+        ]
+      }
     }
   },
   "info": {
@@ -3566,6 +6661,17 @@
       }
     },
     "schemas": {
+      "ApiTokenScope": {
+        "type": "string",
+        "enum": [
+          "DATABASES",
+          "DEPLOYS",
+          "EMAIL_SEND",
+          "PLATFORM_API",
+          "READ",
+          "WRITE"
+        ]
+      },
       "BackupFailureReason": {
         "type": "string",
         "enum": [
@@ -3607,6 +6713,13 @@
           "WEEKLY",
           "MANUAL",
           "PRE_RESTORE"
+        ]
+      },
+      "BucketVisibility": {
+        "type": "string",
+        "enum": [
+          "PRIVATE",
+          "PUBLIC_READ"
         ]
       },
       "CronLogStream": {
@@ -3692,6 +6805,67 @@
         ],
         "description": "What started it: a push, a person, a rollback, …"
       },
+      "DnsRecordOrigin": {
+        "type": "string",
+        "enum": [
+          "MAIL",
+          "SERVICE",
+          "USER"
+        ]
+      },
+      "DnsRecordType": {
+        "type": "string",
+        "enum": [
+          "A",
+          "AAAA",
+          "ALIAS",
+          "CAA",
+          "CNAME",
+          "MX",
+          "NS",
+          "SRV",
+          "TXT"
+        ]
+      },
+      "DnsZoneVerificationMethod": {
+        "type": "string",
+        "enum": [
+          "LEGACY",
+          "NS",
+          "PURCHASE",
+          "TXT"
+        ],
+        "description": "How ownership of the domain was proven; null while pending."
+      },
+      "DomainOrderKind": {
+        "type": "string",
+        "enum": [
+          "REGISTER",
+          "RENEW"
+        ]
+      },
+      "DomainOrderStatus": {
+        "type": "string",
+        "enum": [
+          "ABANDONED",
+          "FULFILLED",
+          "PAID",
+          "PENDING",
+          "REFUNDED",
+          "REFUND_DUE"
+        ]
+      },
+      "DomainUnavailableReason": {
+        "type": "string",
+        "enum": [
+          "CHECK_FAILED",
+          "PRICING_UNAVAILABLE",
+          "TAKEN",
+          "TLD_COMING_SOON",
+          "TLD_UNSUPPORTED"
+        ],
+        "description": "The same answer as a code. Branch on this, not on the sentence — the sentence is copy and will be reworded, and \"somebody else has it\" and \"we cannot sell it yet\" are opposite answers that look alike."
+      },
       "EnvVarScope": {
         "type": "string",
         "enum": [
@@ -3701,6 +6875,43 @@
           "DEV"
         ],
         "description": "When the variable is available. Defaults to build and runtime."
+      },
+      "EnvironmentKind": {
+        "type": "string",
+        "enum": [
+          "DEV",
+          "UAT",
+          "PROD"
+        ],
+        "description": "DEV, UAT or PROD when the name is exactly that tier (any case); null for a custom name such as \"staging\". The tier decides which scoped variables apply."
+      },
+      "FunctionStatus": {
+        "type": "string",
+        "enum": [
+          "DEPLOYING",
+          "LIVE",
+          "SLEEPING",
+          "FAILED",
+          "ERRORING",
+          "STOPPED"
+        ]
+      },
+      "FunctionVersionStatus": {
+        "type": "string",
+        "enum": [
+          "DEPLOYING",
+          "LIVE",
+          "REPLACED",
+          "FAILED"
+        ]
+      },
+      "InvoiceStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "PAID",
+          "VOID"
+        ]
       },
       "LogLevel": {
         "type": "string",
@@ -3718,11 +6929,68 @@
           "SYSTEM"
         ]
       },
+      "MailDomainStatus": {
+        "type": "string",
+        "enum": [
+          "BROKEN",
+          "PENDING",
+          "SUSPENDED",
+          "VERIFIED"
+        ]
+      },
+      "MailKeyScope": {
+        "type": "string",
+        "enum": [
+          "FULL",
+          "SEND"
+        ]
+      },
+      "MetricRange": {
+        "type": "string",
+        "enum": [
+          "LAST_30_MIN",
+          "LAST_HOUR",
+          "LAST_6H",
+          "LAST_24H",
+          "LAST_7D",
+          "LAST_30D"
+        ]
+      },
       "MonorepoStrategy": {
         "type": "string",
         "enum": [
           "ISOLATED",
           "WORKSPACE"
+        ]
+      },
+      "NameserverMode": {
+        "type": "string",
+        "enum": [
+          "CUSTOM",
+          "NC"
+        ]
+      },
+      "PrPreviewStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "CLOSED",
+          "CREATING",
+          "FAILED",
+          "UPDATING"
+        ]
+      },
+      "RegisteredDomainStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "DELETED",
+          "EXPIRING",
+          "FAILED",
+          "GRACE",
+          "PENDING_PAYMENT",
+          "REDEMPTION",
+          "REGISTERING"
         ]
       },
       "RepoScanStatus": {
@@ -3743,6 +7011,14 @@
           "RUNNING",
           "COMPLETED",
           "FAILED"
+        ]
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "ADMIN",
+          "MEMBER",
+          "OWNER"
         ]
       },
       "ServiceHealth": {
@@ -3777,9 +7053,9 @@
         "type": "string",
         "enum": [
           "FREE",
-          "STARTER",
+          "PRO",
           "STANDARD",
-          "PRO"
+          "STARTER"
         ]
       },
       "ServiceType": {
@@ -3812,6 +7088,30 @@
           "SQL"
         ]
       },
+      "TeamPermission": {
+        "type": "string",
+        "enum": [
+          "BILLING",
+          "DATABASES",
+          "DEPLOYS",
+          "EMAIL",
+          "STORAGE",
+          "TEAM"
+        ]
+      },
+      "UsageCategory": {
+        "type": "string",
+        "enum": [
+          "ANALYTICS",
+          "BANDWIDTH",
+          "CACHE",
+          "COMPUTE",
+          "DATABASE",
+          "EMAIL",
+          "PREVIEW",
+          "STORAGE"
+        ]
+      },
       "V1AddCustomDomainBody": {
         "type": "object",
         "properties": {
@@ -3822,6 +7122,119 @@
         },
         "required": [
           "domain"
+        ]
+      },
+      "V1ApiToken": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiTokenScope"
+            }
+          },
+          "teamId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenHint": {
+            "type": "string",
+            "description": "The head of the key including its prefix, to identify it in a list."
+          },
+          "tokenTail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Last characters of the key, to identify it against a value stored in a .env file or a CI secret. Null for keys issued before this was recorded."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "createdAt",
+          "expiresAt",
+          "id",
+          "lastUsedAt",
+          "name",
+          "revokedAt",
+          "scopes",
+          "teamId",
+          "tokenHint",
+          "tokenTail",
+          "updatedAt"
+        ]
+      },
+      "V1ApiTokenList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1ApiToken"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1ArgusPlanPrice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Plan id: free, pro or scale."
+          },
+          "label": {
+            "type": "string",
+            "description": "Plan name, e.g. Pro."
+          },
+          "monthlyKobo": {
+            "type": "number",
+            "description": "Monthly price in kobo. Accrues by the hour from the wallet (monthly ÷ 730), like a service."
+          },
+          "includedErrors": {
+            "type": "number",
+            "description": "Errors included each month before per-error pricing."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "monthlyKobo",
+          "includedErrors"
         ]
       },
       "V1Backup": {
@@ -3957,6 +7370,30 @@
           "nextCursor"
         ]
       },
+      "V1BucketPolicy": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "policy"
+        ]
+      },
+      "V1BucketPolicyBody": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "description": "An S3 bucket policy document, as JSON text."
+          }
+        },
+        "required": [
+          "policy"
+        ]
+      },
       "V1Column": {
         "type": "object",
         "properties": {
@@ -4040,12 +7477,157 @@
           "externalUrl"
         ]
       },
+      "V1CorsRule": {
+        "type": "object",
+        "properties": {
+          "allowedHeaders": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exposeHeaders": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxAgeSeconds": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "allowedHeaders",
+          "allowedMethods",
+          "allowedOrigins",
+          "exposeHeaders",
+          "maxAgeSeconds"
+        ]
+      },
+      "V1CorsRuleInput": {
+        "type": "object",
+        "properties": {
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowedHeaders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exposeHeaders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxAgeSeconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "allowedOrigins",
+          "allowedMethods"
+        ]
+      },
+      "V1CorsRuleList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1CorsRule"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1CreateBucketBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "3–63 lowercase letters, digits, dots and hyphens; unique across Naijacloud."
+          },
+          "visibility": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BucketVisibility"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "V1CreateDnsZoneBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "acme.ng"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "V1CreateEnvironmentBody": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
             "example": "staging"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "V1CreateMailDomainBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "mail.acme.ng"
+          },
+          "region": {
+            "type": "string",
+            "example": "eu-west"
           }
         },
         "required": [
@@ -4251,6 +7833,43 @@
           "uploadId"
         ]
       },
+      "V1CreditPlanPrice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Plan id: launch, production, growth or team."
+          },
+          "label": {
+            "type": "string",
+            "description": "Plan name, e.g. Production."
+          },
+          "monthlyKobo": {
+            "type": "number",
+            "description": "What the card is charged each month, in kobo. It all goes into the balance."
+          },
+          "bonusKobo": {
+            "type": "number",
+            "description": "Bonus credit added with each payment, in kobo (monthlyKobo × bonusPercent ÷ 100, rounded down)."
+          },
+          "spendKobo": {
+            "type": "number",
+            "description": "What the customer gets to spend each month, in kobo: monthlyKobo + bonusKobo."
+          },
+          "goodFor": {
+            "type": "string",
+            "description": "One line for the plan card: what it typically covers."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "monthlyKobo",
+          "bonusKobo",
+          "spendKobo",
+          "goodFor"
+        ]
+      },
       "V1CronRun": {
         "type": "object",
         "properties": {
@@ -4454,6 +8073,12 @@
             "format": "date-time",
             "nullable": true
           },
+          "ownershipVerifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When you proved you own the domain. Null until the ownership TXT record in dnsTarget.records is published; the domain does not route before then."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -4467,6 +8092,7 @@
           "lastCheck",
           "dnsTarget",
           "verifiedAt",
+          "ownershipVerifiedAt",
           "createdAt"
         ]
       },
@@ -4559,6 +8185,56 @@
         },
         "required": [
           "statement"
+        ]
+      },
+      "V1DatabaseStats": {
+        "type": "object",
+        "properties": {
+          "cacheHitRatio": {
+            "type": "number",
+            "nullable": true
+          },
+          "connections": {
+            "type": "integer",
+            "nullable": true
+          },
+          "engine": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          },
+          "itemCount": {
+            "type": "number",
+            "nullable": true
+          },
+          "itemLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "opsPerSec": {
+            "type": "number",
+            "nullable": true
+          },
+          "opsTotal": {
+            "type": "number",
+            "nullable": true
+          },
+          "storageBytes": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "cacheHitRatio",
+          "connections",
+          "engine",
+          "itemCount",
+          "itemLabel",
+          "opsPerSec",
+          "opsTotal",
+          "storageBytes"
         ]
       },
       "V1Deploy": {
@@ -4664,6 +8340,68 @@
           "finishedAt"
         ]
       },
+      "V1DeployFunctionBody": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the project's production environment."
+          },
+          "name": {
+            "type": "string",
+            "example": "hello"
+          },
+          "uploadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entrypoint": {
+            "type": "string",
+            "example": "index.ts"
+          },
+          "command": {
+            "type": "string",
+            "description": "The command that deployed it, shown on the live version."
+          },
+          "tier": {
+            "description": "Only used when this deploy creates the environment's functions runtime. Without it the runtime is Free while the workspace has its free runtime open.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTier"
+              }
+            ]
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "uploadId"
+        ]
+      },
+      "V1DeployFunctionResult": {
+        "type": "object",
+        "properties": {
+          "function": {
+            "$ref": "#/components/schemas/V1Function"
+          },
+          "version": {
+            "$ref": "#/components/schemas/V1FunctionVersion"
+          },
+          "deploy": {
+            "$ref": "#/components/schemas/V1Deploy"
+          }
+        },
+        "required": [
+          "function",
+          "version",
+          "deploy"
+        ]
+      },
       "V1DeployList": {
         "type": "object",
         "properties": {
@@ -4671,6 +8409,50 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V1Deploy"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DeployLocation": {
+        "type": "object",
+        "properties": {
+          "freeTier": {
+            "type": "boolean",
+            "description": "Whether a Free-size service can run in this region. Free services run only where the platform's free capacity is; pick a paid size elsewhere."
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "freeTier",
+          "isDefault",
+          "label",
+          "region"
+        ]
+      },
+      "V1DeployLocationList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DeployLocation"
             }
           },
           "nextCursor": {
@@ -4878,27 +8660,112 @@
       "V1DnsRecord": {
         "type": "object",
         "properties": {
-          "type": {
-            "type": "string",
-            "example": "CNAME"
-          },
-          "name": {
-            "type": "string",
-            "example": "www"
-          },
-          "value": {
+          "content": {
             "type": "string"
           },
-          "purpose": {
+          "createdAt": {
             "type": "string",
+            "format": "date-time"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "origin": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DnsRecordOrigin"
+              }
+            ]
+          },
+          "priority": {
+            "type": "integer",
             "nullable": true
+          },
+          "ttl": {
+            "type": "integer"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DnsRecordType"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "zoneId": {
+            "type": "string"
           }
         },
         "required": [
-          "type",
+          "content",
+          "createdAt",
+          "editable",
+          "id",
           "name",
-          "value",
-          "purpose"
+          "origin",
+          "priority",
+          "ttl",
+          "type",
+          "updatedAt",
+          "zoneId"
+        ]
+      },
+      "V1DnsRecordBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "\"@\" for the zone apex, or a label."
+          },
+          "type": {
+            "type": "string",
+            "description": "A, AAAA, CNAME, MX, TXT, …"
+          },
+          "content": {
+            "type": "string"
+          },
+          "ttl": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 604800
+          },
+          "priority": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "content"
+        ]
+      },
+      "V1DnsRecordList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DnsRecord"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
         ]
       },
       "V1DnsTarget": {
@@ -4937,6 +8804,372 @@
           "isApex",
           "records",
           "conflicts"
+        ]
+      },
+      "V1DnsZone": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verificationMethod": {
+            "nullable": true,
+            "description": "How ownership of the domain was proven; null while pending.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DnsZoneVerificationMethod"
+              }
+            ]
+          },
+          "verificationRecord": {
+            "nullable": true,
+            "description": "The TXT record that proves ownership while the zone is pending verification; null once ownership is proven.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1DnsZoneVerificationRecord"
+              }
+            ]
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When ownership of the domain was proven. Null while the zone is pending verification: it is not published and its name is not yet exclusively held."
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "lastError",
+          "name",
+          "published",
+          "publishedAt",
+          "teamId",
+          "updatedAt",
+          "verificationMethod",
+          "verificationRecord",
+          "verifiedAt"
+        ]
+      },
+      "V1DnsZoneList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DnsZone"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DnsZoneVerificationRecord": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Record name relative to the domain, e.g. _naijacloud-verify"
+          },
+          "name": {
+            "type": "string",
+            "description": "Fully-qualified record name, e.g. _naijacloud-verify.example.com"
+          },
+          "type": {
+            "type": "string",
+            "description": "Always TXT."
+          },
+          "value": {
+            "type": "string",
+            "description": "The exact value the TXT record must hold."
+          }
+        },
+        "required": [
+          "host",
+          "name",
+          "type",
+          "value"
+        ]
+      },
+      "V1DomainCheckout": {
+        "type": "object",
+        "properties": {
+          "amountKobo": {
+            "type": "number",
+            "description": "What they will be charged, in kobo"
+          },
+          "checkoutUrl": {
+            "type": "string",
+            "description": "The hosted payment page to send the customer to"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Our reference for the order; echoed back on payment"
+          }
+        },
+        "required": [
+          "amountKobo",
+          "checkoutUrl",
+          "reference"
+        ]
+      },
+      "V1DomainOrder": {
+        "type": "object",
+        "properties": {
+          "amountKobo": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DomainOrderKind"
+              }
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DomainOrderStatus"
+              }
+            ]
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "years": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "amountKobo",
+          "createdAt",
+          "domain",
+          "failureReason",
+          "id",
+          "kind",
+          "reference",
+          "status",
+          "teamId",
+          "updatedAt",
+          "years"
+        ]
+      },
+      "V1DomainOrderList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DomainOrder"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1DomainRenewalQuote": {
+        "type": "object",
+        "properties": {
+          "amountKobo": {
+            "type": "number",
+            "description": "What the customer pays, in kobo. Firm — the checkout is created for exactly this amount."
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "The current expiry date, or null if we hold none"
+          },
+          "newExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "What the expiry becomes once paid. Extends the current date rather than restarting from today, so renewing early loses nothing."
+          },
+          "years": {
+            "type": "integer",
+            "description": "Years this quote covers"
+          }
+        },
+        "required": [
+          "amountKobo",
+          "domain",
+          "expiresAt",
+          "newExpiresAt",
+          "years"
+        ]
+      },
+      "V1DomainSearchResults": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "description": "What they asked for and can have, cheapest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DomainSearchRow"
+            }
+          },
+          "availableCount": {
+            "type": "integer",
+            "description": "How many rows across all groups can be bought"
+          },
+          "query": {
+            "type": "string",
+            "description": "The bare name searched, after stripping any URL"
+          },
+          "suggestions": {
+            "description": "Name variants they could have instead, cheapest first. Always available — a suggestion somebody else owns is not a suggestion.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DomainSearchRow"
+            }
+          },
+          "unavailable": {
+            "description": "What they cannot have, each row carrying its own reason. Returned rather than dropped: somebody who typed a .ng needs to see why.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DomainSearchRow"
+            }
+          }
+        },
+        "required": [
+          "available",
+          "availableCount",
+          "query",
+          "suggestions",
+          "unavailable"
+        ]
+      },
+      "V1DomainSearchRow": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether this domain can be bought here, right now"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "premium": {
+            "type": "boolean",
+            "description": "Premium names are priced individually by the registry and cost far more than the standard rate"
+          },
+          "priceKobo": {
+            "type": "number",
+            "nullable": true,
+            "description": "What the customer pays, in kobo, for `years`. Firm, not an estimate — the checkout is created for exactly this amount, so the row, the payment page and the receipt agree. Null when it cannot be sold or cannot be priced right now."
+          },
+          "unavailableCode": {
+            "nullable": true,
+            "description": "The same answer as a code. Branch on this, not on the sentence — the sentence is copy and will be reworded, and \"somebody else has it\" and \"we cannot sell it yet\" are opposite answers that look alike.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DomainUnavailableReason"
+              }
+            ]
+          },
+          "unavailableReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why it cannot be bought, in words meant for the customer"
+          },
+          "years": {
+            "type": "integer",
+            "description": "Years the price covers — some registries only allow one"
+          }
+        },
+        "required": [
+          "available",
+          "domain",
+          "premium",
+          "priceKobo",
+          "unavailableCode",
+          "unavailableReason",
+          "years"
+        ]
+      },
+      "V1DomainSearchRowList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1DomainSearchRow"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
         ]
       },
       "V1EnvVar": {
@@ -5094,6 +9327,68 @@
           "updatedAt"
         ]
       },
+      "V1EnvironmentDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "production"
+          },
+          "isPreview": {
+            "type": "boolean",
+            "description": "True for a pull-request preview environment."
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "True while this environment is paused on its own. A paused project stops it too without setting this."
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "nullable": true,
+            "description": "DEV, UAT or PROD when the name is exactly that tier (any case); null for a custom name such as \"staging\". The tier decides which scoped variables apply.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnvironmentKind"
+              }
+            ]
+          },
+          "project": {
+            "$ref": "#/components/schemas/V1EnvironmentProject"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "isPreview",
+          "paused",
+          "pausedAt",
+          "createdAt",
+          "updatedAt",
+          "kind",
+          "project"
+        ]
+      },
       "V1EnvironmentList": {
         "type": "object",
         "properties": {
@@ -5112,6 +9407,27 @@
         "required": [
           "data",
           "nextCursor"
+        ]
+      },
+      "V1EnvironmentProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name"
         ]
       },
       "V1ErrorBody": {
@@ -5198,6 +9514,280 @@
           "column"
         ]
       },
+      "V1FreeAllowanceCard": {
+        "type": "object",
+        "properties": {
+          "analyticsEvents": {
+            "type": "number"
+          },
+          "egressBytes": {
+            "type": "number"
+          },
+          "emailMessages": {
+            "type": "number"
+          },
+          "monthlyCreditKobo": {
+            "type": "number"
+          },
+          "previewFreeHours": {
+            "type": "integer"
+          },
+          "previewRateMultiplier": {
+            "type": "number"
+          },
+          "sessionReplays": {
+            "type": "number"
+          },
+          "storageBytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "analyticsEvents",
+          "egressBytes",
+          "emailMessages",
+          "monthlyCreditKobo",
+          "previewFreeHours",
+          "previewRateMultiplier",
+          "sessionReplays",
+          "storageBytes"
+        ]
+      },
+      "V1Function": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "send-receipt"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://shop-fn.naijacloud.app/functions/v1/send-receipt"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FunctionStatus"
+              }
+            ]
+          },
+          "statusDetail": {
+            "type": "string",
+            "nullable": true
+          },
+          "region": {
+            "type": "string",
+            "nullable": true,
+            "example": "eu-west"
+          },
+          "tier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTier"
+              }
+            ]
+          },
+          "runtimeServiceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The hidden web service every function in the environment runs in."
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "liveVersion": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1FunctionVersion"
+              }
+            ]
+          },
+          "latestVersion": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1FunctionVersion"
+              }
+            ]
+          },
+          "calls24h": {
+            "type": "number",
+            "nullable": true
+          },
+          "errors24h": {
+            "type": "number",
+            "nullable": true
+          },
+          "limits": {
+            "$ref": "#/components/schemas/V1FunctionLimits"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "url",
+          "status",
+          "statusDetail",
+          "region",
+          "tier",
+          "runtimeServiceId",
+          "environmentId",
+          "liveVersion",
+          "latestVersion",
+          "calls24h",
+          "errors24h",
+          "limits",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "V1FunctionLimits": {
+        "type": "object",
+        "properties": {
+          "memoryMb": {
+            "type": "number"
+          },
+          "maxDurationSeconds": {
+            "type": "number",
+            "description": "Longest one call may run before a 504."
+          },
+          "maxCodeBytes": {
+            "type": "number",
+            "description": "Largest upload per deploy, in bytes."
+          }
+        },
+        "required": [
+          "memoryMb",
+          "maxDurationSeconds",
+          "maxCodeBytes"
+        ]
+      },
+      "V1FunctionList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Function"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1FunctionUploadBody": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "environmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the project's production environment."
+          },
+          "name": {
+            "type": "string",
+            "example": "hello"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "description": "Size of the zip in bytes.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "projectId",
+          "name",
+          "sizeBytes"
+        ]
+      },
+      "V1FunctionVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number",
+            "description": "From 1, per function."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FunctionVersionStatus"
+              }
+            ]
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "entrypoint": {
+            "type": "string",
+            "example": "index.ts"
+          },
+          "command": {
+            "type": "string",
+            "nullable": true
+          },
+          "deployedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "deployId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "The runtime deploy carrying it; its logs are the build log."
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "sizeBytes",
+          "entrypoint",
+          "command",
+          "deployedByName",
+          "deployId",
+          "errorMessage",
+          "createdAt"
+        ]
+      },
       "V1GithubInstallUrl": {
         "type": "object",
         "properties": {
@@ -5208,6 +9798,224 @@
         },
         "required": [
           "url"
+        ]
+      },
+      "V1Invite": {
+        "type": "object",
+        "properties": {
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "True once the link has lapsed; it can still be resent."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "invitedByName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Who sent (or last resent) the invite, by name or email. Null once that person has left the workspace."
+          },
+          "projectIds": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          },
+          "roleName": {
+            "type": "string",
+            "nullable": true,
+            "description": "The named workspace role the invite grants, or null when it grants only its rank."
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "teamRoleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "acceptedAt",
+          "createdAt",
+          "email",
+          "expired",
+          "expiresAt",
+          "id",
+          "invitedByName",
+          "projectIds",
+          "role",
+          "roleName",
+          "teamId",
+          "teamRoleId",
+          "updatedAt"
+        ]
+      },
+      "V1InviteList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Invite"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1InvoiceLineItemView": {
+        "type": "object",
+        "properties": {
+          "amountKobo": {
+            "type": "number"
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UsageCategory"
+              }
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "hours": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amountKobo",
+          "category",
+          "description",
+          "hours",
+          "id"
+        ]
+      },
+      "V1InvoiceList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1InvoiceView"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1InvoiceView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "creditKobo": {
+            "type": "number"
+          },
+          "debitedKobo": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1InvoiceLineItemView"
+            }
+          },
+          "number": {
+            "type": "integer"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InvoiceStatus"
+              }
+            ]
+          },
+          "totalKobo": {
+            "type": "number"
+          },
+          "unbilledKobo": {
+            "type": "number"
+          },
+          "usageKobo": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "creditKobo",
+          "debitedKobo",
+          "id",
+          "issuedAt",
+          "lineItems",
+          "number",
+          "periodEnd",
+          "periodStart",
+          "status",
+          "totalKobo",
+          "unbilledKobo",
+          "usageKobo"
         ]
       },
       "V1LoginBody": {
@@ -5224,6 +10032,293 @@
         "required": [
           "email",
           "password"
+        ]
+      },
+      "V1MailApiKey": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isLive": {
+            "type": "boolean"
+          },
+          "keyHint": {
+            "type": "string",
+            "description": "First characters of the key, to identify it in a list."
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "scope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MailKeyScope"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "isLive",
+          "keyHint",
+          "lastUsedAt",
+          "name",
+          "revokedAt",
+          "scope",
+          "updatedAt"
+        ]
+      },
+      "V1MailApiKeyList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1MailApiKey"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1MailDnsRecord": {
+        "type": "object",
+        "properties": {
+          "fqdn": {
+            "type": "string",
+            "description": "The full DNS name this record must exist at, e.g. nm._domainkey.send.acme.com."
+          },
+          "host": {
+            "type": "string",
+            "description": "Host relative to the sending domain; \"@\" is the sending domain itself."
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number",
+            "nullable": true
+          },
+          "problem": {
+            "type": "string",
+            "nullable": true
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "zoneHost": {
+            "type": "string",
+            "nullable": true,
+            "description": "Host relative to the DNS zone the customer edits (MailDomainDetail.zone); \"@\" is the zone root."
+          }
+        },
+        "required": [
+          "fqdn",
+          "host",
+          "name",
+          "priority",
+          "problem",
+          "required",
+          "type",
+          "value",
+          "verified",
+          "zoneHost"
+        ]
+      },
+      "V1MailDnsZone": {
+        "type": "object",
+        "properties": {
+          "dnsZoneId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The Naijacloud DNS zone id, when hostedOnNaijacloud."
+          },
+          "hostedOnNaijacloud": {
+            "type": "boolean",
+            "description": "True when this zone is on Naijacloud DNS in the same workspace, so publishMailDomainRecords can add the records in one step."
+          },
+          "name": {
+            "type": "string",
+            "description": "The zone the records are added to, e.g. acme.com for send.acme.com. zoneHost on each record is relative to it."
+          }
+        },
+        "required": [
+          "dnsZoneId",
+          "hostedOnNaijacloud",
+          "name"
+        ]
+      },
+      "V1MailDomain": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dailyQuota": {
+            "type": "integer"
+          },
+          "dkimPublicKey": {
+            "type": "string"
+          },
+          "failingRecords": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastCheckedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MailDomainStatus"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "suspendedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "createdAt",
+          "dailyQuota",
+          "dkimPublicKey",
+          "failingRecords",
+          "id",
+          "lastCheckedAt",
+          "name",
+          "region",
+          "status",
+          "suspendedAt",
+          "suspendedReason",
+          "updatedAt",
+          "verifiedAt"
+        ]
+      },
+      "V1MailDomainDetail": {
+        "type": "object",
+        "properties": {
+          "alignmentWarning": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set when the customer DMARC policy would break signing."
+          },
+          "domain": {
+            "$ref": "#/components/schemas/V1MailDomain"
+          },
+          "propagating": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Set when DNS is right but not yet propagated."
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1MailDnsRecord"
+            }
+          },
+          "zone": {
+            "nullable": true,
+            "description": "The DNS zone the records go into; each record carries zoneHost relative to it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1MailDnsZone"
+              }
+            ]
+          }
+        },
+        "required": [
+          "alignmentWarning",
+          "domain",
+          "propagating",
+          "records",
+          "zone"
+        ]
+      },
+      "V1MailDomainList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1MailDomain"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
         ]
       },
       "V1Me": {
@@ -5263,6 +10358,446 @@
           "lastName",
           "emailVerifiedAt",
           "createdAt"
+        ]
+      },
+      "V1Member": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "$ref": "#/components/schemas/V1MemberUser"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceRole"
+              }
+            ]
+          },
+          "teamRoleId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The named workspace role, when one is set."
+          },
+          "projectIds": {
+            "nullable": true,
+            "description": "The projects a project-scoped member may reach.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "user",
+          "role",
+          "teamRoleId",
+          "projectIds",
+          "createdAt"
+        ]
+      },
+      "V1MemberList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1Member"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1MemberUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName"
+        ]
+      },
+      "V1MetricPoint": {
+        "type": "object",
+        "properties": {
+          "blockReadBytesPerSec": {
+            "type": "number"
+          },
+          "blockWriteBytesPerSec": {
+            "type": "number"
+          },
+          "cacheHitRatio": {
+            "type": "number",
+            "nullable": true
+          },
+          "connections": {
+            "type": "integer",
+            "nullable": true
+          },
+          "cpuPercent": {
+            "type": "number"
+          },
+          "memoryBytes": {
+            "type": "number"
+          },
+          "memoryLimitBytes": {
+            "type": "number"
+          },
+          "memoryPercent": {
+            "type": "number"
+          },
+          "networkRxBytesPerSec": {
+            "type": "number"
+          },
+          "networkTxBytesPerSec": {
+            "type": "number"
+          },
+          "opsPerSec": {
+            "type": "number",
+            "nullable": true
+          },
+          "storageBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "t": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "blockReadBytesPerSec",
+          "blockWriteBytesPerSec",
+          "cacheHitRatio",
+          "connections",
+          "cpuPercent",
+          "memoryBytes",
+          "memoryLimitBytes",
+          "memoryPercent",
+          "networkRxBytesPerSec",
+          "networkTxBytesPerSec",
+          "opsPerSec",
+          "storageBytes",
+          "t"
+        ]
+      },
+      "V1MetricSeries": {
+        "type": "object",
+        "properties": {
+          "bucketSeconds": {
+            "type": "integer"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1MetricPoint"
+            }
+          },
+          "range": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MetricRange"
+              }
+            ]
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "bucketSeconds",
+          "points",
+          "range",
+          "serviceId",
+          "type"
+        ]
+      },
+      "V1PrPreview": {
+        "type": "object",
+        "properties": {
+          "authorLogin": {
+            "type": "string",
+            "nullable": true
+          },
+          "baseRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "environmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "headRef": {
+            "type": "string"
+          },
+          "headSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastDeploymentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "prNumber": {
+            "type": "integer"
+          },
+          "previewPostgresServiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "previewWebServiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "repoFullName": {
+            "type": "string"
+          },
+          "sourceServiceId": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrPreviewStatus"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "authorLogin",
+          "baseRef",
+          "createdAt",
+          "environmentId",
+          "error",
+          "headRef",
+          "headSha",
+          "id",
+          "lastDeploymentId",
+          "prNumber",
+          "previewPostgresServiceId",
+          "previewWebServiceId",
+          "projectId",
+          "repoFullName",
+          "sourceServiceId",
+          "status",
+          "title",
+          "updatedAt",
+          "url"
+        ]
+      },
+      "V1PrPreviewList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1PrPreview"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1PreviewsSettingBody": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Open a preview environment for every pull request."
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "V1PricingCatalog": {
+        "type": "object",
+        "properties": {
+          "computeGraceDays": {
+            "type": "integer",
+            "description": "Days a workspace may sit at an empty balance before its paid apps (web services and cron jobs) are stopped."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "dataGraceDays": {
+            "type": "integer",
+            "description": "Days a workspace may sit at an empty balance before its paid databases and caches are stopped. Their data is kept."
+          },
+          "freeAllowances": {
+            "$ref": "#/components/schemas/V1FreeAllowanceCard"
+          },
+          "maxTopUpKobo": {
+            "type": "number",
+            "nullable": true,
+            "description": "The largest single wallet top-up accepted, in kobo. Null when there is no maximum."
+          },
+          "minTopUpKobo": {
+            "type": "number",
+            "description": "The smallest single wallet top-up accepted, in kobo. Shown on the Add funds sheet before anyone types."
+          },
+          "neverBilled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "serviceTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1ServiceTierPrice"
+            }
+          },
+          "stopsPaidServices": {
+            "type": "boolean",
+            "description": "Whether an empty balance stops paid apps and databases after the grace periods. False while only preview environments are stopped."
+          },
+          "regionMultipliers": {
+            "description": "Price multiplier per region for newly created services.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1RegionPriceMultiplier"
+            }
+          },
+          "topUpBonusCapKobo": {
+            "type": "number",
+            "description": "The most top-up bonus one workspace can receive in any rolling 12 months, in kobo."
+          },
+          "topUpBonusTiers": {
+            "description": "Extra credit on a single large top-up, highest tier first. Credited as its own ledger entry once the payment settles.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1TopUpBonusTier"
+            }
+          },
+          "unitRates": {
+            "$ref": "#/components/schemas/V1UnitRateCard"
+          },
+          "usdReferenceRate": {
+            "type": "number",
+            "description": "Naira per US dollar used only to convert competitor prices for comparison. Never used to bill."
+          },
+          "argusPlans": {
+            "description": "Argus plans, cheapest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1ArgusPlanPrice"
+            }
+          },
+          "argusPlansBilled": {
+            "type": "boolean",
+            "description": "Whether choosing a paid Argus plan charges the wallet today. False until Argus plan billing is switched on."
+          },
+          "creditPlans": {
+            "description": "Monthly credit plans, cheapest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1CreditPlanPrice"
+            }
+          },
+          "creditPlanBonusPercent": {
+            "type": "number",
+            "description": "The bonus percent on every credit-plan payment. Never stacks with the top-up bonus."
+          },
+          "creditPlansEnabled": {
+            "type": "boolean",
+            "description": "Whether monthly credit plans can be bought today. False until they are switched on."
+          }
+        },
+        "required": [
+          "computeGraceDays",
+          "currency",
+          "dataGraceDays",
+          "freeAllowances",
+          "maxTopUpKobo",
+          "minTopUpKobo",
+          "neverBilled",
+          "serviceTiers",
+          "stopsPaidServices",
+          "regionMultipliers",
+          "topUpBonusCapKobo",
+          "topUpBonusTiers",
+          "unitRates",
+          "usdReferenceRate",
+          "argusPlans",
+          "argusPlansBilled",
+          "creditPlans",
+          "creditPlanBonusPercent",
+          "creditPlansEnabled"
         ]
       },
       "V1Project": {
@@ -5348,6 +10883,65 @@
         "required": [
           "data",
           "nextCursor"
+        ]
+      },
+      "V1ProjectUsage": {
+        "type": "object",
+        "properties": {
+          "avgCpuPercent": {
+            "type": "number"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "serviceCount": {
+            "type": "integer"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1ServiceUsage"
+            }
+          },
+          "totalMemoryBytes": {
+            "type": "number"
+          },
+          "totalStorageBytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "avgCpuPercent",
+          "projectId",
+          "serviceCount",
+          "services",
+          "totalMemoryBytes",
+          "totalStorageBytes"
+        ]
+      },
+      "V1PurchaseDomainBody": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "example": "acme.com.ng"
+          },
+          "years": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "contact": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The registrant: the same contact fields as the dashboard checkout. The price is never taken from the request."
+          }
+        },
+        "required": [
+          "domain",
+          "years",
+          "contact"
         ]
       },
       "V1QueryResult": {
@@ -5445,6 +11039,144 @@
           "key",
           "label"
         ]
+      },
+      "V1RegionPriceMultiplier": {
+        "type": "object",
+        "properties": {
+          "multiplier": {
+            "type": "number",
+            "description": "Applied to app and database prices for services created in this region today. eu-west is the base, 1.0."
+          },
+          "region": {
+            "type": "string",
+            "description": "Region id, e.g. af-west."
+          }
+        },
+        "required": [
+          "multiplier",
+          "region"
+        ]
+      },
+      "V1RegisteredDomain": {
+        "type": "object",
+        "properties": {
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "customNameservers": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameserverMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameserverMode"
+              }
+            ]
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "registrantVerifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RegisteredDomainStatus"
+              }
+            ]
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "tld": {
+            "type": "string"
+          },
+          "transferLockUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "autoRenew",
+          "createdAt",
+          "customNameservers",
+          "domain",
+          "expiresAt",
+          "id",
+          "lastError",
+          "nameserverMode",
+          "registeredAt",
+          "registrantVerifiedAt",
+          "status",
+          "teamId",
+          "tld",
+          "transferLockUntil",
+          "updatedAt"
+        ]
+      },
+      "V1RegisteredDomainList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1RegisteredDomain"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1RenewDomainBody": {
+        "type": "object",
+        "properties": {
+          "years": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          }
+        }
       },
       "V1Repository": {
         "type": "object",
@@ -5695,6 +11427,10 @@
           "isStatic": {
             "type": "boolean"
           },
+          "functionsRuntime": {
+            "type": "boolean",
+            "description": "True for a project environment's hidden functions runtime. Lists of services usually leave it out and show its functions instead."
+          },
           "port": {
             "type": "number",
             "nullable": true
@@ -5770,6 +11506,7 @@
           "runtime",
           "framework",
           "isStatic",
+          "functionsRuntime",
           "port",
           "healthCheckPath",
           "memoryMb",
@@ -5973,6 +11710,113 @@
           "nextCursor"
         ]
       },
+      "V1ServiceTierPrice": {
+        "type": "object",
+        "properties": {
+          "cpuMillicores": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "memoryMb": {
+            "type": "integer"
+          },
+          "priceKobo": {
+            "type": "number"
+          },
+          "storageMb": {
+            "type": "integer",
+            "nullable": true
+          },
+          "tier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTier"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cpuMillicores",
+          "currency",
+          "family",
+          "label",
+          "memoryMb",
+          "priceKobo",
+          "storageMb",
+          "tier"
+        ]
+      },
+      "V1ServiceUsage": {
+        "type": "object",
+        "properties": {
+          "cpuPercent": {
+            "type": "number"
+          },
+          "database": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/V1DatabaseStats"
+              }
+            ]
+          },
+          "hasData": {
+            "type": "boolean"
+          },
+          "memoryBytes": {
+            "type": "number"
+          },
+          "memoryLimitBytes": {
+            "type": "number"
+          },
+          "memoryPercent": {
+            "type": "number"
+          },
+          "networkRxBytesPerSec": {
+            "type": "number"
+          },
+          "networkTxBytesPerSec": {
+            "type": "number"
+          },
+          "sampledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cpuPercent",
+          "database",
+          "hasData",
+          "memoryBytes",
+          "memoryLimitBytes",
+          "memoryPercent",
+          "networkRxBytesPerSec",
+          "networkTxBytesPerSec",
+          "sampledAt",
+          "serviceId",
+          "type"
+        ]
+      },
       "V1Session": {
         "type": "object",
         "properties": {
@@ -6094,6 +11938,115 @@
           "sizeBytes"
         ]
       },
+      "V1StorageAccessKey": {
+        "type": "object",
+        "properties": {
+          "accessKeyId": {
+            "type": "string",
+            "description": "The S3 access key ID. Safe to show."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "What the key is for, e.g. \"storefront uploads\"."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "accessKeyId",
+          "createdAt",
+          "id",
+          "name",
+          "updatedAt"
+        ]
+      },
+      "V1StorageAccessKeyList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1StorageAccessKey"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1StorageBucket": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publicBaseUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "region": {
+            "type": "string"
+          },
+          "visibility": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BucketVisibility"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "endpoint",
+          "name",
+          "publicBaseUrl",
+          "region",
+          "visibility"
+        ]
+      },
+      "V1StorageBucketList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1StorageBucket"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
       "V1TableExportBody": {
         "type": "object",
         "properties": {
@@ -6182,6 +12135,128 @@
           "nextCursor"
         ]
       },
+      "V1TeamRole": {
+        "type": "object",
+        "properties": {
+          "allProjects": {
+            "type": "boolean"
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamPermission"
+            }
+          },
+          "projectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "teamId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "allProjects",
+          "builtin",
+          "createdAt",
+          "description",
+          "editable",
+          "id",
+          "name",
+          "permissions",
+          "projectIds",
+          "readOnly",
+          "teamId",
+          "updatedAt"
+        ]
+      },
+      "V1TeamRoleList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V1TeamRoleRow"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as `cursor` to get the next page; null on the last."
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ]
+      },
+      "V1TeamRoleRow": {
+        "type": "object",
+        "properties": {
+          "memberCount": {
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/V1TeamRole"
+          },
+          "scopedProjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "memberCount",
+          "role",
+          "scopedProjectIds"
+        ]
+      },
+      "V1TopUpBonusTier": {
+        "type": "object",
+        "properties": {
+          "minTopUpKobo": {
+            "type": "number",
+            "description": "The smallest single top-up that earns this tier, in kobo."
+          },
+          "percent": {
+            "type": "number",
+            "description": "Extra credit, as a percent of what the top-up paid in."
+          }
+        },
+        "required": [
+          "minTopUpKobo",
+          "percent"
+        ]
+      },
       "V1TwoFactorBody": {
         "type": "object",
         "properties": {
@@ -6216,6 +12291,41 @@
           "expiresAt"
         ]
       },
+      "V1UnitRateCard": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "dbDiskKoboPerGbMonth": {
+            "type": "number"
+          },
+          "egressKoboPerGb": {
+            "type": "number"
+          },
+          "emailKoboPerMessage": {
+            "type": "number"
+          },
+          "memoryKoboPerGbMonth": {
+            "type": "number"
+          },
+          "objectStorageKoboPerGbMonth": {
+            "type": "number"
+          },
+          "vcpuKoboPerVcpuMonth": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "currency",
+          "dbDiskKoboPerGbMonth",
+          "egressKoboPerGb",
+          "emailKoboPerMessage",
+          "memoryKoboPerGbMonth",
+          "objectStorageKoboPerGbMonth",
+          "vcpuKoboPerVcpuMonth"
+        ]
+      },
       "V1UpdateCronBody": {
         "type": "object",
         "properties": {
@@ -6227,6 +12337,28 @@
           "command": {
             "type": "string",
             "description": "The command each run executes."
+          }
+        }
+      },
+      "V1UpdateDomainBody": {
+        "type": "object",
+        "properties": {
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "nameserverMode": {
+            "description": "Use our nameservers, or your own (then `nameservers`).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameserverMode"
+              }
+            ]
+          },
+          "nameservers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6350,6 +12482,29 @@
           "value"
         ]
       },
+      "V1WalletBalance": {
+        "type": "object",
+        "properties": {
+          "balanceMinor": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "low": {
+            "type": "boolean"
+          },
+          "lowBalanceThresholdMinor": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "balanceMinor",
+          "currency",
+          "low",
+          "lowBalanceThresholdMinor"
+        ]
+      },
       "V1Workspace": {
         "type": "object",
         "properties": {
@@ -6412,14 +12567,57 @@
           "nextCursor"
         ]
       },
+      "V1WorkspaceUsageMeters": {
+        "type": "object",
+        "properties": {
+          "bandwidthAllowanceBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "bandwidthBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "computeAllowanceHours": {
+            "type": "number",
+            "nullable": true
+          },
+          "computeHours": {
+            "type": "number"
+          },
+          "databaseAllowanceBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "databaseBytes": {
+            "type": "number"
+          },
+          "storageAllowanceBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "storageBytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "bandwidthAllowanceBytes",
+          "bandwidthBytes",
+          "computeAllowanceHours",
+          "computeHours",
+          "databaseAllowanceBytes",
+          "databaseBytes",
+          "storageAllowanceBytes",
+          "storageBytes"
+        ]
+      },
       "WorkspaceRole": {
         "type": "string",
         "enum": [
           "OWNER",
           "ADMIN",
           "MEMBER"
-        ],
-        "description": "The caller's role in this workspace."
+        ]
       }
     }
   }

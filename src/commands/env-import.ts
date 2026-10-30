@@ -187,6 +187,8 @@ export async function collectEnvVars(options: CollectOptions): Promise<Collected
 
 export interface EnvImportOptions {
   service: string | undefined;
+  /** Where to find --service. Its --env is for the scope, and not used to find it. */
+  project?: string | undefined;
   /** Environment the service lives in, when the scope cannot be derived. */
   env: string | undefined;
   scope: string | undefined;
@@ -211,6 +213,7 @@ export async function envImport(
     process.cwd(),
     "Importing variables",
     "env import .env --service <name|id>",
+    { project: options.project },
   );
 
   const path = file ?? findEnvFiles(process.cwd())[0];

@@ -128,6 +128,8 @@ export interface ServiceSummary {
   branch: string | null;
   repoFullName: string | null;
   isStatic: boolean;
+  /** The functions runtime: shown as the Functions group, not as a service. */
+  functionsRuntime?: boolean;
 }
 
 /**

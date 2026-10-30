@@ -98,19 +98,19 @@ function mask(variable: ServiceEnvVar): string {
 
 export interface EnvListOptions {
   service: string | undefined;
+  /** Alone: every service's keys in the project. With --service: where to find it. */
   project: string | undefined;
+  /** With --service: the environment to find it in. */
+  env?: string | undefined;
   reveal: boolean;
   json: boolean;
 }
 
 export async function envList(options: EnvListOptions): Promise<void> {
-  if (options.service && options.project) {
-    throw new Error("Pass either --service or --project, not both.");
-  }
-
   // A project-wide listing reads `envVarKeys`, which returns names only — no
   // value ever leaves the platform for it, so --reveal has nothing to reveal.
-  if (options.project !== undefined) {
+  // --project alone lists the whole project; with --service it only says where to look.
+  if (options.project !== undefined && !options.service) {
     const services = await listEnvVarKeysByProject(await resolveProjectId(options.project));
 
     if (options.json) {
@@ -144,6 +144,7 @@ export async function envList(options: EnvListOptions): Promise<void> {
     process.cwd(),
     "Listing variables",
     "env ls --service <name|id>",
+    { project: options.project, env: options.env },
   );
   const variables = await listEnvVarsByService(serviceId);
 
@@ -185,6 +186,9 @@ export async function envList(options: EnvListOptions): Promise<void> {
 
 export interface EnvSetOptions {
   service: string | undefined;
+  /** Where to find --service: its project, and environment in it. */
+  project?: string | undefined;
+  env?: string | undefined;
   scope: string | undefined;
   secret: boolean;
   json: boolean;
@@ -234,6 +238,7 @@ export async function envSet(
     process.cwd(),
     "Setting a variable",
     `env set ${key} VALUE --service <name|id>`,
+    { project: options.project, env: options.env },
   );
   let scope: EnvVarScope;
   let scopeSource: string | null = null;
@@ -270,6 +275,8 @@ export async function envSet(
 
 export interface EnvRemoveOptions {
   service: string | undefined;
+  project?: string | undefined;
+  env?: string | undefined;
   yes: boolean;
   json: boolean;
 }
@@ -280,6 +287,7 @@ export async function envRemove(key: string, options: EnvRemoveOptions): Promise
     process.cwd(),
     "Removing a variable",
     `env rm ${key} --service <name|id>`,
+    { project: options.project, env: options.env },
   );
 
   // The API answers a delete of a key that does not exist with success, so

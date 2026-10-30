@@ -33,14 +33,13 @@ const ROUTES = Object.entries(openapi.paths).map(([route, operations]) => ({
 }));
 
 /**
- * Routes the CLI already calls but the API has not shipped yet (TGL-1405).
- * Each has a fallback that works without it — prices point at the pricing page,
- * an environment is found by walking the workspace's projects — so a missing
- * route degrades the output instead of breaking a command. Remove an entry as
- * soon as its route is in the OpenAPI snapshot; the test below fails on a
- * stale entry so that cannot be forgotten.
+ * Routes the CLI already calls but the API has not shipped yet, as
+ * `METHOD /path/{id}`. Empty since the snapshot taken with the Functions routes
+ * (TGL-1758), which also documents /pricing and /environments/{id}. Remove an
+ * entry as soon as its route is in the OpenAPI snapshot; the test below fails
+ * on a stale entry so that cannot be forgotten.
  */
-const PENDING = new Set(["GET /pricing", "GET /environments/{id}"]);
+const PENDING = new Set([]);
 const pendingKey = (method, route) => `${method} ${route.replace(/^\/environments\/[^/]+$/, "/environments/{id}")}`;
 
 /** Answers that let a multi-step function get past its first request. */

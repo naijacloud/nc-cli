@@ -26,7 +26,9 @@ export function stubApi(routes) {
     const url = new URL(String(input));
     const method = (init.method ?? "GET").toUpperCase();
     const path = url.pathname.replace(/^\/v1/, "");
-    const body = init.body ? JSON.parse(init.body) : undefined;
+    // Bytes (a presigned upload) are kept as they are; everything else is JSON.
+    const body =
+      typeof init.body === "string" ? JSON.parse(init.body) : init.body === undefined ? undefined : init.body;
     const request = {
       method,
       path,

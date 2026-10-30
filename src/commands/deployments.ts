@@ -46,11 +46,8 @@ export interface DeploymentsListOptions {
 }
 
 export async function deploymentsList(options: DeploymentsListOptions): Promise<void> {
-  if (options.service && options.project) {
-    throw new Error("Pass either --service or --project, not both.");
-  }
-
-  const byProject = options.project !== undefined;
+  // --project alone lists the whole project; with --service it only says where to look.
+  const byProject = options.project !== undefined && !options.service;
   const deployments = byProject
     ? await listDeploymentsByProject(await resolveProjectId(options.project!))
     : await listDeploymentsByService(
@@ -59,6 +56,7 @@ export async function deploymentsList(options: DeploymentsListOptions): Promise<
           process.cwd(),
           "Listing deployments",
           "deployments ls --service <name|id>",
+          { project: options.project },
         ),
       );
 
