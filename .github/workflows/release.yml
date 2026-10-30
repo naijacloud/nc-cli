@@ -88,7 +88,7 @@ jobs:
       matrix:
         include:
           - target: darwin_arm64
-            runner: macos-14
+            runner: macos-15
           # macos-13 was retired; macos-15-intel is the remaining Intel image.
           # If that label ever disappears too, drop this entry rather than let
           # the release queue forever — darwin_arm64 already proves the darwin
