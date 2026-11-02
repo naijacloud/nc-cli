@@ -7,6 +7,13 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Every command except `mcp` now exits as soon as it finishes, after flushing
+  its output. `redeploy` had printed `RUNNING` and the URL and then kept
+  running for minutes, which hung CI jobs gating on `redeploy --wait`
+  (TGL-2020).
+
 ## [1.8.0] - 2026-10-28
 
 ### Added
