@@ -1388,20 +1388,37 @@ function commandSuggestion(command: string): string {
   return best && best.score <= 2 ? ` (did you mean ${best.candidate}?)` : "";
 }
 
-main().catch((error: unknown) => {
-  // Backing out of a prompt is an answer, not a failure: nothing to report.
-  // Still non-zero (130, as for an interrupted command) so a wrapper script can
-  // tell a finished run from an abandoned one.
-  if (isCancelled(error)) {
-    process.exitCode = 130;
-    return;
-  }
-  // Already printed in the command's own form (functions deploy's ✗ steps).
-  if (error instanceof Error && (error as { reported?: unknown }).reported === true) {
-    process.exitCode = 1;
-    return;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`Error: ${message}\n`);
-  process.exitCode = error instanceof UsageError ? 2 : 1;
-});
+/** Resolves once everything already written to `stream` has been handed to the OS. */
+function flushed(stream: NodeJS.WriteStream): Promise<void> {
+  return new Promise((resolve) => stream.write("", () => resolve()));
+}
+
+main()
+  .catch((error: unknown) => {
+    // Backing out of a prompt is an answer, not a failure: nothing to report.
+    // Still non-zero (130, as for an interrupted command) so a wrapper script can
+    // tell a finished run from an abandoned one.
+    if (isCancelled(error)) {
+      process.exitCode = 130;
+      return;
+    }
+    // Already printed in the command's own form (functions deploy's ✗ steps).
+    if (error instanceof Error && (error as { reported?: unknown }).reported === true) {
+      process.exitCode = 1;
+      return;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Error: ${message}\n`);
+    process.exitCode = error instanceof UsageError ? 2 : 1;
+  })
+  .then(async () => {
+    // `mcp` is the one command whose work goes on after main() returns.
+    if (process.argv[2] === "mcp") return;
+    // Every other command is done, so exit instead of waiting for the event
+    // loop to empty. `redeploy` once printed RUNNING and the URL and then sat
+    // for ten minutes on something still holding the loop open (TGL-2020),
+    // which hangs a CI job that gates on it. Flush first: on macOS a pipe is
+    // written asynchronously, and exiting early would cut off --json output.
+    await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+    process.exit();
+  });
