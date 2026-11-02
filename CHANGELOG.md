@@ -7,6 +7,8 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-02
+
 ### Fixed
 
 - Every command except `mcp` now exits as soon as it finishes, after flushing
@@ -243,7 +245,9 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/naijacloud/nc-cli/compare/v1.8.0...v1.8.1
+[1.8.0]: https://github.com/naijacloud/nc-cli/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/naijacloud/nc-cli/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/naijacloud/nc-cli/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/naijacloud/nc-cli/compare/v1.5.0...v1.5.1
