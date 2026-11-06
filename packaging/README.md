@@ -22,7 +22,7 @@ release proceeds.
 
 | Channel    | Command                         | Artifact                                | Needs                     |
 | ---------- | ------------------------------- | --------------------------------------- | ------------------------- |
-| npm        | `npm install -g @naijacloud/cli` | `build/` (JS)                           | `NPM_TOKEN`               |
+| npm        | `npm install -g @naijacloud/cli` | `build/` (JS)                           | npm trusted publisher     |
 | npx        | `npx @naijacloud/cli login`      | same                                    | —                         |
 | Homebrew   | `brew install naijacloud`       | `*_darwin_*.tar.gz`, `*_linux_*.tar.gz` | a tap repo                |
 | apt        | `apt install naijacloud`        | `.deb`                                  | an apt repo + signing key |
@@ -158,8 +158,15 @@ been submitted since the alias was added. Worth checking on that first PR.
 
 | Secret                | Used for                            | Missing means                    |
 | --------------------- | ----------------------------------- | -------------------------------- |
-| `NPM_TOKEN`           | `npm publish --provenance`          | npm step is skipped              |
 | `TAP_TOKEN`           | pushing to the tap and bucket repos | the `package-managers` job fails, naming the cause |
+
+npm needs no secret. The package publishes by **trusted publishing** (OIDC).
+On npmjs.com, under `@naijacloud/cli` → Settings → Trusted publisher, it is set
+to GitHub Actions with organization `naijacloud`, repository `nc-cli`, workflow
+`release.yml` and environment `npm`. If the workflow file or the environment is
+renamed, that setting must change with it, or the publish step fails with an
+auth error. Trusted publishing needs npm 11.5.1 or later, so the workflow
+upgrades npm before publishing.
 
 `TAP_TOKEN` is a **fine-grained** personal access token, resource owner
 `naijacloud`, with access to only `naijacloud/homebrew-tap` and
