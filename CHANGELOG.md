@@ -7,6 +7,8 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-19
+
 ### Added
 
 - `naijacloud logs [service]`, a web service's runtime logs — what the running
@@ -267,7 +269,8 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/naijacloud/nc-cli/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/naijacloud/nc-cli/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/naijacloud/nc-cli/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/naijacloud/nc-cli/compare/v1.6.0...v1.7.0
