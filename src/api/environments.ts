@@ -107,7 +107,7 @@ export async function createStaticService(input: {
 export async function createRuntimeService(input: {
   environmentId: string;
   name: string;
-  /** WEB or CRON. Datastores go through `createDatastore`. */
+  /** WEB, WORKER or CRON. Datastores go through `createDatastore`. */
   type: ServiceType;
   sourceType?: SourceType;
   /** `owner/repo`, for a GITHUB_APP source. */

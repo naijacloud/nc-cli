@@ -22,7 +22,7 @@
 
 import type { ServiceTier, ServiceTierPrice, ServiceType } from "./api/index.js";
 
-/** Apps and cron jobs are `compute`; databases and caches are `data`. */
+/** Apps, workers and cron jobs are `compute`; databases and caches are `data`. */
 export type TierFamily = "compute" | "data";
 
 export interface TierName {
@@ -97,7 +97,9 @@ export function tierFlagName(tier: ServiceTier, family: TierFamily): string {
 
 /** Which size family a service type is priced in. */
 export function familyOf(type: ServiceType): TierFamily {
-  return type === "WEB" || type === "CRON" || type === "STATIC" ? "compute" : "data";
+  return type === "WEB" || type === "CRON" || type === "WORKER" || type === "STATIC"
+    ? "compute"
+    : "data";
 }
 
 /** The pricing catalog's own family for a service type: compute, sql or keyvalue. */

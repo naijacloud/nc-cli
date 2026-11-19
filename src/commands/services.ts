@@ -285,7 +285,54 @@ export interface ServicesCreateOptions {
   json: boolean;
 }
 
-const SERVICE_TYPES: Record<string, ServiceType> = { web: "WEB", cron: "CRON" };
+const SERVICE_TYPES: Record<string, ServiceType> = {
+  web: "WEB",
+  cron: "CRON",
+  worker: "WORKER",
+};
+
+/**
+ * The size a background worker is created at (TGL-2217). A worker has no Free
+ * size, since Free services sleep when idle and a worker has no visitors, so
+ * `--tier` is required rather than quietly picking a paid size.
+ */
+export function workerTier(raw: string | undefined): ServiceTier {
+  if (raw === undefined) {
+    throw new Error(
+      "A background worker has no Free size, so --tier is required: --tier starter, pro or pro-max.",
+    );
+  }
+  const tier = appTierOrFree(raw);
+  if (tier === "FREE") {
+    throw new Error(
+      "A background worker has no Free size: it runs all the time, and Free services sleep when idle. " +
+        "Use --tier starter, pro or pro-max.",
+    );
+  }
+  return tier;
+}
+
+/**
+ * What a background worker cannot take: it serves nothing, so it has no port,
+ * no health check and no schedule. Said before anything is sent.
+ */
+export function assertWorkerOptions(
+  options: Pick<ServicesCreateOptions, "port" | "healthCheck" | "schedule" | "start">,
+  sourceType: string,
+): void {
+  if (options.port !== undefined || options.healthCheck !== undefined) {
+    throw new Error("A background worker serves no traffic, so --port and --health-check do not apply.");
+  }
+  if (options.schedule !== undefined) {
+    throw new Error("A background worker runs all the time. For a command on a schedule, use --type cron.");
+  }
+  if (sourceType !== "DOCKER_IMAGE" && !options.start?.trim()) {
+    throw new Error(
+      "A background worker built from a repository needs --start, the command that runs it, " +
+        "e.g. --start 'celery -A app worker' or --start 'bundle exec sidekiq'.",
+    );
+  }
+}
 
 function parsePort(raw: string | undefined): number | undefined {
   if (raw === undefined || raw === "") return undefined;
@@ -377,7 +424,7 @@ export function pickSource(options: Pick<ServicesCreateOptions, "repo" | "git" |
     return { sourceType: "GITHUB_APP", repoFullName: normaliseRepo(options.repo) };
   }
   throw new Error(
-    "A web service or cron job needs a source. Pass one of:\n" +
+    "A web service, worker or cron job needs a source. Pass one of:\n" +
       "  --repo owner/repo     a repository the NaijaCloud GitHub App can reach\n" +
       "  --git <https url>     any public git repository, no GitHub App needed\n" +
       "  --image <reference>   a prebuilt Docker image, e.g. ghcr.io/acme/api:1.8.0\n" +
@@ -419,8 +466,9 @@ export async function servicesCreate(
 
   const type = SERVICE_TYPES[(options.type ?? "web").toLowerCase()];
   if (!type) {
-    throw new Error(`--type must be web or cron, not '${options.type}'.`);
+    throw new Error(`--type must be web, worker or cron, not '${options.type}'.`);
   }
+  if (type === "WORKER") assertWorkerOptions(options, source.sourceType);
   if (type === "CRON" && options.schedule === undefined) {
     throw new Error("A cron job needs --schedule, e.g. --schedule '0 3 * * *'.");
   }
@@ -435,7 +483,7 @@ export async function servicesCreate(
     throw new Error("An image is not built, so --build and --root-dir do not apply to --image.");
   }
 
-  const tier = appTierOrFree(options.tier);
+  const tier = type === "WORKER" ? workerTier(options.tier) : appTierOrFree(options.tier);
 
   const environment = await resolveEnvironment(options.env);
 

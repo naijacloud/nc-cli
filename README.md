@@ -390,7 +390,13 @@ naijacloud services create api --env storefront/prod --git https://gitlab.com/ac
 naijacloud services create web --env storefront/prod --image ghcr.io/acme/web:1.8.0 --port 8080
 naijacloud services create nightly --env storefront/prod --type cron \
   --git https://github.com/acme/jobs --schedule "0 3 * * *" --command "node cleanup.js"
+naijacloud services create celery --env storefront/prod --type worker \
+  --repo acme/shop --start "celery -A shop worker -l info" --tier starter
 ```
+
+A `--type worker` is a background worker (Celery, Sidekiq, a queue consumer): it
+runs all the time, listens on no port and has no URL. It needs `--start` when
+built from a repository and a paid `--tier`, because a worker has no Free size.
 
 `services create` also takes `--type cron --schedule "0 3 * * *" --command <cmd>`,
 `--root-dir` for a monorepo, `--runtime-version`, `--health-check`, `--region`,

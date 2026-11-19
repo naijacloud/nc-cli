@@ -7,6 +7,13 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `services create --type worker`, and `type: "worker"` in the MCP
+  `create_service` tool, for background workers (Celery, Sidekiq, queue
+  consumers): no port, no URL, a required `--start` for a repository and a paid
+  `--tier`. Needs a control plane with the `WORKER` service type.
+
 ## [1.8.1] - 2026-11-02
 
 ### Fixed
