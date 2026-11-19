@@ -8,6 +8,9 @@
  * up in a shell history when someone asks how a secret leaked.
  */
 
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, resolve as resolvePath } from "node:path";
 import process from "node:process";
 
 import {
@@ -18,7 +21,7 @@ import {
   setEnvVar,
 } from "../api/index.js";
 import type { EnvVarMutationResult, EnvVarScope, ServiceEnvVar } from "../api/index.js";
-import { scopeForEnvironment } from "../env-file.js";
+import { formatEnvFile, scopeForEnvironment } from "../env-file.js";
 import { printJson, printTable } from "../output.js";
 import { programName } from "../program-name.js";
 import { isInteractive, promptLine, promptYesNo, write } from "../terminal.js";
@@ -317,6 +320,168 @@ export async function envRemove(key: string, options: EnvRemoveOptions): Promise
     json: options.json,
     verb: "removed",
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pull                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** Where `env pull` writes when no file is named: what Next.js, Vite and most dotenv setups read and ignore. */
+export const DEFAULT_PULL_FILE = ".env.local";
+
+export interface EnvPullOptions {
+  service: string | undefined;
+  project?: string | undefined;
+  env?: string | undefined;
+  yes: boolean;
+  json: boolean;
+}
+
+/**
+ * Whether the platform injects a variable of `scope` into an environment called
+ * `environment`: ALL always; PROD, UAT or DEV only into the environment of that
+ * name; and into an environment with any other name, every scope. The control
+ * plane's own rule (scopeAppliesToEnv), so the file matches what the app sees.
+ * An environment that could not be read (null) keeps every variable.
+ */
+export function scopeApplies(scope: EnvVarScope, environment: string | null): boolean {
+  if (scope === "ALL" || environment === null) return true;
+  const tier = environment.trim().toUpperCase();
+  if (tier !== "PROD" && tier !== "UAT" && tier !== "DEV") return true;
+  return tier === scope;
+}
+
+/**
+ * Whether git would commit `file`: true when it is inside a work tree and no
+ * ignore rule covers it, false when one does, and null when that cannot be
+ * told (not a repository, or no git on this machine).
+ */
+export function committable(file: string): boolean | null {
+  const result = spawnSync("git", ["check-ignore", "-q", "--", basename(file)], {
+    cwd: dirname(file),
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  if (result.error) return null;
+  if (result.status === 0) return false;
+  if (result.status === 1) return true;
+  return null;
+}
+
+/**
+ * `env pull [file]` — writes a service's variables to a local dotenv file
+ * (`.env.local` unless named), for running the app here with the same
+ * configuration.
+ *
+ * The file holds credentials in plain text, so nothing is written until the
+ * keys (never the values) have been shown and the user has said yes; without a
+ * terminal, --yes is the only way to say it. The file is created 0600, and a
+ * file git would commit is called out before the question rather than after.
+ */
+export async function envPull(file: string | undefined, options: EnvPullOptions): Promise<void> {
+  const target = resolvePath(process.cwd(), file ?? DEFAULT_PULL_FILE);
+  if (existsSync(target) && !statSync(target).isFile()) {
+    throw new Error(`${target} exists and is not a file.`);
+  }
+
+  const serviceId = await requireService(
+    options.service,
+    process.cwd(),
+    "Pulling variables",
+    "env pull [file] --service <name|id>",
+    { project: options.project, env: options.env },
+  );
+
+  let environment: string | null = null;
+  try {
+    environment = (await getService(serviceId)).environment?.name ?? null;
+  } catch {
+    // A key that cannot read the service still reads its variables; keep them all.
+  }
+  const all = await listEnvVarsByService(serviceId);
+  const variables = all.filter((variable) => scopeApplies(variable.scope, environment));
+  const leftOut = all.length - variables.length;
+
+  if (variables.length === 0) {
+    throw new Error(
+      all.length === 0
+        ? `Service ${serviceId} has no environment variables; nothing to write.`
+        : `None of service ${serviceId}'s ${all.length} variable(s) reach its environment ${environment}; nothing to write.`,
+    );
+  }
+
+  // A read-only role is answered with every value blanked. Writing that file
+  // would look like a pull and leave the app with empty credentials.
+  if (variables.every((variable) => variable.value === "")) {
+    throw new Error(
+      `Every value came back empty: your role on service ${serviceId} can list its variables but not read them. ` +
+        "Pull with a role that can, or ask someone who has one.",
+    );
+  }
+
+  const exists = existsSync(target);
+  const tracked = committable(target);
+  const display = file ?? DEFAULT_PULL_FILE;
+
+  write(
+    `${variables.length} variable(s) from service ${serviceId}` +
+      `${environment ? ` (environment ${environment})` : ""} → ${target}\n`,
+  );
+  for (const variable of variables) {
+    write(`  ${variable.key}${variable.secret ? "  (secret)" : ""}${variable.value === "" ? "  (empty)" : ""}\n`);
+  }
+  if (leftOut > 0) {
+    write(`Left out ${leftOut} variable(s) scoped to another environment.\n`);
+  }
+  write("Values are written in plain text: anyone who can read the file can read the secrets.\n");
+  if (exists) write(`Warning: ${display} already exists and will be overwritten.\n`);
+  if (tracked === true) {
+    write(
+      `Warning: ${display} is not in .gitignore, so git would commit it. Add it first:\n` +
+        `  echo '${basename(target)}' >> .gitignore\n`,
+    );
+  }
+
+  if (!options.yes) {
+    if (!isInteractive()) {
+      throw new Error(
+        `env pull writes secrets to ${display} and needs a confirmation. Without a terminal, pass --yes:\n` +
+          `  ${programName()} env pull${file ? ` ${file}` : ""} --service ${serviceId} --yes`,
+      );
+    }
+    const confirmed = await promptYesNo(
+      exists ? `Overwrite ${display} with these ${variables.length} variable(s)?` : `Write ${display}?`,
+      false,
+    );
+    if (!confirmed) {
+      write("Nothing written.\n");
+      return;
+    }
+  }
+
+  const content = formatEnvFile(variables, [
+    `Pulled from NaijaCloud service ${serviceId} by \`${programName()} env pull\` on ${new Date().toISOString()}.`,
+    "Holds secrets: do not commit it.",
+  ]);
+  // Truncate to empty and tighten the mode before any secret goes in, so an
+  // existing file that was 0644 is never briefly readable with them in it.
+  writeFileSync(target, "", { mode: 0o600 });
+  chmodSync(target, 0o600);
+  writeFileSync(target, content);
+
+  if (options.json) {
+    printJson({
+      ok: true,
+      serviceId,
+      file: target,
+      count: variables.length,
+      keys: variables.map((variable) => variable.key),
+      overwritten: exists,
+      gitignored: tracked === null ? null : !tracked,
+    });
+    return;
+  }
+  process.stdout.write(`Wrote ${variables.length} variable(s) to ${display}\n`);
 }
 
 /* -------------------------------------------------------------------------- */

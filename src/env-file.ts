@@ -13,7 +13,9 @@
  * make sense of is *reported and skipped*, never guessed at — a mangled value
  * silently uploaded as a credential is the failure mode worth designing out.
  *
- * Nothing here writes a `.env`. The file is the user's; the CLI reads it.
+ * The one writer is `formatEnvFile`, for `env pull`: it quotes each value so
+ * that this parser — and the dotenv loaders it mirrors — read back exactly the
+ * value the platform holds.
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -329,4 +331,44 @@ export function toEnvVarInputs(
     scope,
     secret: options.forceSecret === true ? true : entry.secret,
   }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Writing                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** Values that need no quotes in any dotenv dialect (and no `$` to expand). */
+const BARE_VALUE = /^[A-Za-z0-9_.,:/@%+=~-]*$/;
+
+/**
+ * One value as it should appear after `KEY=`.
+ *
+ * Single quotes where possible: inside them every loader takes the text
+ * literally — no escapes, no `#` comment, and a newline is just a newline —
+ * so a password full of punctuation, or a PEM key, survives as it is. A value
+ * that itself contains a `'` is double-quoted with `\\`, `\"`, `\n`, `\r` and
+ * `\t` escaped, which `parseEnvFile` undoes. (The npm `dotenv` package only
+ * undoes `\n` and `\r`, so a value holding both a `'` and a backslash or `"`
+ * reads back with the escapes there. Rare enough to note, not to design round.)
+ */
+export function quoteEnvValue(value: string): string {
+  if (BARE_VALUE.test(value)) return value;
+  if (!value.includes("'")) return `'${value}'`;
+  const escaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+  return `"${escaped}"`;
+}
+
+/** A `.env` document for these variables, one `KEY=value` per line, after `header` comment lines. */
+export function formatEnvFile(
+  variables: readonly { key: string; value: string }[],
+  header: readonly string[] = [],
+): string {
+  const lines = header.map((line) => `# ${line}`);
+  for (const variable of variables) lines.push(`${variable.key}=${quoteEnvValue(variable.value)}`);
+  return `${lines.join("\n")}\n`;
 }

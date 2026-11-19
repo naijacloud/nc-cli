@@ -673,6 +673,8 @@ naijacloud services create api --env shop/prod --git https://github.com/acme/sho
 naijacloud deployments ls --service api --limit 10
 naijacloud deployments show <id>
 naijacloud deployments logs <id>           # build output
+naijacloud logs api                        # runtime output: the last 100 lines
+naijacloud logs api -f                     # ...and keep following until Ctrl-C
 naijacloud redeploy api                    # build the service's branch tip
 naijacloud cancel <id>                     # stop an in-flight build
 naijacloud rollback <id>                   # put an earlier deployment's image back live
@@ -681,6 +683,7 @@ naijacloud env ls --service api
 naijacloud env set DATABASE_URL --service api --secret
 naijacloud env rm OLD_FLAG --service api
 naijacloud env import .env --service api   # upserts; leaves other keys alone
+naijacloud env pull --service api          # writes .env.local, after asking
 
 naijacloud domains ls --service api
 naijacloud domains add app.example.com --service api   # prints the DNS records to create
@@ -721,7 +724,23 @@ Exit status is `0` on success, `1` when the command failed, `2` when it was type
 naijacloud redeploy api || exit 1   # waits by default; --no-wait returns once queued
 ```
 
-`--yes` skips the confirmation on `cancel`, `env rm`, `env import`, `environments rm` and `domains rm`, which is what CI needs. `--limit` caps rows.
+`--yes` skips the confirmation on `cancel`, `env rm`, `env import`, `env pull`, `environments rm` and `domains rm`, which is what CI needs (`env pull` refuses to run without a terminal unless it is given; `-y` is accepted there too). `--limit` caps rows.
+
+### Runtime logs
+
+`logs` prints what a web service's running app writes — the same stream as the
+dashboard's Logs tab. `deployments logs <id>` is a build's output instead.
+
+```bash
+naijacloud logs api                  # the last 100 lines, then exit (--limit up to 500)
+naijacloud logs api -f               # the recent lines, then follow until Ctrl-C
+naijacloud logs -f --timestamps      # the linked service; each line after its time
+naijacloud logs api -f --json | jq   # one JSON object per line
+```
+
+`--follow` reconnects on its own when the link drops and never prints a line
+twice. The stream takes your login session (`naijacloud login`), not an
+`nc_live_` API key, and needs Node.js 22 or newer (or the standalone binary).
 
 ### The database console
 
@@ -827,6 +846,26 @@ alone — so a re-import is safe, and removing a variable is still `env rm`. Wit
 no path it reads the `.env` in the current directory. Without `--scope` the scope
 is derived from `--env`, or from the service's own environment, the same way as
 `env set`.
+
+`env pull` goes the other way: it writes the service's variables to a local
+dotenv file, `.env.local` unless you name another, to run the app here with the
+same configuration.
+
+```
+$ naijacloud env pull --service api
+2 variable(s) from service 30d76735-… (environment dev) → /path/to/app/.env.local
+  DATABASE_URL  (secret)
+  NODE_ENV
+Values are written in plain text: anyone who can read the file can read the secrets.
+Write .env.local? [y/N]: y
+Wrote 2 variable(s) to .env.local
+```
+
+Only the variables the service's environment receives are written. It shows the
+keys, never the values, and asks first — and says so when the file exists (it is
+overwritten) or when git would commit it. Without a terminal it needs `--yes`.
+The file is created with mode `0600`, and values are quoted so that dotenv
+loaders read back exactly what the platform holds.
 
 ---
 

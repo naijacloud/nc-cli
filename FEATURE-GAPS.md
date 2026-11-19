@@ -346,7 +346,17 @@ nobody needs to know it exists.
 This is the `vercel` / `netlify deploy` moment. Nothing in the browser does it
 well, and the API is already built for it.
 
-### 3.2 `naijacloud logs --follow` — runtime logs
+### 3.2 `naijacloud logs --follow` — runtime logs ✅
+
+**Status: implemented** (TGL-1551) as `logs [service] [--follow|-f] [--limit n]
+[--timestamps] [--json]`: `src/api/logs-socket.ts` speaks the slice of
+Engine.IO/socket.io the gateway needs over the runtime's own `WebSocket` (no new
+dependency), and `src/commands/logs.ts` is the command. Without `--follow` it asks
+`olderServiceLogs` for a page before now, falling back to the joined tail's
+backlog on a node that cannot page. `--deployment` was not added: build output
+is `deployments logs <id>`. The gateway takes a login session only, not an
+`nc_live_` API key, so the command refuses a key with that explanation. The
+rest of this section is the design it was built to.
 
 **There is no GraphQL query for runtime logs.** `deploymentLogs` returns *build*
 output only, which is what `get_deployment_logs` surfaces today. Live runtime
