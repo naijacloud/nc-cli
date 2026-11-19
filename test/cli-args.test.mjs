@@ -103,3 +103,17 @@ test("an unknown command exits 2 with a suggestion", () => {
   assert.equal(code, 2);
   assert.match(err, /did you mean deploy/);
 });
+
+test("-f and -y are logs' --follow and env's --yes; other one-letter flags are still errors", () => {
+  const follow = cli(["logs", "api", "-f", "--help"]);
+  assert.equal(follow.code, 0);
+  assert.match(follow.out, /--follow, -f/);
+
+  const pull = cli(["env", "pull", "-y", "--help"]);
+  assert.equal(pull.code, 0);
+  assert.match(pull.out, /Env pull options/);
+
+  const unknown = cli(["logs", "api", "-y"]);
+  assert.equal(unknown.code, 2);
+  assert.match(unknown.err, /Unknown option -y/);
+});

@@ -65,9 +65,10 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
       ["environments ls|create|rm", "Environments inside a project"],
       ["services ls|show|create", "Services this account can reach"],
       ["deployments ls|show|logs", "Deployment history and build output"],
+      ["logs [service] [-f]", "A service's runtime logs; -f keeps following"],
       ["cancel <deployment>", "Stop an in-flight deployment"],
       ["rollback <deployment>", "Put an earlier deployment's image back live"],
-      ["env ls|set|rm|import", "Environment variables on a service"],
+      ["env ls|set|rm|import|pull", "Environment variables on a service"],
       ["domains ls|add|verify|rm", "Custom domains on a service"],
       ["db query|shell|tables", "SQL console; also describe, dump, export"],
     ],
@@ -243,6 +244,30 @@ Env import options  (\`env import [file]\`)
   loads the file into its own environment and exits before this CLI starts if
   the path is missing. --env-file is still accepted where Node lets it through.
 
+Env pull options  (\`env pull [file]\`)
+  --yes, -y                    Write without asking (required without a terminal)
+  --json                       Report the file and the keys written, not values
+
+  Writes the service's variables to [file] (default .env.local) in dotenv
+  format, for running the app here with the same configuration. Only the
+  variables its environment receives are written. It lists the keys first and
+  asks before writing, because the file holds secrets in plain text; it warns
+  when the file exists (it is overwritten) and when git would commit it. The
+  file is written with mode 0600.
+
+Logs options
+  --follow, -f                 Keep printing new lines until Ctrl-C
+  --limit <n>                  Without --follow: how many recent lines (default
+                               100, at most 500)
+  --timestamps                 Prefix each line with when it was printed
+  --json                       One JSON object per line (NDJSON)
+
+  A web service's runtime output: what the running app prints, live from its
+  container. A build's output is \`deployments logs <id>\`. With --follow it
+  starts with the recent lines, reconnects on its own if the link drops, and
+  never prints a line twice. Reads your login session, not an nc_live_ API
+  key: the log stream does not accept keys.
+
 Db options
   --max-rows <n>               Cap rows returned by a query
   --schema <name>              Schema for describe/export, when not the default
@@ -399,6 +424,8 @@ interface CommandSpec {
   values?: readonly string[];
   /** Value flags whose value may be omitted (`schema --write`). */
   optionalValues?: readonly string[];
+  /** One-letter spellings of boolean flags (`-f` for `--follow`). */
+  shorts?: Readonly<Record<string, string>>;
   /** The most positional arguments, subcommand included. */
   maxPositionals: number;
   /** First line(s) of `<command> --help`. */
@@ -511,9 +538,20 @@ const COMMANDS: Record<string, CommandSpec> = {
   env: {
     booleans: ["json", "reveal", "secret", "yes"],
     values: ["service", "project", "scope", "env"],
+    shorts: { y: "yes" },
     maxPositionals: 3,
-    synopsis: "env ls | set KEY [VALUE] | rm KEY | import [file]   [--service <s>]",
-    sections: ["Resource options", "Env options", "Env import options"],
+    synopsis: "env ls | set KEY [VALUE] | rm KEY | import [file] | pull [file]   [--service <s>]",
+    sections: ["Resource options", "Env options", "Env import options", "Env pull options"],
+  },
+  logs: {
+    booleans: ["json", "follow", "timestamps"],
+    values: ["service", "project", "limit"],
+    shorts: { f: "follow" },
+    maxPositionals: 1,
+    synopsis:
+      "logs [service] [--follow|-f] [--limit <n>] [--timestamps] [--json]\n\n" +
+      "  A web service's runtime logs. Without a service, the one naijacloud.json names.",
+    sections: ["Logs options"],
   },
   domains: {
     booleans: ["json", "yes"],
@@ -641,6 +679,11 @@ function parseArgs(
     }
     if (!arg.startsWith("-")) {
       positionals.push(arg);
+      continue;
+    }
+    const short = spec.shorts?.[arg.slice(1)];
+    if (short !== undefined && /^-[A-Za-z]$/.test(arg)) {
+      flags.set(short, "");
       continue;
     }
     if (!arg.startsWith("--")) {
@@ -1169,9 +1212,45 @@ async function main(): Promise<void> {
           });
           return;
         }
+        case "pull": {
+          if (positionals[2] !== undefined) {
+            throw new UsageError(
+              `Unexpected argument '${positionals[2]}' for env pull. It takes one file.\n` +
+                `  ${programName()} env pull [file] --service <name|id>`,
+            );
+          }
+          const { envPull } = await import("./commands/env.js");
+          await envPull(positionals[1], {
+            service,
+            project: value(flags, "project"),
+            env: value(flags, "env"),
+            yes: flags.has("yes"),
+            json,
+          });
+          return;
+        }
         default:
-          throw unknownSubcommand("env", positionals[0], ["ls", "set", "rm", "import"]);
+          throw unknownSubcommand("env", positionals[0], ["ls", "set", "rm", "import", "pull"]);
       }
+    }
+
+    case "logs": {
+      const { flags, positionals } = parsed;
+      const { logs } = await import("./commands/logs.js");
+      const named = positionals[0];
+      const flagged = value(flags, "service");
+      if (named !== undefined && flagged !== undefined && named !== flagged) {
+        throw new UsageError(`Name the service once: '${named}' or --service ${flagged}, not both.`);
+      }
+      await logs({
+        service: named ?? flagged,
+        project: value(flags, "project"),
+        follow: flags.has("follow"),
+        limit: count(flags, "limit"),
+        timestamps: flags.has("timestamps"),
+        json: flags.has("json"),
+      });
+      return;
     }
 
     case "domains": {
