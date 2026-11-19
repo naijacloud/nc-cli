@@ -24,6 +24,10 @@ are described by their GitHub release notes.
   variables the service's environment receives are written. It lists the keys
   and asks before writing, warns when the file exists or git would commit it,
   needs `--yes` (`-y`) without a terminal, and writes the file with mode 0600.
+- `services create --type worker`, and `type: "worker"` in the MCP
+  `create_service` tool, for background workers (Celery, Sidekiq, queue
+  consumers): no port, no URL, a required `--start` for a repository and a paid
+  `--tier`. Needs a control plane with the `WORKER` service type.
 
 ## [1.8.1] - 2026-11-02
 

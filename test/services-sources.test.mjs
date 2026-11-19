@@ -101,6 +101,43 @@ test("a cron job's command goes in `command`, which the API reads", async () => 
   assert.equal(input.command, "node cleanup.js");
 });
 
+// TGL-2217: a background worker serves nothing, so it takes a start command and
+// a paid size, and no port, health check or schedule.
+test("--type worker sends WORKER with its start command and a paid size", async () => {
+  const { input, error } = await create({
+    type: "worker", repo: "acme/shop", start: "celery -A shop worker", tier: "starter",
+  });
+  assert.equal(error, undefined);
+  assert.equal(input.type, "WORKER");
+  assert.equal(input.startCommand, "celery -A shop worker");
+  assert.equal(input.tier, "STARTER");
+  assert.equal(input.port, undefined);
+  assert.equal(input.healthCheckPath, undefined);
+});
+
+test("a worker from an image may run the image's own command", async () => {
+  const { input, error } = await create({ type: "worker", image: "ghcr.io/acme/worker:1", tier: "pro" });
+  assert.equal(error, undefined);
+  assert.equal(input.type, "WORKER");
+  assert.equal(input.tier, "STANDARD");
+  assert.equal(input.imageCommand, undefined);
+});
+
+test("a worker is refused without --tier, at Free, without --start, or with a port", async () => {
+  const base = { type: "worker", repo: "acme/shop", start: "bundle exec sidekiq", tier: "starter" };
+  for (const [options, message] of [
+    [{ tier: undefined }, /no Free size, so --tier is required/],
+    [{ tier: "free" }, /no Free size/],
+    [{ start: undefined }, /needs --start/],
+    [{ port: "8000" }, /--port and --health-check do not apply/],
+    [{ schedule: "0 3 * * *" }, /use --type cron/],
+  ]) {
+    const { input, error } = await create({ ...base, ...options });
+    assert.match(String(error?.message), message);
+    assert.equal(input, undefined, "nothing is sent");
+  }
+});
+
 test("--repo accepts a github.com URL, and refuses two sources", async () => {
   const { normaliseRepo, pickSource } = await import("../build/commands/services.js");
   assert.equal(normaliseRepo("https://github.com/naijacloud/template-go-api.git"), "naijacloud/template-go-api");

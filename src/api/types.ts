@@ -33,6 +33,7 @@ export type ServiceType =
   | "WEB"
   | "STATIC"
   | "CRON"
+  | "WORKER"
   | "POSTGRES"
   | "MYSQL"
   | "MARIADB"

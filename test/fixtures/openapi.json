@@ -6777,6 +6777,7 @@
           "NODE_BUSY",
           "NODE_LOW_DISK",
           "DATA_SERVICE_ON_OTHER_NODE",
+          "FREE_BUILD_LIMIT",
           "UNKNOWN"
         ]
       },
@@ -7064,6 +7065,7 @@
           "WEB",
           "STATIC",
           "CRON",
+          "WORKER",
           "POSTGRES",
           "MYSQL",
           "MARIADB",
@@ -7676,7 +7678,7 @@
             "example": "eu-west"
           },
           "tier": {
-            "description": "Instance size. FREE uses the workspace free slot.",
+            "description": "Instance size. FREE uses the workspace free slot. A WORKER (background worker) has no Free size: send STARTER or larger.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ServiceTier"
@@ -7698,6 +7700,10 @@
           "gitUrl": {
             "type": "string",
             "example": "https://github.com/acme/shop"
+          },
+          "autoDeployOnPush": {
+            "type": "boolean",
+            "description": "Public git sources only: redeploy when the tracked branch gets a new commit. Off by default; refused for other sources."
           },
           "image": {
             "type": "string",
@@ -7743,7 +7749,8 @@
             "type": "string"
           },
           "startCommand": {
-            "type": "string"
+            "type": "string",
+            "description": "The process to run. Required for a WORKER built from a repo, e.g. \"celery -A app worker\"."
           },
           "runtimeVersion": {
             "type": "string"
@@ -8796,6 +8803,10 @@
             "items": {
               "$ref": "#/components/schemas/V1DnsRecord"
             }
+          },
+          "managedByNaijacloud": {
+            "type": "boolean",
+            "description": "True when the domain's DNS is on Naijacloud nameservers in this workspace. The records are then added for you; there is nothing to create."
           }
         },
         "required": [
@@ -8803,7 +8814,8 @@
           "aRecord",
           "isApex",
           "records",
-          "conflicts"
+          "conflicts",
+          "managedByNaijacloud"
         ]
       },
       "V1DnsZone": {
@@ -11634,6 +11646,10 @@
             "type": "string",
             "nullable": true
           },
+          "autoDeployOnPush": {
+            "type": "boolean",
+            "description": "Public git sources only: redeploy when the tracked branch gets a new commit. Off by default. GitHub App sources always deploy on push."
+          },
           "branch": {
             "type": "string",
             "nullable": true
@@ -11656,6 +11672,7 @@
           "type",
           "repoFullName",
           "gitUrl",
+          "autoDeployOnPush",
           "branch",
           "rootDir",
           "image",
@@ -12451,6 +12468,10 @@
           },
           "gitUrl": {
             "type": "string"
+          },
+          "autoDeployOnPush": {
+            "type": "boolean",
+            "description": "Public git sources only: redeploy when the tracked branch gets a new commit. Off by default; refused for other sources."
           },
           "branch": {
             "type": "string"

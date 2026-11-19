@@ -175,7 +175,10 @@ Services create options
   --git <https url>            Any public git repository; no GitHub App needed
   --image <reference>          A prebuilt public Docker image, run as-is
   --branch <name>              Branch to build (default: the repo's own)
-  --type <web|cron>            Kind of service (default web)
+  --type <web|worker|cron>     Kind of service (default web). A worker runs
+                               all the time and serves no traffic (Celery,
+                               Sidekiq): no port, no URL, --start and a paid
+                               --tier required
   --schedule <cron>            Cron expression; required for --type cron
   --command <command>          Cron: the command run on each schedule (required
                                unless --image, which can run its own)
@@ -188,7 +191,8 @@ Services create options
   --health-check <path>        HTTP path polled for health
   --region <key>               Region, when not the team's default
   --tier <free|starter|pro|pro-max>
-                               Size (default free). Prices: naijacloud.com/pricing
+                               Size (default free; a worker has no Free size).
+                               Prices: naijacloud.com/pricing
   --dotenv <path>              Seed the service with this .env
   --no-env-file                Do not look for a .env
   --no-wait                    Return once the first build is queued

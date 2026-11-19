@@ -505,19 +505,23 @@ export function createServer(): McpServer {
   server.registerTool(
     "create_service",
     {
-      title: "Create a web service or cron job",
+      title: "Create a web service, background worker or cron job",
       description:
-        "Create a web service or cron job in an environment and queue its first build, " +
+        "Create a web service, background worker or cron job in an environment and queue its first build, " +
         "from exactly one source: repoFullName (a repository the team's NaijaCloud GitHub " +
         "App can reach), gitUrl (any public https git URL, no GitHub App needed) or image " +
         "(a prebuilt public Docker image, run as-is). Created at the Free size unless tier " +
         "names a paid one; each account has one free app, and when it is in use the call " +
-        "fails without creating anything. Side effect: creates a real service and starts a " +
+        "fails without creating anything. A worker (Celery, Sidekiq, a queue consumer) serves no " +
+        "traffic, has no Free size and needs startCommand for a repository. Side effect: creates a real service and starts a " +
         "build in that environment. Requires confirm=true.",
       inputSchema: {
         environmentId: z.string().min(1).describe("Environment id to create the service in (get_project lists them)."),
         name: z.string().min(1).describe("Service name, also used for its *.naijacloud.app subdomain."),
-        type: z.enum(["web", "cron"]).default("web").describe("web (serves HTTP) or cron (runs on a schedule)."),
+        type: z
+          .enum(["web", "worker", "cron"])
+          .default("web")
+          .describe("web (serves HTTP), worker (runs all the time, no port or URL) or cron (runs on a schedule)."),
         repoFullName: z.string().min(1).optional().describe("owner/repo, built through the GitHub App."),
         gitUrl: z.string().min(1).optional().describe("Public https git URL, e.g. https://github.com/acme/api."),
         image: z.string().min(1).optional().describe("Docker image reference, e.g. ghcr.io/acme/api:1.8.0."),
@@ -543,7 +547,17 @@ export function createServer(): McpServer {
           return fail("create_service creates a real service and starts a build. Re-invoke with confirm=true.");
         }
         const source = pickSource({ repo: input.repoFullName, git: input.gitUrl, image: input.image });
-        const type = input.type === "cron" ? "CRON" : "WEB";
+        const type = input.type === "cron" ? "CRON" : input.type === "worker" ? "WORKER" : "WEB";
+        if (type === "WORKER") {
+          if (!input.tier || appTierOrFree(input.tier) === "FREE") {
+            return fail("A background worker has no Free size. Pass tier: starter, pro or pro-max.");
+          }
+          if (input.port !== undefined) return fail("A background worker serves no traffic, so port does not apply.");
+          if (input.schedule) return fail("A background worker runs all the time. For a schedule, use type cron.");
+          if (source.sourceType !== "DOCKER_IMAGE" && !input.startCommand?.trim()) {
+            return fail("A background worker built from a repository needs startCommand, e.g. 'celery -A app worker'.");
+          }
+        }
         if (type === "CRON" && !input.schedule) return fail("A cron job needs a schedule, e.g. '0 3 * * *'.");
         if (type === "CRON" && source.sourceType !== "DOCKER_IMAGE" && !input.startCommand?.trim()) {
           return fail("A cron job built from a repository needs startCommand, the command run on each schedule.");
