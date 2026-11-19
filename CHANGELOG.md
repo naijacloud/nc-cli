@@ -7,6 +7,24 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+### Added
+
+- `naijacloud logs [service]`, a web service's runtime logs — what the running
+  app prints, from the same stream as the dashboard's Logs tab (TGL-1551):
+  - without `--follow` it prints the last 100 lines and exits (`--limit` up
+    to 500);
+  - `--follow` (`-f`) prints the recent lines and keeps following until Ctrl-C,
+    reconnecting on its own when the link drops and never printing a line twice;
+  - `--timestamps` puts each line after its time; `--json` prints one JSON
+    object per line.
+  It takes the login session, not an `nc_live_` API key, which the log stream
+  does not accept, and needs Node.js 22 or newer for its WebSocket client.
+- `naijacloud env pull [file]` writes a service's variables to `.env.local` (or
+  `file`) in dotenv format, for running the app locally (TGL-1551). Only the
+  variables the service's environment receives are written. It lists the keys
+  and asks before writing, warns when the file exists or git would commit it,
+  needs `--yes` (`-y`) without a terminal, and writes the file with mode 0600.
+
 ## [1.8.1] - 2026-11-02
 
 ### Fixed
