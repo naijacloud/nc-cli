@@ -33,7 +33,7 @@ on:
 
 permissions:
   contents: write # create the release and upload assets
-  id-token: write # npm provenance
+  id-token: write # npm Trusted Publishing (OIDC) and provenance
 
 env:
   # Pinned so every platform's binary embeds the same runtime, rather than
@@ -134,12 +134,6 @@ jobs:
     needs: [binaries, smoke]
     runs-on: ubuntu-latest
 
-    # Hoisted to the job because a step's own `env:` block is not reliably
-    # visible to that same step's `if:`. Declared here, the guard below is
-    # unambiguous — otherwise a configured token could still silently skip.
-    env:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -234,11 +228,16 @@ jobs:
             --generate-notes \
             dist-bin/*.tar.gz dist-bin/*.zip dist-bin/*checksums.txt dist-pkg/*
 
+      # npm Trusted Publishing: npm trusts this repository's release.yml
+      # (configured on the package's npmjs.com settings), and this job proves
+      # it is that workflow with its GitHub OIDC token (`id-token: write`).
+      # No NPM_TOKEN to store, rotate or leak. 1.9.0 never reached npm because
+      # the 90-day token had expired. Needs npm 11.5.1+, newer than Node 22's.
       - name: Publish to npm
-        if: ${{ env.NPM_TOKEN != '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+        run: |
+          npm install -g npm@11.6.2
+          npm --version
+          npm publish --provenance --access public
 
       # Handed to the `package-managers` job below, which runs after this one
       # has already published, so a bad tap token can no longer hold up npm or
