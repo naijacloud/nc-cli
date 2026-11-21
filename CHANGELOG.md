@@ -7,6 +7,17 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-11-21
+
+### Fixed
+
+- `naijacloud db query` crashed with "Cannot read properties of undefined
+  (reading 'length')" on every statement that returned a row, with or without
+  `--json`. Since the move to the public `/v1` API the server returns each row
+  as a plain array, and the CLI still read the old `{ cells: [...] }` shape.
+  The grid, `--json` and the MySQL/MariaDB trailing-row cleanup now read the
+  `/v1` shape. Affects 1.8.1 and 1.9.0.
+
 ## [1.9.0] - 2026-11-19
 
 ### Added
@@ -269,7 +280,8 @@ are described by their GitHub release notes.
 - `login --token` is documented for a workspace API key (`nc_live_…`, from
   Settings → API keys), the credential to use in CI.
 
-[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/naijacloud/nc-cli/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/naijacloud/nc-cli/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/naijacloud/nc-cli/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/naijacloud/nc-cli/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/naijacloud/nc-cli/compare/v1.7.0...v1.8.0
