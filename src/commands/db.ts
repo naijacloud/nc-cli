@@ -116,7 +116,7 @@ function report(result: DbQueryResult, json: boolean): void {
   if (json) {
     printJson({
       columns: result.columns,
-      rows: result.rows.map((row) => row.cells),
+      rows: result.rows,
       rowCount: result.rowCount,
       truncated: result.truncated,
       message: result.message,
@@ -129,7 +129,7 @@ function report(result: DbQueryResult, json: boolean): void {
   for (const notice of result.notices) write(`NOTICE: ${notice}\n`);
 
   if (result.columns.length > 0) {
-    printGrid(result.columns, result.rows.map((row) => row.cells));
+    printGrid(result.columns, result.rows);
   }
 
   // A statement with no result set still has an outcome worth printing —

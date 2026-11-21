@@ -6,9 +6,11 @@
  * and no transaction wrapper to hide behind: the guardrails are the caller's
  * job, and they live in `src/commands/db.ts`.
  *
- * Results come back as a rectangle — `columns` names them, each `DbRow.cells`
- * holds one row's values as already-stringified text, with null preserved as a
- * genuine null so an empty string and a NULL stay distinguishable.
+ * Results come back as a rectangle — `columns` names them, and each entry of
+ * `rows` is one row's values in column order (the `/v1` shape: an array per
+ * row, not the GraphQL `{ cells }` object), as already-stringified text with
+ * null preserved as a genuine null so an empty string and a NULL stay
+ * distinguishable.
  */
 
 import { authed, authedList } from "./transport.js";
@@ -17,7 +19,8 @@ import type { ServiceType } from "./types.js";
 
 export interface DbQueryResult {
   columns: string[];
-  rows: { cells: (string | null)[] }[];
+  /** One array per row, cells in column order; null is SQL NULL. */
+  rows: (string | null)[][];
   rowCount: number;
   /** True when the platform capped the result at `maxRows`. */
   truncated: boolean;
@@ -54,8 +57,8 @@ function stripPhantomRow(result: DbQueryResult): DbQueryResult {
 
   const isArtifact =
     last !== undefined &&
-    last.cells.length === 1 &&
-    (last.cells[0] ?? "") === "" &&
+    last.length === 1 &&
+    (last[0] ?? "") === "" &&
     (result.columns.length !== 1 || rows.length > 0);
 
   if (!isArtifact) return result;
