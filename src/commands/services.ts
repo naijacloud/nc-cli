@@ -299,14 +299,14 @@ const SERVICE_TYPES: Record<string, ServiceType> = {
 export function workerTier(raw: string | undefined): ServiceTier {
   if (raw === undefined) {
     throw new Error(
-      "A background worker has no Free size, so --tier is required: --tier starter, pro or pro-max.",
+      "A background worker has no Free size, so --tier is required: --tier starter, pro, pro-max or pro-ultra.",
     );
   }
   const tier = appTierOrFree(raw);
   if (tier === "FREE") {
     throw new Error(
       "A background worker has no Free size: it runs all the time, and Free services sleep when idle. " +
-        "Use --tier starter, pro or pro-max.",
+        "Use --tier starter, pro, pro-max or pro-ultra.",
     );
   }
   return tier;

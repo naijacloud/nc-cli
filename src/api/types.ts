@@ -58,19 +58,20 @@ export type SourceType = "GITHUB_APP" | "PUBLIC_GIT" | "DOCKER_IMAGE";
  * Resource sizes a service can be created at, as the API spells them.
  *
  * **These are storage values, not product names.** The pricing page calls
- * STANDARD "Pro" and PRO "Pro Max" (and a database's STARTER "Dev"); the
+ * STANDARD "Pro", PRO "Pro Max" and PRO_PLUS "Pro Ultra" (and a database's
+ * STARTER "Dev"); the
  * mapping lives in `src/tiers.ts` and nothing shown to a user may print these
  * raw. Omitting the tier makes the API create a paid STARTER, so every create
  * path sends one.
  */
-export type ServiceTier = "FREE" | "STARTER" | "STANDARD" | "PRO";
+export type ServiceTier = "FREE" | "STARTER" | "STANDARD" | "PRO" | "PRO_PLUS";
 
 /** One published size and its monthly price, from `getPricingCatalog`. */
 export interface ServiceTierPrice {
   /** `compute` (web, cron), `sql` (databases) or `keyvalue` (Redis, Valkey). */
   family: string;
   tier: ServiceTier;
-  /** The product name: Free, Starter/Dev, Pro, Pro Max. */
+  /** The product name: Free, Starter/Dev, Pro, Pro Max, Pro Ultra. */
   label: string;
   memoryMb: number;
   cpuMillicores: number;

@@ -313,7 +313,7 @@ export interface FunctionsDeployOptions {
   env: string | undefined;
   file: string | undefined;
   entry: string | undefined;
-  /** `--tier` as typed: free, starter, pro or pro-max. */
+  /** `--tier` as typed: free, starter, pro, pro-max or pro-ultra. */
   tier: string | undefined;
   json: boolean;
   /** The arguments after `functions`, as typed, for the recorded command. */

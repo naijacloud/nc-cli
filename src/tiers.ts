@@ -12,6 +12,7 @@
  * | `STARTER`  | Starter    | Dev              |
  * | `STANDARD` | Pro        | Pro              |
  * | `PRO`      | Pro Max    | Pro Max          |
+ * | `PRO_PLUS` | Pro Ultra  | Pro Ultra        |
  *
  * This file is the one place the CLI maps between them, and nothing printed to a
  * user may show the raw value — "standard" is not a size anyone can buy.
@@ -26,10 +27,10 @@ import type { ServiceTier, ServiceTierPrice, ServiceType } from "./api/index.js"
 export type TierFamily = "compute" | "data";
 
 export interface TierName {
-  /** What is typed on the command line: `free`, `starter`, `pro`, `pro-max`. */
+  /** What is typed on the command line: `free`, `starter`, `pro`, `pro-max`, `pro-ultra`. */
   name: string;
   tier: ServiceTier;
-  /** What is shown: Free, Starter, Pro, Pro Max. */
+  /** What is shown: Free, Starter, Pro, Pro Max, Pro Ultra. */
   label: string;
 }
 
@@ -38,6 +39,7 @@ const COMPUTE_TIERS: readonly TierName[] = [
   { name: "starter", tier: "STARTER", label: "Starter" },
   { name: "pro", tier: "STANDARD", label: "Pro" },
   { name: "pro-max", tier: "PRO", label: "Pro Max" },
+  { name: "pro-ultra", tier: "PRO_PLUS", label: "Pro Ultra" },
 ];
 
 const DATA_TIERS: readonly TierName[] = [
@@ -45,13 +47,16 @@ const DATA_TIERS: readonly TierName[] = [
   { name: "dev", tier: "STARTER", label: "Dev" },
   { name: "pro", tier: "STANDARD", label: "Pro" },
   { name: "pro-max", tier: "PRO", label: "Pro Max" },
+  // Postgres and the other SQL engines; the API refuses it for Redis and
+  // Valkey, which stop at Pro Max.
+  { name: "pro-ultra", tier: "PRO_PLUS", label: "Pro Ultra" },
 ];
 
 export function tiersFor(family: TierFamily): readonly TierName[] {
   return family === "compute" ? COMPUTE_TIERS : DATA_TIERS;
 }
 
-/** `free|starter|pro|pro-max`, for help text and errors. */
+/** `free|starter|pro|pro-max|pro-ultra`, for help text and errors. */
 export function tierChoices(family: TierFamily): string {
   return tiersFor(family)
     .map((entry) => entry.name)
@@ -64,7 +69,7 @@ export function tierChoices(family: TierFamily): string {
  * different sizes depending on who wrote the script.
  */
 export function parseTier(raw: string, family: TierFamily): ServiceTier {
-  const normalised = raw.trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/^promax$/, "pro-max");
+  const normalised = raw.trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/^promax$/, "pro-max").replace(/^proultra$/, "pro-ultra");
   const found = tiersFor(family).find((entry) => entry.name === normalised);
   if (!found) {
     const names = tiersFor(family).map((entry) => entry.name);

@@ -304,6 +304,7 @@ billed hourly from your prepaid balance. The sizes are:
 | `dev`     | —                  | Dev                  |
 | `pro`     | Pro                | Pro                  |
 | `pro-max` | Pro Max            | Pro Max              |
+| `pro-ultra` | Pro Ultra (4 GB) | Pro Ultra (databases only, not Redis or Valkey) |
 
 ### It asks for your `.env`
 
@@ -400,7 +401,7 @@ built from a repository and a paid `--tier`, because a worker has no Free size.
 
 `services create` also takes `--type cron --schedule "0 3 * * *" --command <cmd>`,
 `--root-dir` for a monorepo, `--runtime-version`, `--health-check`, `--region`,
-`--tier free|starter|pro|pro-max` and `--no-wait`.
+`--tier free|starter|pro|pro-max|pro-ultra` and `--no-wait`.
 
 Without `--tier` it creates a **Free** service. If the account's free app is
 already in use it fails without creating anything and lists the paid sizes with
@@ -412,6 +413,7 @@ Nothing was created. Name a paid size to create it anyway:
   --tier starter  Starter  ₦…/month · 512 MB · 0.5 vCPU
   --tier pro      Pro      ₦…/month · 1 GB · 1 vCPU
   --tier pro-max  Pro Max  ₦…/month · 2 GB · 2 vCPU
+  --tier pro-ultra  Pro Ultra  ₦…/month · 4 GB · 2 vCPU
 ```
 
 ### A web service comes from a repository
@@ -978,7 +980,7 @@ naijacloud functions delete hello --project shop
   (or `--service shop/functions-runtime`). With functions in several of the
   project's environments, add `--env prod` to pick one.
 - **Size:** all of an environment's functions run in one functions runtime.
-  `--tier <free|starter|pro|pro-max>` sets its size on the first deploy;
+  `--tier <free|starter|pro|pro-max|pro-ultra>` sets its size on the first deploy;
   without it the runtime is Free while your workspace has its one free
   runtime. A Free runtime sleeps when idle and wakes on the next call.
 - **Logs:** live logs are in the dashboard, where each line a function prints
