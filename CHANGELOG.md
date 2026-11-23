@@ -7,6 +7,15 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-23
+
+### Added
+
+- `--tier pro-ultra`: the new Pro Ultra size, 4 GB of memory and 2 vCPU, for
+  apps, cron jobs, workers, functions and databases (`services create`,
+  `functions deploy`, and the MCP tools). Redis and Valkey stop at Pro Max;
+  the API refuses Pro Ultra for them.
+
 ## [1.9.1] - 2026-11-21
 
 ### Fixed
