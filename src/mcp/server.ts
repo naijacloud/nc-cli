@@ -534,7 +534,7 @@ export function createServer(): McpServer {
         schedule: z.string().optional().describe("Cron expression; required for type cron, e.g. '0 3 * * *'."),
         port: z.number().int().min(1).max(65535).optional().describe("Port the web service listens on."),
         tier: z
-          .enum(["free", "starter", "pro", "pro-max"])
+          .enum(["free", "starter", "pro", "pro-max", "pro-ultra"])
           .default("free")
           .describe("Size. Free unless a paid size is named; prices at naijacloud.com/pricing."),
         confirm: z.boolean().describe("Must be true: this creates a service and starts a build."),
@@ -550,7 +550,7 @@ export function createServer(): McpServer {
         const type = input.type === "cron" ? "CRON" : input.type === "worker" ? "WORKER" : "WEB";
         if (type === "WORKER") {
           if (!input.tier || appTierOrFree(input.tier) === "FREE") {
-            return fail("A background worker has no Free size. Pass tier: starter, pro or pro-max.");
+            return fail("A background worker has no Free size. Pass tier: starter, pro, pro-max or pro-ultra.");
           }
           if (input.port !== undefined) return fail("A background worker serves no traffic, so port does not apply.");
           if (input.schedule) return fail("A background worker runs all the time. For a schedule, use type cron.");
@@ -764,7 +764,7 @@ export function createServer(): McpServer {
           .describe("Environment id. Omit for the project's production environment (production, else prod, else its oldest)."),
         entrypoint: z.string().min(1).optional().describe("A folder's entry file, if not index.ts."),
         tier: z
-          .enum(["free", "starter", "pro", "pro-max"])
+          .enum(["free", "starter", "pro", "pro-max", "pro-ultra"])
           .optional()
           .describe(
             "Size of the functions runtime, used only when this deploy creates it. Without it " +

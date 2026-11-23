@@ -137,7 +137,7 @@ Launch options
   --dotenv <path>              Seed the new service from this .env
   --no-env-file                Do not look for or ask about a .env
   --no-wait                    Return once the first build is queued
-  --tier <free|starter|pro|pro-max>
+  --tier <free|starter|pro|pro-max|pro-ultra>
                                Size of a web service or cron job (default free)
 
   Walks team → project → environment → service, creating each level that does
@@ -190,7 +190,7 @@ Services create options
   --runtime-version <version>  Runtime version, when not the default
   --health-check <path>        HTTP path polled for health
   --region <key>               Region, when not the team's default
-  --tier <free|starter|pro|pro-max>
+  --tier <free|starter|pro|pro-max|pro-ultra>
                                Size (default free; a worker has no Free size).
                                Prices: naijacloud.com/pricing
   --dotenv <path>              Seed the service with this .env
@@ -294,7 +294,7 @@ Functions options
   --file <path>                deploy: a .ts/.js/.mjs file, or a folder
   --entry <file>               deploy: the folder's entry file (default index.ts,
                                then index.js, index.mjs)
-  --tier <free|starter|pro|pro-max>
+  --tier <free|starter|pro|pro-max|pro-ultra>
                                deploy: size of the functions runtime, used on
                                the first deploy; without it the runtime is Free
                                while your workspace has its one free runtime

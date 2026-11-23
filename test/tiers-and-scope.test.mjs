@@ -48,26 +48,31 @@ test("--tier maps the product names onto the API's enum", async () => {
   assert.equal(parseTier("PRO_MAX", "compute"), "PRO");
   assert.equal(parseTier("dev", "data"), "STARTER");
   assert.equal(parseTier("pro", "data"), "STANDARD");
+  // Pro Ultra, 4 GB (TGL-2732).
+  assert.equal(parseTier("pro-ultra", "compute"), "PRO_PLUS");
+  assert.equal(parseTier("Pro Ultra", "compute"), "PRO_PLUS");
+  assert.equal(parseTier("proultra", "data"), "PRO_PLUS");
 });
 
 test("'standard' is not a size, and the error lists only real ones", async () => {
   const { parseTier } = await import("../build/tiers.js");
   assert.throws(() => parseTier("standard", "compute"), (error) => {
-    assert.match(error.message, /must be free, starter, pro or pro-max/);
+    assert.match(error.message, /must be free, starter, pro, pro-max or pro-ultra/);
     assert.doesNotMatch(error.message.replace("'standard'", ""), /standard/i);
     return true;
   });
-  assert.throws(() => parseTier("starter", "data"), /free, dev, pro or pro-max/);
+  assert.throws(() => parseTier("starter", "data"), /free, dev, pro, pro-max or pro-ultra/);
 });
 
 test("no label shown to a user is the API's raw value", async () => {
   const { tierLabel } = await import("../build/tiers.js");
-  for (const tier of ["FREE", "STARTER", "STANDARD", "PRO"]) {
+  for (const tier of ["FREE", "STARTER", "STANDARD", "PRO", "PRO_PLUS"]) {
     assert.doesNotMatch(tierLabel(tier, "compute"), /standard/i);
     assert.doesNotMatch(tierLabel(tier, "data"), /standard/i);
   }
   assert.equal(tierLabel("STANDARD", "compute"), "Pro");
   assert.equal(tierLabel("PRO", "compute"), "Pro Max");
+  assert.equal(tierLabel("PRO_PLUS", "compute"), "Pro Ultra");
   assert.equal(tierLabel("STARTER", "data"), "Dev");
 });
 
