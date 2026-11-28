@@ -7,6 +7,18 @@ are described by their GitHub release notes.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-28
+
+### Added
+
+- `requests [service]`: a web service's recent requests, newest first, any
+  status — method, status, time taken and path. Filter with `--path <prefix>`,
+  `--route <route>`, `--method`, `--status 2xx|3xx|4xx|404|5xx`,
+  `--since 30m|1h|6h|24h|7d|30d` and `--limit` (up to 200). Shows whether a
+  webhook or a call reached the app when its own logs say nothing. Works with
+  an API key.
+- MCP tool `get_service_requests`, the same list for agents.
+
 ## [1.10.0] - 2026-11-23
 
 ### Added
