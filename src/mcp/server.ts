@@ -46,6 +46,7 @@ import type { EnvTarget, ServiceEnvVar } from "../api/index.js";
 import { scopeForService } from "../commands/env.js";
 import { deployFunction } from "../commands/functions.js";
 import { pickSource } from "../commands/services.js";
+import { getServiceRequests } from "../api/requests.js";
 import { appTierOrFree, parseTier } from "../tiers.js";
 
 const SERVER_NAME = "naijacloud";
@@ -420,6 +421,56 @@ export function createServer(): McpServer {
           returnedLines: selected.length,
           logs: selected,
         });
+      }),
+  );
+
+  server.registerTool(
+    "get_service_requests",
+    {
+      title: "Get a service's recent requests",
+      description:
+        "List a web service's recent HTTP requests, newest first, every status: method, " +
+        "path, status code, time taken and when. Read-only. Use it to see whether a " +
+        "webhook or an API call actually reached the app and what the app answered " +
+        "(the app's own logs may say nothing). Filter by path prefix, method and status.",
+      inputSchema: {
+        serviceId: z.string().min(1).describe("The web service's id."),
+        pathPrefix: z
+          .string()
+          .startsWith("/")
+          .optional()
+          .describe("Only paths starting with this, e.g. /api/v1/webhooks."),
+        method: z
+          .enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+          .optional(),
+        status: z
+          .enum(["OK", "REDIRECTED", "NOT_FOUND", "CLIENT_ERROR", "FAILED"])
+          .optional()
+          .describe("OK 2xx, REDIRECTED 3xx, NOT_FOUND 404, CLIENT_ERROR any 4xx, FAILED 5xx."),
+        range: z
+          .enum(["LAST_30_MIN", "LAST_HOUR", "LAST_6H", "LAST_24H", "LAST_7D", "LAST_30D"])
+          .optional()
+          .describe("How far back. Default LAST_24H."),
+        limit: z.number().int().min(1).max(200).optional().describe("Default 50."),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ serviceId, pathPrefix, method, status, range, limit }) =>
+      await run(async () => {
+        const list = await getServiceRequests(serviceId, {
+          pathPrefix,
+          method,
+          status,
+          range,
+          limit,
+        });
+        if (!list.available) {
+          return ok("Request history isn't available right now. Try again in a minute.");
+        }
+        if (list.data.length === 0) {
+          return ok("No requests match those filters in that time range.");
+        }
+        return ok({ serviceId, count: list.data.length, requests: list.data });
       }),
   );
 
