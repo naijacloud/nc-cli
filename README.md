@@ -744,6 +744,24 @@ naijacloud logs api -f --json | jq   # one JSON object per line
 twice. The stream takes your login session (`naijacloud login`), not an
 `nc_live_` API key, and needs Node.js 22 or newer (or the standalone binary).
 
+### Recent requests
+
+`requests` lists what reached a web service and what it answered, newest first,
+any status — the same data as the dashboard's Observability tab. Use it to see
+whether a webhook or a call arrived when the app's own logs say nothing. It
+works with a login session or an `nc_live_` API key; the MCP tool is
+`get_service_requests`.
+
+```bash
+naijacloud requests api                                   # the last 24 hours, 50 requests
+naijacloud requests api --path /api/v1/webhooks --since 7d
+naijacloud requests api --method POST --status 4xx        # 2xx, 3xx, 4xx, 404, 5xx
+naijacloud requests api --route /orders/:id --limit 200   # a folded route, exactly
+naijacloud requests api --json | jq '.data[] | {at, status, path}'
+```
+
+Requests are kept 14 days. `--since` takes 30m, 1h, 6h, 24h, 7d or 30d.
+
 ### The database console
 
 ```bash

@@ -66,6 +66,7 @@ const GROUPS: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, st
       ["services ls|show|create", "Services this account can reach"],
       ["deployments ls|show|logs", "Deployment history and build output"],
       ["logs [service] [-f]", "A service's runtime logs; -f keeps following"],
+      ["requests [service]", "A web service's recent requests and what it answered"],
       ["cancel <deployment>", "Stop an in-flight deployment"],
       ["rollback <deployment>", "Put an earlier deployment's image back live"],
       ["env ls|set|rm|import|pull", "Environment variables on a service"],
@@ -556,6 +557,18 @@ const COMMANDS: Record<string, CommandSpec> = {
       "logs [service] [--follow|-f] [--limit <n>] [--timestamps] [--json]\n\n" +
       "  A web service's runtime logs. Without a service, the one naijacloud.json names.",
     sections: ["Logs options"],
+  },
+  requests: {
+    booleans: ["json"],
+    values: ["service", "project", "since", "path", "route", "method", "status", "limit"],
+    maxPositionals: 1,
+    synopsis:
+      "requests [service] [--path <prefix>] [--method <m>] [--status 2xx|3xx|4xx|404|5xx]\n" +
+      "         [--since 30m|1h|6h|24h|7d|30d] [--limit <n>] [--json]\n\n" +
+      "  A web service's recent requests, newest first, any status: did a webhook or a\n" +
+      "  call reach the app, and what did it answer. --path matches paths that start\n" +
+      "  with it; --route matches a folded route exactly (/orders/:id). Default: the\n" +
+      "  last 24 hours, 50 requests (at most 200). Works with an API key.",
   },
   domains: {
     booleans: ["json", "yes"],
@@ -1252,6 +1265,28 @@ async function main(): Promise<void> {
         follow: flags.has("follow"),
         limit: count(flags, "limit"),
         timestamps: flags.has("timestamps"),
+        json: flags.has("json"),
+      });
+      return;
+    }
+
+    case "requests": {
+      const { flags, positionals } = parsed;
+      const { requests } = await import("./commands/requests.js");
+      const named = positionals[0];
+      const flagged = value(flags, "service");
+      if (named !== undefined && flagged !== undefined && named !== flagged) {
+        throw new UsageError(`Name the service once: '${named}' or --service ${flagged}, not both.`);
+      }
+      await requests({
+        service: named ?? flagged,
+        project: value(flags, "project"),
+        since: value(flags, "since"),
+        path: value(flags, "path"),
+        route: value(flags, "route"),
+        method: value(flags, "method"),
+        status: value(flags, "status"),
+        limit: count(flags, "limit"),
         json: flags.has("json"),
       });
       return;
